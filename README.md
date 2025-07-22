@@ -34,7 +34,7 @@
 
 ### 下载安装包
 
-从 [Releases](https://github.com/your-username/miaoda/releases) 页面下载对应平台的安装包：
+从 [Releases](https://github.com/miounet11/claude-code-manager/releases) 页面下载对应平台的安装包：
 
 - **macOS**: 下载 `.dmg` 文件
 - **Windows**: 下载 `.exe` 安装包或便携版
@@ -48,8 +48,8 @@
 
 #### 安装依赖
 ```bash
-git clone https://github.com/your-username/miaoda.git
-cd miaoda
+git clone https://github.com/miounet11/claude-code-manager.git
+cd claude-code-manager
 npm install
 ```
 
@@ -160,8 +160,8 @@ miaoda/
 
 ## 联系方式
 
-- 问题反馈: [GitHub Issues](https://github.com/your-username/miaoda/issues)
-- 技术支持: support@miaoda.com
+- 问题反馈: [GitHub Issues](https://github.com/miounet11/claude-code-manager/issues)
+- 技术支持: 9248293@gmail.com
 
 ---
 
