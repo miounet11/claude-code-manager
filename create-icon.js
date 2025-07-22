@@ -1,0 +1,16 @@
+const fs = require('fs');
+const path = require('path');
+
+const svg = `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#000000"/>
+  <text x="256" y="200" font-family="Consolas, monospace" font-size="120" font-weight="bold" text-anchor="middle" fill="#00ff00">M</text>
+  <rect x="100" y="250" width="312" height="180" fill="none" stroke="#00ff00" stroke-width="8"/>
+  <text x="256" y="350" font-family="Consolas, monospace" font-size="48" text-anchor="middle" fill="#c0c0c0">Miaoda</text>
+  <circle cx="130" cy="280" r="12" fill="#ff0000"/>
+  <circle cx="160" cy="280" r="12" fill="#ffff00"/>
+  <circle cx="190" cy="280" r="12" fill="#00ff00"/>
+</svg>`;
+
+fs.writeFileSync(path.join(__dirname, 'assets', 'icon.svg'), svg);
+console.log('图标已创建: assets/icon.svg');
+console.log('请使用图标转换工具将 SVG 转换为 PNG 和 ICNS 格式');

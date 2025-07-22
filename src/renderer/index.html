@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
+  <title>Miaoda - Claude Code Manager</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="terminal.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>Miaoda</h1>
+      <div class="header-subtitle">Claude Code Manager</div>
+    </header>
+
+    <main class="main-container">
+      <aside class="sidebar">
+        <section class="section">
+          <h2>环境状态</h2>
+          <div id="environment-status" class="status-list">
+            <div class="status-item">
+              <span class="status-name">Node.js</span>
+              <span class="status-value" data-env="nodejs">检查中...</span>
+            </div>
+            <div class="status-item">
+              <span class="status-name">Git</span>
+              <span class="status-value" data-env="git">检查中...</span>
+            </div>
+            <div class="status-item">
+              <span class="status-name">UV</span>
+              <span class="status-value" data-env="uv">检查中...</span>
+              <button class="btn btn-small install-btn" data-dep="uv" style="display: none;">安装</button>
+            </div>
+            <div class="status-item">
+              <span class="status-name">Claude Code</span>
+              <span class="status-value" data-env="claude">检查中...</span>
+              <button class="btn btn-small install-btn" data-dep="claude" style="display: none;">安装</button>
+            </div>
+          </div>
+          <button id="check-env-btn" class="btn btn-primary">检查环境</button>
+        </section>
+
+        <section class="section">
+          <h2>配置管理</h2>
+          <div id="config-list" class="config-list"></div>
+          <button id="new-config-btn" class="btn btn-primary">新建配置</button>
+          <button id="start-claude-btn" class="btn btn-primary" style="display: none;">启动 Claude Code</button>
+          <button id="export-config-btn" class="btn btn-secondary">导出配置</button>
+          <button id="import-config-btn" class="btn btn-secondary">导入配置</button>
+          <button id="restore-default-btn" class="btn btn-secondary">恢复官方设置</button>
+        </section>
+      </aside>
+
+      <div class="content">
+        <div id="config-form" class="config-form" style="display: none;">
+          <h2>配置编辑</h2>
+          <form id="config-edit-form">
+            <input type="hidden" id="config-id">
+            
+            <div class="form-group">
+              <label for="config-name">配置名称</label>
+              <input type="text" id="config-name" required>
+            </div>
+
+            <div class="form-group">
+              <label for="api-url">API URL</label>
+              <input type="url" id="api-url" placeholder="https://api.example.com" required>
+            </div>
+
+            <div class="form-group">
+              <label for="api-key">API Key</label>
+              <input type="password" id="api-key" placeholder="输入你的 API Key" required>
+            </div>
+
+            <div class="form-group">
+              <label for="model">模型</label>
+              <select id="model" required>
+                <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+                <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="proxy-port">代理端口</label>
+              <input type="number" id="proxy-port" value="8082" min="1024" max="65535" required>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">保存配置</button>
+              <button type="button" id="cancel-config-btn" class="btn btn-secondary">取消</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="terminal-container" class="terminal-container">
+          <div class="terminal-header">
+            <h2>终端</h2>
+            <div class="terminal-actions">
+              <button id="clear-terminal-btn" class="btn btn-small">清空</button>
+              <button id="copy-terminal-btn" class="btn btn-small">复制</button>
+            </div>
+          </div>
+          <div id="terminal"></div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-status" id="status-message">就绪</div>
+      <div class="footer-version">Miaoda v1.0.0</div>
+    </footer>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
