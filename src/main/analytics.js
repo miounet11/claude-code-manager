@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const os = require('os');
 
 const analyticsStore = new Store({ name: 'analytics' });
-const API_BASE_URL = process.env.MIAODA_API_BASE_URL || 'https://api.example.com';
+const API_BASE_URL = process.env.MIAODA_API_BASE_URL || 'https://api.iclaudecode.cn';
 
 class Analytics {
   constructor() {
@@ -151,7 +151,10 @@ class Analytics {
             user_id: this.userId,
             device_id: this.deviceId,
             date: date,
-            summary: dailyData
+            summary: dailyData,
+            app_version: require('electron').app.getVersion(),
+            platform: process.platform,
+            app_name: 'Miaoda'
           });
         }
       }
