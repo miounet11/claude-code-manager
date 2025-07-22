@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const os = require('os');
 
 const analyticsStore = new Store({ name: 'analytics' });
-const API_BASE_URL = 'https://api.iclaudecode.cn';
+const API_BASE_URL = process.env.MIAODA_API_BASE_URL || 'https://api.example.com';
 
 class Analytics {
   constructor() {
@@ -177,8 +177,9 @@ class Analytics {
         client_time: new Date().toISOString()
       });
 
+      const apiUrl = new URL(API_BASE_URL);
       const options = {
-        hostname: 'api.iclaudecode.cn',
+        hostname: apiUrl.hostname,
         path: '/api/analytics/batch',
         method: 'POST',
         headers: {

@@ -161,7 +161,7 @@ miaoda/
 ## 联系方式
 
 - 问题反馈: [GitHub Issues](https://github.com/miounet11/claude-code-manager/issues)
-- 技术支持: 9248293@gmail.com
+- 项目主页: https://github.com/miounet11/claude-code-manager
 
 ---
 

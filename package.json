@@ -117,8 +117,9 @@
     },
     "publish": [
       {
-        "provider": "generic",
-        "url": "https://api.iclaudecode.cn/dist"
+        "provider": "github",
+        "owner": "miounet11",
+        "repo": "claude-code-manager"
       }
     ]
   }

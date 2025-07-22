@@ -121,15 +121,19 @@ ipcMain.handle('test-ipc', async () => {
 app.whenReady().then(() => {
   createWindow();
   
-  // 初始化数据统计
-  analytics = new Analytics();
-  analytics.startSession();
-  analytics.trackPageView('main');
-  analytics.setupAutoUpload();
+  // 初始化数据统计（如果未禁用）
+  if (process.env.MIAODA_DISABLE_ANALYTICS !== 'true') {
+    analytics = new Analytics();
+    analytics.startSession();
+    analytics.trackPageView('main');
+    analytics.setupAutoUpload();
+  }
   
-  // 初始化自动更新
-  updater = new Updater(mainWindow);
-  updater.setupAutoCheck();
+  // 初始化自动更新（如果未禁用）
+  if (process.env.MIAODA_DISABLE_AUTO_UPDATE !== 'true') {
+    updater = new Updater(mainWindow);
+    updater.setupAutoCheck();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
 
-const UPDATE_CHECK_URL = 'https://api.iclaudecode.cn/updates.json';
+const UPDATE_CHECK_URL = process.env.MIAODA_UPDATE_CHECK_URL || 'https://api.example.com/updates.json';
 const CURRENT_VERSION = app.getVersion();
 
 class Updater {

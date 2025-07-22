@@ -45,6 +45,11 @@ electron-builder.yml
 # Project specific
 .claude/settings.local.json
 *.local.json
+PRIVATE_INFO.md
+PRIVATE_*
+private-*
+内部文档/
+internal-docs/
 
 # Generated icons (keep only the final ones)
 assets/icon-*.png
