@@ -102,12 +102,28 @@ body {
   color: var(--text-primary);
 }
 
+.status-value[data-status="checking"] {
+  color: var(--warning-color);
+  animation: pulse 1s infinite;
+}
+
 .status-value[data-status="installed"] {
   color: var(--success-color);
 }
 
 .status-value[data-status="not-installed"] {
   color: var(--error-color);
+}
+
+.status-value[data-status="error"] {
+  color: var(--error-color);
+  font-style: italic;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
 }
 
 .btn {
@@ -150,6 +166,18 @@ body {
 
 .btn-secondary:hover {
   color: var(--text-primary);
+}
+
+.btn-danger {
+  background-color: #330000;
+  border-color: var(--error-color);
+  color: var(--error-color);
+}
+
+.btn-danger:hover {
+  background-color: #550000;
+  border-color: #ff3333;
+  color: #ff3333;
 }
 
 .btn-small {

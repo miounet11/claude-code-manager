@@ -1,6 +1,6 @@
 {
   "name": "miaoda",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "专业的 Claude Code 部署和管理工具",
   "main": "src/main/index.js",
   "scripts": {
@@ -9,6 +9,9 @@
     "build": "electron-builder",
     "dist": "electron-builder --publish=never",
     "dist-mac": "electron-builder --mac",
+    "dist-win": "electron-builder --win",
+    "dist-win-portable": "electron-builder --win portable --x64",
+    "dist-all": "electron-builder -mw",
     "lint": "eslint src/**/*.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -27,7 +30,8 @@
     "eslint": "^8.54.0"
   },
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "electron-store": "^8.1.0",
+    "pngjs": "^7.0.0"
   },
   "build": {
     "appId": "com.miaoda.app",
@@ -44,8 +48,20 @@
       "category": "public.app-category.developer-tools",
       "icon": "assets/icon.icns",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     },
     "dmg": {
@@ -61,6 +77,49 @@
           "path": "/Applications"
         }
       ]
-    }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Miaoda"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Development"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://api.iclaudecode.cn/dist"
+      }
+    ]
   }
 }

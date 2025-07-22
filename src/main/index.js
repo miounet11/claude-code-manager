@@ -3,10 +3,14 @@
 const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
+const Analytics = require('./analytics');
+const Updater = require('./updater');
 
 const store = new Store();
 
 let mainWindow = null;
+let analytics = null;
+let updater = null;
 const isDev = process.argv.includes('--dev');
 
 function createWindow() {
@@ -30,6 +34,16 @@ function createWindow() {
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
+  
+  // 在开发模式下打开控制台输出
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('窗口加载完成');
+  });
+  
+  // 监听渲染进程的控制台消息
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`渲染进程日志 [${level}]: ${message}`);
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -50,9 +64,17 @@ function createMenu() {
               type: 'info',
               title: '关于 Miaoda',
               message: 'Miaoda - Claude Code Manager',
-              detail: '专业的 Claude Code 部署和管理工具\n版本: 1.0.0',
+              detail: `专业的 Claude Code 部署和管理工具\n版本: ${app.getVersion()}`,
               buttons: ['确定']
             });
+          }
+        },
+        {
+          label: '检查更新...',
+          click: () => {
+            if (updater) {
+              updater.checkForUpdates(false);
+            }
           }
         },
         { type: 'separator' },
@@ -90,8 +112,24 @@ function createMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+// 添加一个简单的 IPC 测试
+ipcMain.handle('test-ipc', async () => {
+  console.log('IPC 测试成功');
+  return { success: true, message: 'IPC 通信正常' };
+});
+
 app.whenReady().then(() => {
   createWindow();
+  
+  // 初始化数据统计
+  analytics = new Analytics();
+  analytics.startSession();
+  analytics.trackPageView('main');
+  analytics.setupAutoUpload();
+  
+  // 初始化自动更新
+  updater = new Updater(mainWindow);
+  updater.setupAutoCheck();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -101,7 +139,28 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // 结束会话统计
+  if (analytics) {
+    analytics.endSession();
+  }
+  
   if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+// 应用退出前上报数据
+app.on('before-quit', async (event) => {
+  if (analytics && !analytics.hasUploaded) {
+    event.preventDefault();
+    analytics.hasUploaded = true;
+    
+    try {
+      await analytics.uploadReports();
+    } catch (error) {
+      console.error('退出前上报数据失败:', error);
+    }
+    
     app.quit();
   }
 });
@@ -132,8 +191,16 @@ ipcMain.handle('delete-config', async (event, configId) => {
 });
 
 ipcMain.handle('check-environment', async () => {
-  const { checkEnvironment } = require('./environment');
-  return await checkEnvironment();
+  console.log('接收到环境检查请求');
+  try {
+    const { checkEnvironment } = require('./environment');
+    const result = await checkEnvironment();
+    console.log('环境检查结果:', result);
+    return result;
+  } catch (error) {
+    console.error('环境检查出错:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle('install-dependency', async (event, dependency) => {
@@ -146,9 +213,28 @@ ipcMain.handle('start-claude-code', async (event, config) => {
   return await startClaudeCode(config, mainWindow);
 });
 
+ipcMain.handle('stop-claude-code', async () => {
+  const { stopClaudeCode } = require('./claude-runner');
+  await stopClaudeCode();
+  return { success: true };
+});
+
 ipcMain.on('terminal-input', (event, data) => {
   const { sendInputToClaudeCode } = require('./claude-runner');
   sendInputToClaudeCode(data);
+});
+
+// 数据统计相关的IPC处理器
+ipcMain.on('track-page-view', (event, pageName) => {
+  if (analytics) {
+    analytics.trackPageView(pageName);
+  }
+});
+
+ipcMain.on('track-feature-use', (event, featureName) => {
+  if (analytics) {
+    analytics.trackFeatureUse(featureName);
+  }
 });
 
 process.on('uncaughtException', (error) => {

@@ -41,3 +41,13 @@ coverage/
 # Electron
 electron-builder.yml
 !electron-builder.json
+
+# Project specific
+.claude/settings.local.json
+*.local.json
+
+# Generated icons (keep only the final ones)
+assets/icon-*.png
+!assets/icon.png
+!assets/icon.ico
+!assets/icon.icns

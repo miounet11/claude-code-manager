@@ -3,6 +3,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // 测试 IPC
+  testIPC: () => ipcRenderer.invoke('test-ipc'),
+  
   getConfigs: () => ipcRenderer.invoke('get-configs'),
   
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
@@ -14,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   installDependency: (dependency) => ipcRenderer.invoke('install-dependency', dependency),
   
   startClaudeCode: (config) => ipcRenderer.invoke('start-claude-code', config),
+  
+  stopClaudeCode: () => ipcRenderer.invoke('stop-claude-code'),
   
   onTerminalData: (callback) => {
     ipcRenderer.on('terminal-data', (event, data) => callback(data));
@@ -33,5 +38,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     node: process.versions.node,
     chrome: process.versions.chrome,
     electron: process.versions.electron
+  },
+  
+  // 数据统计
+  trackPageView: (pageName) => {
+    ipcRenderer.send('track-page-view', pageName);
+  },
+  
+  trackFeatureUse: (featureName) => {
+    ipcRenderer.send('track-feature-use', featureName);
   }
 });

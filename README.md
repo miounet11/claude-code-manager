@@ -1,129 +1,137 @@
 # Miaoda - Claude Code Manager
 
-专业的 Claude Code 部署和管理工具，提供图形化界面管理 Claude Code 配置和环境。
+专业的 Claude Code 部署和管理工具，提供图形化界面来管理 Claude Code 的配置和环境。
+
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 ## 功能特性
 
-- 🔍 **智能环境检查** - 自动检测系统环境和依赖
-- ⚡ **一键安装部署** - 自动安装 UV、Claude Code 和代理服务
-- 💾 **多配置管理** - 支持保存和管理多个 API 配置
-- 🖥 **集成终端** - 内置终端显示 Claude Code 运行状态
-- 🎨 **PuTTY 风格界面** - 经典的黑色主题，专业简洁
-- 🔄 **一键恢复** - 快速恢复到官方默认设置
+### 🚀 核心功能
+- **环境检查**: 自动检测 Node.js、Git、UV、Claude Code 等依赖
+- **配置管理**: 支持多配置存储、切换和导入导出
+- **一键启动**: 保存配置后自动启动 Claude Code
+- **终端集成**: 内置终端，实时显示 Claude Code 输出
+- **代理服务**: 自动配置代理服务器，支持自定义 API
 
-## 系统要求
+### 📊 数据统计
+- 自动收集使用数据（匿名）
+- 本地数据聚合，批量上报
+- 支持会话统计、功能使用统计等
 
-- macOS 10.14 或更高版本
-- Node.js 16.0 或更高版本
-- Git 2.0 或更高版本
+### 🔄 自动更新
+- 应用启动时自动检查更新
+- 支持强制更新和可选更新
+- 多平台下载支持
 
-## 快速开始
+### 🎨 界面设计
+- PuTTY 风格黑色主题
+- 简洁高效的操作界面
+- 响应式布局设计
 
-### 开发环境
+## 安装使用
 
+### 下载安装包
+
+从 [Releases](https://github.com/your-username/miaoda/releases) 页面下载对应平台的安装包：
+
+- **macOS**: 下载 `.dmg` 文件
+- **Windows**: 下载 `.exe` 安装包或便携版
+
+### 从源码构建
+
+#### 环境要求
+- Node.js 16+
+- Git
+- npm 或 yarn
+
+#### 安装依赖
 ```bash
-# 克隆项目
-git clone <repository-url>
+git clone https://github.com/your-username/miaoda.git
 cd miaoda
-
-# 安装依赖
 npm install
-
-# 启动应用（开发模式）
-npm start
 ```
 
-### 构建应用
-
+#### 开发模式
 ```bash
-# 构建 Mac 应用
-npm run dist-mac
+npm run dev
+```
 
-# 构建的应用将在 dist 目录中
+#### 构建应用
+
+macOS:
+```bash
+npm run dist-mac
+```
+
+Windows:
+```bash
+npm run dist-win
+```
+
+所有平台:
+```bash
+npm run dist-all
 ```
 
 ## 使用说明
 
 ### 1. 环境检查
-- 启动应用后，点击"检查环境"按钮
-- 查看各个依赖的安装状态
-- 对于未安装的依赖，可以点击"安装"按钮
+启动应用后会自动检查系统环境，缺少的依赖会显示安装按钮。
 
 ### 2. 创建配置
-- 点击"新建配置"按钮
-- 填写配置名称、API URL、API Key 等信息
-- 选择使用的模型
-- 设置代理端口（默认 8082）
+1. 点击"新建配置"
+2. 填写配置信息：
+   - 配置名称
+   - API URL
+   - API Key
+   - 模型选择
+   - 代理端口
+3. 点击"保存配置"自动启动 Claude Code
 
-### 3. 启动服务
-- 保存配置后，点击"启动终端"按钮
-- 应用会自动安装代理服务并启动 Claude Code
-- 在新的终端窗口中使用 Claude Code
+### 3. 管理配置
+- **单击配置**: 选择并编辑配置
+- **双击配置**: 直接启动 Claude Code
+- **导入/导出**: 支持配置文件的导入导出
 
-### 4. 管理配置
-- 支持创建多个配置
-- 可以编辑、删除已保存的配置
-- 配置数据安全存储在本地
+### 4. 使用终端
+- 支持标准输入输出
+- 支持复制粘贴
+- Ctrl+C 停止运行（终端获得焦点时）
 
-### 5. 恢复设置
-- 点击"恢复官方设置"可以清除所有代理配置
-- 恢复到 Claude Code 的默认设置
+## 开发指南
 
-## 项目结构
-
+### 项目结构
 ```
 miaoda/
 ├── src/
 │   ├── main/              # 主进程代码
 │   │   ├── index.js       # 主进程入口
+│   │   ├── config.js      # 配置管理
 │   │   ├── environment.js # 环境检查
-│   │   ├── installer.js   # 依赖安装
+│   │   ├── analytics.js   # 数据统计
+│   │   ├── updater.js     # 自动更新
 │   │   └── claude-runner.js # Claude Code 运行器
 │   ├── renderer/          # 渲染进程代码
 │   │   ├── index.html     # 主界面
-│   │   ├── styles.css     # 样式文件
-│   │   └── renderer.js    # 渲染进程逻辑
+│   │   ├── renderer.js    # 渲染进程逻辑
+│   │   └── styles.css     # 样式文件
 │   └── preload/           # 预加载脚本
 │       └── preload.js     # 安全桥接
 ├── assets/                # 静态资源
-│   └── icon.svg          # 应用图标
-├── package.json          # 项目配置
-└── README.md             # 项目说明
+├── .github/               # GitHub Actions
+└── package.json           # 项目配置
 ```
 
-## 技术栈
+### 技术栈
+- **框架**: Electron
+- **UI**: 原生 HTML/CSS/JavaScript
+- **终端**: 自定义实现
+- **存储**: electron-store
+- **打包**: electron-builder
 
-- **Electron** - 跨平台桌面应用框架
-- **xterm.js** - 终端模拟器
-- **electron-store** - 本地数据存储
-- **electron-builder** - 应用打包工具
-
-## 开发指南
-
-### 代码规范
-- 使用 ESLint 进行代码检查
-- 遵循项目的代码风格指南
-- 提交前运行 `npm run lint`
-
-### 调试
-- 开发模式下会自动打开开发者工具
-- 使用 `console.log` 在主进程和渲染进程中调试
-- 查看终端输出了解运行状态
-
-## 常见问题
-
-### Q: 应用无法启动？
-A: 请确保已安装 Node.js 16+ 并运行 `npm install`
-
-### Q: 环境检查失败？
-A: 确保系统 PATH 中包含必要的命令行工具
-
-### Q: 代理连接失败？
-A: 检查防火墙设置，确保代理端口未被占用
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
+### 贡献指南
 
 1. Fork 项目
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
@@ -131,15 +139,29 @@ A: 检查防火墙设置，确保代理端口未被占用
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启 Pull Request
 
+## API 接入
+
+本应用支持数据统计上报，详见 [API接入文档](API接入文档.md)。
+
+### 数据统计端点
+- 健康检查: `GET /api/analytics/health`
+- 批量上报: `POST /api/analytics/batch`
+- 统计查询: `GET /api/stats/overview`
+
 ## 许可证
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
 ## 致谢
 
-- Electron 团队提供的优秀框架
-- xterm.js 提供的终端模拟器
-- Claude Code 团队的支持
+- [Electron](https://electronjs.org/)
+- [electron-builder](https://www.electron.build/)
+- [Claude Code](https://claude.ai/code)
+
+## 联系方式
+
+- 问题反馈: [GitHub Issues](https://github.com/your-username/miaoda/issues)
+- 技术支持: support@miaoda.com
 
 ---
 

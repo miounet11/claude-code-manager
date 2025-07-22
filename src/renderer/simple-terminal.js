@@ -113,4 +113,5 @@ class SimpleTerminal {
   }
 }
 
-module.exports = { SimpleTerminal };
+// 导出到全局作用域，供其他脚本使用
+window.SimpleTerminal = SimpleTerminal;
