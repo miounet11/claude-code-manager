@@ -40,7 +40,7 @@
 ### 🌈 颜值即正义！
 采用专业的 **PuTTY 风格黑色主题**，每一个像素都经过精心设计，让编程成为一种视觉享受！
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.0.1-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Downloads](https://img.shields.io/badge/downloads-10k+-brightgreen)
@@ -104,11 +104,11 @@
 ### 🌟 三步安装，改变人生！
 
 #### 第一步：下载神器
-👉 [**点击这里下载**](https://github.com/miounet11/claude-code-manager/releases) 👈
+👉 [**点击这里下载最新版本**](https://github.com/miounet11/claude-code-manager/releases/latest) 👈
 
-支持全平台：
-- 🍎 **macOS**: 原生支持 M1/M2/M3 芯片，性能爆表！
-- 🪟 **Windows**: 完美兼容 Win10/11，稳如泰山！
+**直接下载 v2.0.1**：
+- 🍎 [**macOS 版本**](https://github.com/miounet11/claude-code-manager/releases/download/v2.0.1/Miaoda-2.0.1-arm64.dmg) (363 MB) - 原生支持 M1/M2/M3 芯片，性能爆表！
+- 🪟 [**Windows 版本**](https://github.com/miounet11/claude-code-manager/releases/download/v2.0.1/Miaoda-Setup-2.0.1.exe) (272 MB) - 完美兼容 Win10/11，稳如泰山！
 
 #### 第二步：双击安装
 就是这么简单！无需配置，无需等待，双击即用！
