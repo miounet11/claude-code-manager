@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run dist-win-portable:*)"
+      "Bash(git add:*)"
     ],
     "deny": []
   },

@@ -36,13 +36,14 @@ class EnhancedTerminal extends SimpleTerminal {
     this.statusIndicator.className = 'terminal-status';
     this.statusIndicator.style.cssText = `
       position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 10px;
-      height: 10px;
+      top: 15px;
+      right: 15px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      background: #00ff00;
+      background: var(--success-color, #6a9955);
       transition: all 0.3s ease;
+      box-shadow: 0 0 4px var(--success-color, #6a9955);
     `;
     this.container.style.position = 'relative';
     this.container.appendChild(this.statusIndicator);
@@ -53,10 +54,10 @@ class EnhancedTerminal extends SimpleTerminal {
     this.loadingIndicator.style.cssText = `
       display: none;
       position: absolute;
-      bottom: 40px;
-      left: 10px;
-      color: #00ff00;
-      font-size: 12px;
+      bottom: 45px;
+      left: 15px;
+      color: var(--accent-color, #569cd6);
+      font-size: var(--font-size-small, 12px);
     `;
     this.loadingIndicator.innerHTML = '<span class="loading-dots">处理中...</span>';
     this.container.appendChild(this.loadingIndicator);
@@ -66,11 +67,12 @@ class EnhancedTerminal extends SimpleTerminal {
     this.shortcutHint.className = 'terminal-shortcuts';
     this.shortcutHint.style.cssText = `
       position: absolute;
-      bottom: 5px;
-      right: 10px;
-      font-size: 11px;
-      color: #666;
-      opacity: 0.7;
+      bottom: 10px;
+      right: 15px;
+      font-size: var(--font-size-small, 12px);
+      color: var(--text-secondary, #969696);
+      opacity: 0.6;
+      font-family: var(--font-family-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif);
     `;
     this.shortcutHint.innerHTML = '↑↓ 历史 | Tab 补全 | Ctrl+C 停止';
     this.container.appendChild(this.shortcutHint);
@@ -88,11 +90,11 @@ class EnhancedTerminal extends SimpleTerminal {
         animation: loading-dots 1.5s infinite;
       }
       .terminal-status.processing {
-        background: #ff9500;
+        background: var(--warning-color, #dcdcaa);
         animation: pulse 1s infinite;
       }
       .terminal-status.error {
-        background: #ff3b30;
+        background: var(--error-color, #f48771);
       }
       @keyframes pulse {
         0%, 100% { opacity: 1; }

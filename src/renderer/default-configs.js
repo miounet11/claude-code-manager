@@ -2,25 +2,25 @@
 const DEFAULT_CONFIGS = [
     {
         id: 'free-claude-trial',
-        name: '免费试用 (Claude)',
-        apiUrl: 'https://api.anthropic.com',
-        apiKey: 'trial-key-please-replace',
-        model: 'claude-3-haiku-20240307',
-        proxy: true,
-        proxyPort: 8118,
-        note: '请替换为您自己的 API Key',
+        name: '免费试用（第三方API）',
+        apiUrl: 'http://www.miaoda.vip/v1',
+        apiKey: 'sk-3vxiV5wctLaERpZ6F7ap0Ys4nh0cmE1uK9NNmYg08DcHzQ44',
+        model: 'claude-3-7-sonnet-20250219',
+        proxy: false,
+        proxyPort: 0,
+        note: '免费试用，无需配置即可使用',
         isDefault: true,
         isFree: true
     },
     {
-        id: 'openai-gpt',
-        name: 'OpenAI GPT-4',
-        apiUrl: 'https://api.openai.com',
+        id: 'official-claude',
+        name: '官方 Claude',
+        apiUrl: 'https://api.anthropic.com',
         apiKey: '',
-        model: 'gpt-4',
-        proxy: true,
-        proxyPort: 8119,
-        note: '需要 OpenAI API Key'
+        model: 'claude-3-7-sonnet-20250219',
+        proxy: false,
+        proxyPort: 0,
+        note: '需要 Anthropic API Key'
     },
     {
         id: 'local-llm',
@@ -90,6 +90,11 @@ function needsConfiguration(config) {
         return true;
     }
     
+    // 如果是免费试用配置，不需要设置
+    if (config.id === 'free-claude-trial' && config.apiKey === 'sk-3vxiV5wctLaERpZ6F7ap0Ys4nh0cmE1uK9NNmYg08DcHzQ44') {
+        return false;
+    }
+    
     // 如果是试用 key，提示需要替换
     if (config.apiKey === 'trial-key-please-replace') {
         return true;
@@ -104,6 +109,13 @@ function getConfigurationTips(config) {
     
     if (!config) {
         tips.push('请选择或创建一个配置');
+        return tips;
+    }
+    
+    // 如果是免费试用配置且配置完整，不需要提示
+    if (config.id === 'free-claude-trial' && 
+        config.apiKey === 'sk-3vxiV5wctLaERpZ6F7ap0Ys4nh0cmE1uK9NNmYg08DcHzQ44' &&
+        config.apiUrl && config.model) {
         return tips;
     }
     

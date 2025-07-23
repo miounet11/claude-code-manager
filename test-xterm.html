@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>测试 xterm.js</title>
+  <link rel="stylesheet" href="node_modules/xterm/css/xterm.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #cccccc;
+      font-family: monospace;
+    }
+    #terminal {
+      width: 800px;
+      height: 400px;
+      margin: 20px auto;
+      border: 1px solid #3c3c3c;
+    }
+    .status {
+      text-align: center;
+      margin: 10px;
+    }
+    .success { color: #6a9955; }
+    .error { color: #f48771; }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center;">xterm.js 加载测试</h1>
+  <div id="status" class="status">正在加载...</div>
+  <div id="terminal"></div>
+
+  <!-- 加载 xterm.js -->
+  <script src="node_modules/xterm/lib/xterm.js"></script>
+  <script src="node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+  
+  <script>
+    function testXterm() {
+      const statusEl = document.getElementById('status');
+      
+      try {
+        // 检查 Terminal 是否存在
+        if (typeof Terminal === 'undefined') {
+          statusEl.className = 'status error';
+          statusEl.textContent = '❌ Terminal 未定义 - xterm.js 加载失败';
+          return;
+        }
+        
+        // 创建终端实例
+        const term = new Terminal({
+          theme: {
+            background: '#1e1e1e',
+            foreground: '#cccccc'
+          }
+        });
+        
+        // 打开终端
+        term.open(document.getElementById('terminal'));
+        
+        // 检查 FitAddon
+        if (typeof FitAddon !== 'undefined') {
+          const fitAddon = new FitAddon.FitAddon();
+          term.loadAddon(fitAddon);
+          fitAddon.fit();
+          term.writeln('✓ FitAddon 加载成功');
+        } else {
+          term.writeln('✗ FitAddon 未加载');
+        }
+        
+        // 写入测试内容
+        term.writeln('欢迎使用 xterm.js!');
+        term.writeln('');
+        term.writeln('测试结果：');
+        term.writeln('✓ Terminal 对象存在');
+        term.writeln('✓ 终端创建成功');
+        term.writeln('✓ 终端渲染成功');
+        term.writeln('');
+        term.write('$ ');
+        
+        statusEl.className = 'status success';
+        statusEl.textContent = '✅ xterm.js 加载成功！';
+        
+      } catch (error) {
+        statusEl.className = 'status error';
+        statusEl.textContent = '❌ 错误: ' + error.message;
+        console.error('测试失败:', error);
+      }
+    }
+    
+    // 等待 DOM 加载完成
+    document.addEventListener('DOMContentLoaded', () => {
+      // 延迟执行，确保所有脚本加载完成
+      setTimeout(testXterm, 100);
+    });
+  </script>
+</body>
+</html>

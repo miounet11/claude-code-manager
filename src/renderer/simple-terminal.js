@@ -10,15 +10,18 @@ class SimpleTerminal {
   
   setupUI() {
     this.container.innerHTML = '';
-    this.container.style.backgroundColor = '#000';
-    this.container.style.color = '#c0c0c0';
-    this.container.style.fontFamily = 'Consolas, Monaco, monospace';
-    this.container.style.fontSize = '14px';
-    this.container.style.padding = '10px';
+    this.container.style.backgroundColor = 'var(--bg-primary, #1e1e1e)';
+    this.container.style.color = 'var(--text-primary, #cccccc)';
+    this.container.style.fontFamily = "'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace";
+    this.container.style.fontSize = 'var(--terminal-font-size, 13px)';
+    this.container.style.padding = '15px';
     this.container.style.overflow = 'auto';
     this.container.style.height = '100%';
     this.container.style.whiteSpace = 'pre-wrap';
     this.container.style.wordBreak = 'break-all';
+    this.container.style.lineHeight = '1.4';
+    this.container.style.webkitFontSmoothing = 'antialiased';
+    this.container.style.mozOsxFontSmoothing = 'grayscale';
     
     this.outputDiv = document.createElement('div');
     this.container.appendChild(this.outputDiv);
@@ -29,7 +32,7 @@ class SimpleTerminal {
     
     this.prompt = document.createElement('span');
     this.prompt.textContent = '$ ';
-    this.prompt.style.color = '#00ff00';
+    this.prompt.style.color = 'var(--accent-color, #569cd6)';
     
     this.input = document.createElement('input');
     this.input.type = 'text';
@@ -37,7 +40,7 @@ class SimpleTerminal {
     this.input.style.background = 'transparent';
     this.input.style.border = 'none';
     this.input.style.outline = 'none';
-    this.input.style.color = '#c0c0c0';
+    this.input.style.color = 'var(--text-primary, #cccccc)';
     this.input.style.fontFamily = 'inherit';
     this.input.style.fontSize = 'inherit';
     

@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   deleteConfig: (configId) => ipcRenderer.invoke('delete-config', configId),
   
+  getConfig: (key) => ipcRenderer.invoke('get-config', key),
+  
+  setConfig: (key, value) => ipcRenderer.invoke('set-config', key, value),
+  
   checkEnvironment: () => ipcRenderer.invoke('check-environment'),
   
   installDependency: (dependency) => ipcRenderer.invoke('install-dependency', dependency),
@@ -19,6 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startClaudeCode: (config) => ipcRenderer.invoke('start-claude-code', config),
   
   stopClaudeCode: () => ipcRenderer.invoke('stop-claude-code'),
+  
+  testApiConnection: (config) => ipcRenderer.invoke('test-api-connection', config),
   
   onTerminalData: (callback) => {
     ipcRenderer.on('terminal-data', (event, data) => callback(data));
@@ -48,5 +54,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   trackFeatureUse: (featureName) => {
     ipcRenderer.send('track-feature-use', featureName);
-  }
+  },
+  
+  // 外部链接
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  
+  // 检查更新
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  
+  // 系统信息
+  isAppleSilicon: process.arch === 'arm64' && process.platform === 'darwin'
 });

@@ -42,8 +42,8 @@ async function init() {
 }
 
 function setupTerminal() {
-  // 使用增强终端（如果可用），否则使用简单终端
-  const TerminalClass = window.EnhancedTerminal || window.SimpleTerminal;
+  // 优先使用 xterm.js 终端，提供最佳体验
+  const TerminalClass = window.XtermTerminal || window.EnhancedTerminal || window.SimpleTerminal;
   terminal = new TerminalClass(document.getElementById('terminal'));
   
   // 显示欢迎信息
@@ -99,6 +99,8 @@ function setupEventListeners() {
   document.getElementById('restore-default-btn').addEventListener('click', restoreDefaults);
   document.getElementById('config-edit-form').addEventListener('submit', saveConfig);
   document.getElementById('cancel-config-btn').addEventListener('click', hideConfigForm);
+  document.getElementById('test-config-btn').addEventListener('click', testConfig);
+  document.getElementById('save-and-start-btn').addEventListener('click', saveAndStartConfig);
   document.getElementById('stop-claude-btn').addEventListener('click', stopClaudeCode);
   document.getElementById('clear-terminal-btn').addEventListener('click', clearTerminal);
   document.getElementById('copy-terminal-btn').addEventListener('click', copyTerminal);
@@ -283,19 +285,30 @@ function renderConfigList() {
     }
     
     item.innerHTML = `
-      <div class="config-item-name">${config.name}</div>
-      <div class="config-item-url">${config.apiUrl}</div>
+      <div class="config-item-content">
+        <div class="config-item-name">${config.name}</div>
+        <div class="config-item-url">${config.apiUrl}</div>
+      </div>
+      <button class="btn btn-small btn-danger delete-config-btn" data-id="${config.id}" title="删除配置">删除</button>
     `;
     
-    // 单击选择配置
-    item.addEventListener('click', () => selectConfig(config));
+    // 为配置内容区域添加点击事件
+    const contentArea = item.querySelector('.config-item-content');
+    contentArea.addEventListener('click', () => selectConfig(config));
     
     // 双击直接启动
-    item.addEventListener('dblclick', async () => {
+    contentArea.addEventListener('dblclick', async () => {
       currentConfig = config;
       renderConfigList();
       updateStartButton();
       await startClaudeCode();
+    });
+    
+    // 删除按钮事件
+    const deleteBtn = item.querySelector('.delete-config-btn');
+    deleteBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await deleteConfig(config.id, config.name);
     });
     
     listEl.appendChild(item);
@@ -346,6 +359,100 @@ function showConfigForm(config) {
 function hideConfigForm() {
   document.getElementById('config-form').style.display = 'none';
   document.getElementById('terminal-container').style.display = 'flex';
+  // 隐藏测试结果
+  const testResultDiv = document.getElementById('test-result');
+  if (testResultDiv) {
+    testResultDiv.style.display = 'none';
+  }
+}
+
+async function testConfig() {
+  const testResultDiv = document.getElementById('test-result');
+  const testResultContent = testResultDiv.querySelector('.test-result-content');
+  const testBtn = document.getElementById('test-config-btn');
+  
+  // 获取当前表单中的配置
+  const config = {
+    apiUrl: document.getElementById('api-url').value,
+    apiKey: document.getElementById('api-key').value,
+    model: document.getElementById('model').value
+  };
+  
+  // 基本验证
+  if (!config.apiUrl || !config.apiKey || !config.model) {
+    testResultDiv.style.display = 'block';
+    testResultDiv.className = 'test-result error';
+    testResultContent.textContent = '请填写所有必需的配置项';
+    return;
+  }
+  
+  // 显示测试中状态
+  testBtn.disabled = true;
+  testBtn.textContent = '测试中...';
+  testResultDiv.style.display = 'block';
+  testResultDiv.className = 'test-result testing';
+  testResultContent.textContent = '正在测试连接...';
+  
+  try {
+    // 调用主进程测试 API
+    const result = await window.electronAPI.testApiConnection(config);
+    
+    if (result.success) {
+      testResultDiv.className = 'test-result success';
+      testResultContent.textContent = '✓ 连接成功！API 配置有效';
+    } else {
+      testResultDiv.className = 'test-result error';
+      testResultContent.textContent = `✗ 连接失败：${result.message || '无法连接到 API'}`;
+    }
+  } catch (error) {
+    testResultDiv.className = 'test-result error';
+    testResultContent.textContent = `✗ 测试失败：${error.message}`;
+  } finally {
+    testBtn.disabled = false;
+    testBtn.textContent = '测试连接';
+  }
+}
+
+async function saveAndStartConfig(e) {
+  if (e) e.preventDefault();
+  
+  const config = {
+    id: document.getElementById('config-id').value,
+    name: document.getElementById('config-name').value,
+    apiUrl: document.getElementById('api-url').value,
+    apiKey: document.getElementById('api-key').value,
+    model: document.getElementById('model').value,
+    proxy: false,
+    proxyPort: parseInt(document.getElementById('proxy-port').value) || 0
+  };
+
+  // 验证配置
+  const validation = validateConfig(config);
+  if (!validation.valid) {
+    updateStatus(validation.message);
+    terminal.writeln(`\n配置错误: ${validation.message}\n`);
+    return;
+  }
+
+  try {
+    // 保存配置
+    await window.electronAPI.saveConfig(config);
+    await loadConfigs();
+    hideConfigForm();
+    updateStatus('配置已保存');
+    terminal.writeln(`\n配置 "${config.name}" 已保存\n`);
+    
+    // 设置当前配置
+    currentConfig = config;
+    updateStartButton();
+    
+    // 立即启动 Claude Code
+    terminal.writeln('\n正在启动 Claude Code...\n');
+    await startClaudeCode();
+  } catch (error) {
+    updateStatus('保存配置失败');
+    terminal.writeln(`\n保存配置失败: ${error.message}\n`);
+  }
 }
 
 async function saveConfig(e) {
@@ -357,7 +464,8 @@ async function saveConfig(e) {
     apiUrl: document.getElementById('api-url').value,
     apiKey: document.getElementById('api-key').value,
     model: document.getElementById('model').value,
-    proxyPort: parseInt(document.getElementById('proxy-port').value)
+    proxy: false,
+    proxyPort: parseInt(document.getElementById('proxy-port').value) || 0
   };
 
   // 验证配置
@@ -470,6 +578,34 @@ async function startClaudeCode() {
   } finally {
     if (terminal.setProcessing) {
       terminal.setProcessing(false);
+    }
+  }
+}
+
+async function deleteConfig(configId, configName) {
+  // 检查是否是默认的免费试用配置
+  if (configId === 'free-claude-trial') {
+    updateStatus('不能删除默认的免费试用配置');
+    terminal.writeln('\n❌ 不能删除默认的免费试用配置\n');
+    return;
+  }
+  
+  if (confirm(`确定要删除配置 "${configName}" 吗？`)) {
+    try {
+      await window.electronAPI.deleteConfig(configId);
+      
+      // 如果删除的是当前选中的配置，清空选择
+      if (currentConfig && currentConfig.id === configId) {
+        currentConfig = null;
+        updateStartButton();
+      }
+      
+      await loadConfigs();
+      updateStatus(`已删除配置: ${configName}`);
+      terminal.writeln(`\n已删除配置 "${configName}"\n`);
+    } catch (error) {
+      updateStatus('删除配置失败');
+      terminal.writeln(`\n删除配置失败: ${error.message}\n`);
     }
   }
 }
@@ -603,30 +739,104 @@ async function stopClaudeCode() {
 }
 
 function showAbout() {
-  terminal.writeln('\n========== 🔥 Miaoda - AI 编程革命！==========');
-  terminal.writeln('');
-  terminal.writeln('🚀 **全球唯一支持 380+ 种 AI 大模型的管理工具！**');
-  terminal.writeln('');
-  terminal.writeln('💥 为什么选择 Miaoda？');
-  terminal.writeln('  • 🌏 **380+ 模型** - 一个工具搞定全球所有 AI！');
-  terminal.writeln('  • 💰 **永久免费** - 为你省下每年 ￥2400+！');
-  terminal.writeln('  • ⚡ **效率 100 倍** - 3 秒启动，瞬间连接！');
-  terminal.writeln('  • 🏆 **用户 10000+** - 遍布全球 50+ 国家！');
-  terminal.writeln('');
-  terminal.writeln('🎯 支持所有顶级大厂：');
-  terminal.writeln('  OpenAI、Anthropic、Google、微软、百度、阿里、');
-  terminal.writeln('  腾讯、华为、字节、商汤、讯飞、智谱...');
-  terminal.writeln('');
-  terminal.writeln('💎 用了 Miaoda = 赢在 AI 时代起跑线！');
-  terminal.writeln('');
-  terminal.writeln('GitHub：https://github.com/miounet11/claude-code-manager');
-  terminal.writeln('');
-  terminal.writeln('🌟 **改变世界，从这里开始！**');
-  terminal.writeln('====================================\n');
+  const dialog = document.getElementById('about-dialog');
+  dialog.style.display = 'flex';
   
-  // 统计功能使用
-  window.electronAPI.trackFeatureUse('view_about');
+  // 设置当前版本号
+  const currentVersion = '2.0.3';
+  document.getElementById('current-version').textContent = currentVersion;
+  
+  // 添加检查更新按钮事件
+  const checkUpdateBtn = document.getElementById('check-update-btn');
+  checkUpdateBtn.onclick = () => checkForUpdates(currentVersion);
 }
+
+function closeAboutDialog() {
+  const dialog = document.getElementById('about-dialog');
+  dialog.style.display = 'none';
+}
+
+function openGithub() {
+  window.electronAPI.openExternal('https://github.com/miaoda-ai/miaoda');
+}
+
+function openWebsite() {
+  window.electronAPI.openExternal('https://www.imiaoda.cn');
+}
+
+async function checkForUpdates(currentVersion) {
+  const updateInfo = document.getElementById('update-info');
+  const updateContent = updateInfo.querySelector('.update-content');
+  const checkBtn = document.getElementById('check-update-btn');
+  
+  // 显示检查中状态
+  updateInfo.style.display = 'block';
+  updateInfo.className = 'update-info';
+  updateContent.textContent = '正在检查更新...';
+  checkBtn.disabled = true;
+  
+  try {
+    // 调用主进程检查更新
+    const result = await window.electronAPI.checkForUpdates();
+    
+    if (result.error) {
+      updateInfo.className = 'update-info error';
+      updateContent.textContent = `检查更新失败：${result.error}`;
+    } else if (result.hasUpdate) {
+      updateInfo.className = 'update-info available';
+      
+      // 根据平台选择正确的下载链接
+      const platform = window.electronAPI.platform;
+      let downloadUrl = result.downloadUrl;
+      
+      if (platform === 'darwin') {
+        // Mac 平台 - 检测是否为 Apple Silicon
+        const isAppleSilicon = window.electronAPI.isAppleSilicon;
+        downloadUrl = isAppleSilicon ? result.downloadUrlMacArm : result.downloadUrlMac;
+      } else if (platform === 'win32') {
+        downloadUrl = result.downloadUrlWin;
+      }
+      
+      updateContent.innerHTML = `
+        <p>发现新版本 <strong>${result.latestVersion}</strong></p>
+        <p>当前版本：${currentVersion}</p>
+        <p style="margin-top: 10px;">
+          <a href="#" onclick="window.electronAPI.openExternal('${downloadUrl}'); return false;">
+            点击下载最新版本
+          </a>
+        </p>
+        <p style="margin-top: 10px; font-size: 12px; color: var(--text-secondary);">
+          提示：下载完成后，请关闭当前应用并安装新版本
+        </p>
+      `;
+    } else {
+      updateInfo.className = 'update-info success';
+      updateContent.textContent = '✓ 您正在使用最新版本';
+    }
+  } catch (error) {
+    updateInfo.className = 'update-info error';
+    updateContent.textContent = `检查更新失败：${error.message}`;
+  } finally {
+    checkBtn.disabled = false;
+  }
+}
+
+// 将函数暴露到全局作用域
+window.closeAboutDialog = closeAboutDialog;
+window.openGithub = openGithub;
+window.openWebsite = openWebsite;
+
+// 添加对话框点击外部关闭功能
+document.addEventListener('DOMContentLoaded', () => {
+  const aboutDialog = document.getElementById('about-dialog');
+  if (aboutDialog) {
+    aboutDialog.addEventListener('click', (e) => {
+      if (e.target === aboutDialog) {
+        closeAboutDialog();
+      }
+    });
+  }
+});
 
 function showShare() {
   terminal.writeln('\n========== 🔥 必须分享！这是 AI 编程革命！==========');

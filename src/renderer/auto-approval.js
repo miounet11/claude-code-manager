@@ -55,14 +55,14 @@ class AutoApprovalSystem {
                     'java --version'
                 ],
                 paths: [
-                    './src/',
-                    './test/',
-                    './tests/',
-                    './spec/',
-                    './docs/',
-                    './public/',
-                    './dist/',
-                    './build/'
+                    'src',
+                    'test',
+                    'tests',
+                    'spec',
+                    'docs',
+                    'public',
+                    'dist',
+                    'build'
                 ]
             },
             blacklist: {
@@ -83,16 +83,27 @@ class AutoApprovalSystem {
                     'fdisk'
                 ],
                 paths: [
-                    '/etc/',
-                    '/usr/',
-                    '/bin/',
-                    '/sbin/',
-                    '/boot/',
-                    '/dev/',
-                    '/proc/',
-                    '/sys/',
-                    'C:\\Windows\\',
-                    'C:\\Program Files\\',
+                    // 系统关键目录 - 根据平台动态设置
+                    ...(window.electronAPI?.platform === 'win32' ? [
+                        'C:\\Windows\\',
+                        'C:\\Program Files\\',
+                        'C:\\Program Files (x86)\\',
+                        'C:\\ProgramData\\',
+                        'C:\\System32\\'
+                    ] : [
+                        '/etc/',
+                        '/usr/',
+                        '/bin/',
+                        '/sbin/',
+                        '/boot/',
+                        '/dev/',
+                        '/proc/',
+                        '/sys/',
+                        '/System/',  // macOS
+                        '/Library/', // macOS
+                        '/private/'  // macOS
+                    ]),
+                    // 通用敏感路径
                     '~/.ssh/',
                     '~/.gnupg/',
                     '.git/config',
@@ -178,13 +189,27 @@ class AutoApprovalSystem {
 
         // 检查白名单路径
         for (const whitePath of this.config.whitelist.paths) {
-            if (path.startsWith(whitePath)) {
+            // 跨平台路径检查
+            const normalizedPath = path.replace(/\\/g, '/');
+            const normalizedWhitePath = whitePath.replace(/\\/g, '/');
+            if (normalizedPath.includes('/' + normalizedWhitePath + '/') || 
+                normalizedPath.includes('/' + normalizedWhitePath) ||
+                normalizedPath.startsWith(normalizedWhitePath + '/') ||
+                normalizedPath === normalizedWhitePath) {
                 return true;
             }
         }
 
         // 默认批准当前工作区内的文件
-        return !path.startsWith('/') && !path.startsWith('C:\\');
+        // 使用更通用的绝对路径检查
+        const isWin = window.electronAPI?.platform === 'win32';
+        if (isWin) {
+            // Windows 绝对路径通常以盘符开头 (C:\ D:\ 等)
+            return !/^[A-Za-z]:[\\\/]/.test(path);
+        } else {
+            // Unix 系统绝对路径以 / 开头
+            return !path.startsWith('/');
+        }
     }
 
     // 检查写入批准
@@ -194,8 +219,8 @@ class AutoApprovalSystem {
 
         // 检查受保护文件
         const protectedFiles = ['.rooignore', '.gitignore', '.env', 'package-lock.json'];
-        for (const protected of protectedFiles) {
-            if (path.endsWith(protected)) {
+        for (const protectedFile of protectedFiles) {
+            if (path.endsWith(protectedFile)) {
                 return false;
             }
         }

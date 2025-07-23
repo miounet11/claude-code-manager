@@ -1,0 +1,225 @@
+/* 引入 xterm.js 基础样式 */
+@import '../../node_modules/xterm/css/xterm.css';
+
+/* 终端容器样式 */
+.terminal-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+}
+
+#terminal {
+  flex: 1;
+  background-color: var(--bg-primary, #1e1e1e);
+  position: relative;
+  padding: 10px;
+}
+
+/* xterm.js 终端样式覆盖 */
+.xterm {
+  padding: 10px;
+  height: 100%;
+}
+
+.xterm-viewport {
+  background-color: transparent !important;
+}
+
+.xterm-screen {
+  height: 100% !important;
+}
+
+/* 自定义滚动条 */
+.xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+  background-color: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background-color: var(--bg-secondary, #252526);
+  border-radius: 5px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: var(--border-color, #3c3c3c);
+  border-radius: 5px;
+  transition: background-color 0.2s ease;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-secondary, #969696);
+}
+
+/* 光标样式 */
+.xterm-cursor-layer {
+  z-index: 10;
+}
+
+/* 选择样式 */
+.xterm-selection-layer {
+  z-index: 5;
+}
+
+/* 搜索框样式 */
+.terminal-search-box {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: var(--bg-tertiary, #2d2d30);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.search-input {
+  background-color: var(--bg-primary, #1e1e1e);
+  border: 1px solid var(--border-color, #3c3c3c);
+  color: var(--text-primary, #cccccc);
+  padding: 4px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  border-radius: 3px;
+  outline: none;
+  width: 200px;
+}
+
+.search-input:focus {
+  border-color: var(--accent-color, #569cd6);
+}
+
+.terminal-search-box button {
+  background-color: var(--bg-tertiary, #2d2d30);
+  border: 1px solid var(--border-color, #3c3c3c);
+  color: var(--text-primary, #cccccc);
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.terminal-search-box button:hover {
+  background-color: var(--hover-bg, #2a2d2e);
+  border-color: var(--accent-color, #569cd6);
+}
+
+.search-close {
+  color: var(--error-color, #f48771);
+  font-weight: bold;
+}
+
+/* 响应式字体大小 */
+@media (max-width: 1280px) {
+  .xterm {
+    font-size: 12px !important;
+  }
+}
+
+@media (min-width: 1281px) and (max-width: 1920px) {
+  .xterm {
+    font-size: 13px !important;
+  }
+}
+
+@media (min-width: 1921px) and (max-width: 2560px) {
+  .xterm {
+    font-size: 14px !important;
+  }
+}
+
+@media (min-width: 2561px) {
+  .xterm {
+    font-size: 15px !important;
+  }
+}
+
+/* 高 DPI 优化 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .xterm {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* 链接样式 */
+.xterm a {
+  color: var(--accent-color, #569cd6);
+  text-decoration: underline;
+}
+
+.xterm a:hover {
+  color: var(--text-bright, #ffffff);
+}
+
+/* 动画效果 */
+.xterm .xterm-cursor-block {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+/* 终端状态指示器 */
+.terminal-status-indicator {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary, #969696);
+  opacity: 0.8;
+  z-index: 50;
+}
+
+.terminal-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--success-color, #6a9955);
+  animation: pulse 2s infinite;
+}
+
+.terminal-status-dot.processing {
+  background-color: var(--warning-color, #dcdcaa);
+  animation: pulse 1s infinite;
+}
+
+.terminal-status-dot.error {
+  background-color: var(--error-color, #f48771);
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+}

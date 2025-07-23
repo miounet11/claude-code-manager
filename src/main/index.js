@@ -194,6 +194,15 @@ ipcMain.handle('delete-config', async (event, configId) => {
   return { success: true };
 });
 
+ipcMain.handle('get-config', async (event, key) => {
+  return store.get(key);
+});
+
+ipcMain.handle('set-config', async (event, key, value) => {
+  store.set(key, value);
+  return { success: true };
+});
+
 ipcMain.handle('check-environment', async () => {
   console.log('接收到环境检查请求');
   try {
@@ -223,6 +232,53 @@ ipcMain.handle('stop-claude-code', async () => {
   return { success: true };
 });
 
+ipcMain.handle('test-api-connection', async (event, config) => {
+  try {
+    // 简单的测试实现 - 发送一个测试请求到 API
+    const https = require('https');
+    const http = require('http');
+    const url = new URL(config.apiUrl);
+    const isHttps = url.protocol === 'https:';
+    
+    return new Promise((resolve) => {
+      const options = {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: '/v1/models',
+        method: 'GET',
+        headers: {
+          'x-api-key': config.apiKey,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      };
+      
+      const protocol = isHttps ? https : http;
+      const req = protocol.request(options, (res) => {
+        if (res.statusCode === 200 || res.statusCode === 401) {
+          resolve({ success: res.statusCode === 200, message: res.statusCode === 401 ? 'API Key 无效' : '连接成功' });
+        } else {
+          resolve({ success: false, message: `HTTP ${res.statusCode}` });
+        }
+      });
+      
+      req.on('error', (error) => {
+        resolve({ success: false, message: error.message });
+      });
+      
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ success: false, message: '连接超时' });
+      });
+      
+      req.end();
+    });
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+});
+
 ipcMain.on('terminal-input', (event, data) => {
   const { sendInputToClaudeCode } = require('./claude-runner');
   sendInputToClaudeCode(data);
@@ -240,6 +296,54 @@ ipcMain.on('track-feature-use', (event, featureName) => {
     analytics.trackFeatureUse(featureName);
   }
 });
+
+// 打开外部链接
+ipcMain.handle('open-external', async (event, url) => {
+  const { shell } = require('electron');
+  await shell.openExternal(url);
+  return { success: true };
+});
+
+// 检查更新
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    // 这里应该调用实际的更新检查API
+    // 暂时返回模拟数据
+    const currentVersion = app.getVersion();
+    const latestVersion = '2.0.5'; // 模拟最新版本
+    
+    // 比较版本号
+    const hasUpdate = compareVersions(currentVersion, latestVersion) < 0;
+    
+    return {
+      hasUpdate,
+      currentVersion,
+      latestVersion,
+      downloadUrl: 'https://github.com/miaoda-ai/miaoda/releases',
+      downloadUrlMac: 'https://github.com/miaoda-ai/miaoda/releases/download/v2.0.4/Miaoda-2.0.4.dmg',
+      downloadUrlMacArm: 'https://github.com/miaoda-ai/miaoda/releases/download/v2.0.4/Miaoda-2.0.4-arm64.dmg',
+      downloadUrlWin: 'https://github.com/miaoda-ai/miaoda/releases/download/v2.0.4/Miaoda-2.0.4-Setup.exe'
+    };
+  } catch (error) {
+    return { error: error.message };
+  }
+});
+
+// 版本号比较函数
+function compareVersions(v1, v2) {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const part1 = parts1[i] || 0;
+    const part2 = parts2[i] || 0;
+    
+    if (part1 < part2) return -1;
+    if (part1 > part2) return 1;
+  }
+  
+  return 0;
+}
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
