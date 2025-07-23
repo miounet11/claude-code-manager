@@ -1,94 +1,144 @@
-name: Build and Release
+name: Build
 
 on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      platform:
+        description: '目标平台 (all, windows, macos, linux)'
+        required: false
+        default: 'all'
+        type: string
+      upload_artifacts:
+        description: '是否上传构建产物'
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      build_status:
+        description: '构建状态'
+        value: ${{ jobs.build.result }}
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     
     strategy:
+      fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            platform: windows
+            script: npm run dist-win
+            artifacts: "dist/*.exe dist/*.zip"
+          - os: macos-latest  
+            platform: macos
+            script: npm run dist-mac
+            artifacts: "dist/*.dmg dist/*-mac.zip"
+          - os: ubuntu-latest
+            platform: linux
+            script: npm run build -- --linux
+            artifacts: "dist/*.AppImage dist/*.deb"
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置 Node.js 环境
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
         
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          
-      - name: Install dependencies
-        run: npm ci
+    - name: 清理缓存
+      run: npm cache clean --force
+      continue-on-error: true
+      
+    - name: 安装依赖
+      run: npm ci
+      
+    - name: 验证 package.json 配置
+      run: |
+        echo "验证构建配置..."
+        node -e "
+          const pkg = require('./package.json');
+          console.log('应用名称:', pkg.build.productName);
+          console.log('应用ID:', pkg.build.appId);
+          console.log('版本:', pkg.version);
+          if (pkg.build.win) console.log('Windows 配置:', JSON.stringify(pkg.build.win, null, 2));
+          if (pkg.build.mac) console.log('macOS 配置:', JSON.stringify(pkg.build.mac, null, 2));
+          if (pkg.build.linux) console.log('Linux 配置:', JSON.stringify(pkg.build.linux, null, 2));
+        "
         
-      - name: Build for macOS
-        if: matrix.os == 'macos-latest'
-        run: npm run dist-mac
+    - name: 检查资源文件
+      run: |
+        echo "检查必需的资源文件..."
+        if [ "${{ matrix.platform }}" = "windows" ]; then
+          if [ ! -f "assets/icon.ico" ]; then
+            echo "警告: 缺少 Windows 图标文件 assets/icon.ico"
+            exit 1
+          fi
+        elif [ "${{ matrix.platform }}" = "macos" ]; then
+          if [ ! -f "assets/icon.icns" ]; then
+            echo "警告: 缺少 macOS 图标文件 assets/icon.icns"
+            exit 1
+          fi
+        elif [ "${{ matrix.platform }}" = "linux" ]; then
+          if [ ! -f "assets/icon.png" ]; then
+            echo "警告: 缺少 Linux 图标文件 assets/icon.png"
+            exit 1
+          fi
+        fi
+        echo "资源文件检查通过"
+      shell: bash
+      
+    - name: 执行构建 - ${{ matrix.platform }}
+      if: inputs.platform == 'all' || inputs.platform == matrix.platform
+      run: ${{ matrix.script }}
+      env:
+        CI: true
         
-      - name: Build for Windows
-        if: matrix.os == 'windows-latest'  
-        run: npm run dist-win
+    - name: 验证构建结果
+      if: inputs.platform == 'all' || inputs.platform == matrix.platform
+      run: |
+        echo "验证构建结果..."
+        if [ -d "dist" ]; then
+          echo "✅ 构建成功！"
+          echo ""
+          echo "构建产物:"
+          ls -la dist/
+          echo ""
+          echo "文件大小:"
+          du -h dist/* 2>/dev/null || echo "无法计算文件大小"
+        else
+          echo "❌ 构建失败：未找到 dist 目录"
+          exit 1
+        fi
+      shell: bash
+      
+    - name: 上传构建产物
+      if: (inputs.platform == 'all' || inputs.platform == matrix.platform) && inputs.upload_artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.platform }}-build
+        path: ${{ matrix.artifacts }}
+        retention-days: 30
+        if-no-files-found: warn
         
-      - name: Build for Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run build -- --linux
+    - name: 生成构建报告
+      if: inputs.platform == 'all' || inputs.platform == matrix.platform
+      run: |
+        echo "## 🔨 ${{ matrix.platform }} 构建报告" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **平台**: ${{ matrix.platform }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **运行环境**: ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **构建时间**: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         
-      - name: Upload macOS artifacts
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-builds
-          path: |
-            dist/*.dmg
-            dist/*.zip
-            
-      - name: Upload Windows artifacts
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-builds
-          path: |
-            dist/*.exe
-            dist/*.zip
-            
-      - name: Upload Linux artifacts
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-builds
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            artifacts/macos-builds/*
-            artifacts/windows-builds/*
-            artifacts/linux-builds/*
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if [ -d "dist" ]; then
+          echo "### 📦 构建产物" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -la dist/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash

@@ -1,68 +1,99 @@
-name: Build Only (No Release)
+name: Build Only (CI)
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to build (optional)'
-        required: false
-        default: ''
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
-        include:
-          - os: macos-latest
-            build_cmd: npm run dist-mac
-            artifact_name: mac-build
-            artifact_path: |
-              dist/*.dmg
-              dist/*-mac.zip
-          - os: windows-latest
-            build_cmd: npm run dist-win
-            artifact_name: win-build
-            artifact_path: |
-              dist/*.exe
-              dist/*.msi
-              dist/*-win.zip
-
+  test-build:
     runs-on: ${{ matrix.os }}
     
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          # 不获取标签，避免触发发布
-          fetch-tags: false
+    - name: 检出代码
+      uses: actions/checkout@v4
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 安装依赖
+      run: npm ci
       
-      - name: Install dependencies
-        run: npm ci
+    - name: 运行代码检查
+      run: npm run lint
+      continue-on-error: true
       
-      - name: Build
-        run: ${{ matrix.build_cmd }}
-        env:
-          # 清空所有可能触发发布的环境变量
-          GH_TOKEN: ""
-          GITHUB_TOKEN: ""
-          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: "true"
+    - name: 测试构建 macOS 版本
+      if: matrix.os == 'macos-latest'
+      run: npm run dist-mac
       
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_path }}
-          retention-days: 7
-          
-      - name: List build outputs
-        shell: bash
-        run: |
-          echo "=== Build outputs ==="
-          ls -la dist/ || echo "No dist directory"
+    - name: 测试构建 Windows 版本
+      if: matrix.os == 'windows-latest'
+      run: npm run dist-win
+      
+    - name: 测试构建 Linux 版本
+      if: matrix.os == 'ubuntu-latest'
+      run: npm run build -- --linux
+      
+    - name: 验证构建产物
+      run: |
+        if [ -d "dist" ]; then
+          echo "✅ 构建成功，产物已生成"
+          ls -la dist/
+        else
+          echo "❌ 构建失败，未找到 dist 目录"
+          exit 1
+        fi
+      shell: bash
+      
+    - name: 上传测试构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-build-${{ matrix.os }}
+        path: |
+          dist/*.dmg
+          dist/*.zip
+          dist/*.exe
+          dist/*.AppImage
+          dist/*.deb
+        retention-days: 7  # 测试构建只保留7天
+        
+  build-summary:
+    needs: test-build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 构建结果汇总
+      run: |
+        echo "## 🔨 构建测试结果汇总" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.test-build.result }}" == "success" ]; then
+          echo "✅ **所有平台构建测试通过**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ macOS 构建测试通过" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Windows 构建测试通过" >> $GITHUB_STEP_SUMMARY  
+          echo "- ✅ Linux 构建测试通过" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **构建测试失败**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "请检查构建日志以获取详细错误信息。" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 下一步操作" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "如果所有测试通过，您可以：" >> $GITHUB_STEP_SUMMARY
+        echo "1. 创建版本标签来触发正式发布" >> $GITHUB_STEP_SUMMARY
+        echo "2. 使用 \`git tag v<版本号> && git push origin v<版本号>\`" >> $GITHUB_STEP_SUMMARY
+        echo "3. 或在 GitHub 网页上创建新的 Release" >> $GITHUB_STEP_SUMMARY
