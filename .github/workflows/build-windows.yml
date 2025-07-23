@@ -1,0 +1,104 @@
+name: Build Windows Only
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (例如: v2.0.7)'
+        required: true
+        default: 'v2.0.7'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 安装依赖
+      run: npm ci
+      
+    - name: 构建 Windows 版本
+      run: npm run dist-win
+      
+    - name: 验证构建结果
+      run: |
+        if (Test-Path "dist") {
+          Write-Output "✅ 构建成功！"
+          Get-ChildItem -Path "dist" -Filter "*.exe" | ForEach-Object { Write-Output "- $($_.Name)" }
+          Get-ChildItem -Path "dist" -Filter "*win*.zip" | ForEach-Object { Write-Output "- $($_.Name)" }
+        } else {
+          Write-Error "❌ 构建失败：未找到 dist 目录"
+          exit 1
+        }
+      shell: powershell
+      
+    - name: 上传 Windows 构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-builds
+        path: |
+          dist/*.exe
+          dist/*win*.zip
+        retention-days: 90
+        
+    - name: 创建 Release (仅标签推送时)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Miaoda ${{ github.ref_name }} - Windows 版本
+        body: |
+          # Miaoda ${{ github.ref_name }} - Windows 版本
+          
+          ## 📦 Windows 下载
+          
+          - **Miaoda-Setup-${{ github.ref_name }}.exe** - NSIS 安装包（推荐）
+          - **Miaoda-${{ github.ref_name }}-win.zip** - 便携版（免安装）
+          
+          ## 🪟 Windows 版本特性
+          
+          - 支持 x64 和 ia32 架构
+          - NSIS 安装程序提供完整安装体验
+          - 便携版可直接解压使用
+          - 自动创建桌面和开始菜单快捷方式
+          - 完整的卸载程序支持
+          
+          ## ⚠️ 安装说明
+          
+          - Windows 用户如遇到安全警告，请选择"更多信息"后点击"仍要运行"
+          - 建议临时关闭杀毒软件的实时防护再进行安装
+          - 首次运行可能需要管理员权限
+          
+          ## 🔧 系统要求
+          
+          - Windows 10/11 (64位推荐)
+          - 最低 4GB RAM，推荐 8GB+
+          - 至少 1GB 可用存储空间
+          - 需要互联网连接以使用 Claude Code
+        files: |
+          dist/*.exe
+          dist/*win*.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 构建完成通知
+      run: |
+        Write-Output "✅ Windows 版本构建完成！"
+        Write-Output "📦 构建版本: ${{ github.ref_name || 'manual-build' }}"
+        if ("${{ github.ref_type }}" -eq "tag") {
+          Write-Output "🔗 发布页面: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+        }
+      shell: powershell
