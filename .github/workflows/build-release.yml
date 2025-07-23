@@ -7,24 +7,25 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (e.g., v2.0.1)'
+        description: 'Version to build (e.g., v2.0.2)'
         required: true
-        default: 'v2.0.1'
+        default: 'v2.0.2'
 
 jobs:
   build-mac:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
       
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       
       - name: Build macOS app
         run: npm run dist-mac
@@ -32,26 +33,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mac-build
           path: |
             dist/*.dmg
-            dist/*.zip
+            dist/*-mac.zip
+            dist/*-arm64.dmg
+            dist/*-arm64-mac.zip
+          retention-days: 7
 
   build-win:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
       
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       
       - name: Build Windows app
         run: npm run dist-win
@@ -59,12 +64,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: win-build
           path: |
             dist/*.exe
             dist/*.msi
+            dist/*-win.zip
+            dist/*Setup*.exe
+          retention-days: 7
 
   create-release:
     needs: [build-mac, build-win]
@@ -72,24 +80,70 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       
       - name: List artifacts
         run: |
           echo "=== macOS artifacts ==="
-          ls -la mac-build/
+          ls -la mac-build/ || echo "No mac-build directory"
           echo "=== Windows artifacts ==="
-          ls -la win-build/
+          ls -la win-build/ || echo "No win-build directory"
+      
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+      
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          NOTES_FILE="RELEASE_NOTES_${VERSION}.md"
+          
+          if [ -f "$NOTES_FILE" ]; then
+            echo "Using existing release notes: $NOTES_FILE"
+          else
+            echo "Generating release notes..."
+            cat > release_notes.md << EOF
+          # Miaoda ${VERSION} - AI 编程神器
+          
+          ## 下载链接
+          
+          ### Windows
+          - 安装包：Miaoda-${VERSION#v}-Setup.exe
+          - 便携版：Miaoda-${VERSION#v}-win.zip
+          
+          ### macOS
+          - Intel 版本：Miaoda-${VERSION#v}.dmg / Miaoda-${VERSION#v}-mac.zip
+          - Apple Silicon：Miaoda-${VERSION#v}-arm64.dmg / Miaoda-${VERSION#v}-arm64-mac.zip
+          
+          ## 更新内容
+          请查看 [CHANGELOG.md](https://github.com/miounet11/claude-code-manager/blob/main/CHANGELOG.md)
+          
+          ## 反馈与支持
+          - 问题反馈：[GitHub Issues](https://github.com/miounet11/claude-code-manager/issues)
+          - 使用文档：查看项目 README
+          EOF
+            NOTES_FILE="release_notes.md"
+          fi
+          
+          echo "NOTES_FILE=$NOTES_FILE" >> $GITHUB_OUTPUT
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.version || github.ref_name }}
-          name: Miaoda ${{ github.event.inputs.version || github.ref_name }} - AI 编程神器
-          body_path: RELEASE_NOTES_${{ github.event.inputs.version || github.ref_name }}.md
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: Miaoda ${{ steps.get_version.outputs.VERSION }} - Claude Code 快捷命令与自动批准
+          body_path: ${{ steps.release_notes.outputs.NOTES_FILE }}
           draft: false
           prerelease: false
           files: |
@@ -97,5 +151,6 @@ jobs:
             mac-build/*.zip
             win-build/*.exe
             win-build/*.msi
+            win-build/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
