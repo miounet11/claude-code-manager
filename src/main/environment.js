@@ -16,7 +16,8 @@ async function checkCommand(command, versionFlag = '--version') {
     const { stdout } = await execPromise(`${cmdToRun} ${versionFlag}`, {
       timeout: 5000,
       killSignal: isWindows ? 'SIGTERM' : 'SIGKILL',
-      shell: isWindows ? true : false
+      shell: isWindows ? true : false,
+      encoding: 'utf8'
     });
     
     console.log(`${command} 检查成功:`, stdout.trim());
@@ -34,6 +35,24 @@ async function checkCommand(command, versionFlag = '--version') {
         installed: false,
         version: null,
         error: '检查超时'
+      };
+    }
+    
+    // Windows 特殊错误处理
+    if (isWindows && error.message.includes('is not recognized')) {
+      return {
+        installed: false,
+        version: null,
+        error: '未安装'
+      };
+    }
+    
+    // 处理其他 Windows 错误信息
+    if (isWindows && (error.message.includes('�') || error.message.includes('?'))) {
+      return {
+        installed: false,
+        version: null,
+        error: '未安装'
       };
     }
     

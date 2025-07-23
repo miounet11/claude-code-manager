@@ -100,7 +100,7 @@ window.appValidator = {
     let hasMainStyles = false;
     let hasTerminalStyles = false;
     
-    for (let sheet of stylesheets) {
+    for (const sheet of stylesheets) {
       if (sheet.href) {
         if (sheet.href.includes('styles.css')) hasMainStyles = true;
         if (sheet.href.includes('terminal.css') || sheet.href.includes('xterm')) hasTerminalStyles = true;

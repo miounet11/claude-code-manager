@@ -42,7 +42,7 @@ jobs:
       
     - name: 测试构建 Linux 版本
       if: matrix.os == 'ubuntu-latest'
-      run: npm run build -- --linux
+      run: npm run dist-linux
       
     - name: 验证构建产物
       run: |

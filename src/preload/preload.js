@@ -62,6 +62,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 检查更新
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   
+  // 开机启动
+  setAutoLaunch: (enable) => ipcRenderer.invoke('set-auto-launch', enable),
+  getAutoLaunchStatus: () => ipcRenderer.invoke('get-auto-launch-status'),
+  
   // 系统信息
-  isAppleSilicon: process.arch === 'arm64' && process.platform === 'darwin'
+  isAppleSilicon: process.arch === 'arm64' && process.platform === 'darwin',
+  
+  // 保活机制相关 API
+  getGuardianStatus: () => ipcRenderer.invoke('get-guardian-status'),
+  setProtectionLevel: (level) => ipcRenderer.invoke('set-protection-level', level),
+  toggleGuardian: (enable) => ipcRenderer.invoke('toggle-guardian', enable),
+  requestElevation: () => ipcRenderer.invoke('request-elevation'),
+  executeElevated: (command, args) => ipcRenderer.invoke('execute-elevated', command, args),
+  toggleSystemTray: (show) => ipcRenderer.invoke('toggle-system-tray', show),
+  getAvailablePort: () => ipcRenderer.invoke('get-available-port'),
+  
+  // 保活机制事件监听
+  onGuardianStatusUpdate: (callback) => {
+    ipcRenderer.on('guardian-status-update', (event, status) => callback(status));
+  },
+  onProtectionLevelChanged: (callback) => {
+    ipcRenderer.on('protection-level-changed', (event, level) => callback(level));
+  },
+  onStartHiddenChanged: (callback) => {
+    ipcRenderer.on('start-hidden-changed', (event, enabled) => callback(enabled));
+  },
+  onShowAbout: (callback) => {
+    ipcRenderer.on('show-about', () => callback());
+  },
+  onConfirmQuit: (callback) => {
+    ipcRenderer.on('confirm-quit', () => callback());
+  }
 });

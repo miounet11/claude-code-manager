@@ -257,10 +257,10 @@ class Updater {
       this.checkForUpdates(true);
     }, 10000); // 10秒后
 
-    // 每隔12小时检查一次
+    // 每隔30分钟检查一次
     setInterval(() => {
       this.checkForUpdates(true);
-    }, 12 * 60 * 60 * 1000);
+    }, 30 * 60 * 1000);
   }
 }
 

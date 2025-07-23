@@ -7,12 +7,12 @@ const { ipcMain } = require('electron');
 
 async function installDependency(dependency) {
   switch (dependency) {
-    case 'uv':
-      return await installUV();
-    case 'claude':
-      return await installClaudeCode();
-    default:
-      throw new Error(`Unknown dependency: ${dependency}`);
+  case 'uv':
+    return await installUV();
+  case 'claude':
+    return await installClaudeCode();
+  default:
+    throw new Error(`Unknown dependency: ${dependency}`);
   }
 }
 

@@ -12,7 +12,7 @@ class SimpleTerminal {
     this.container.innerHTML = '';
     this.container.style.backgroundColor = 'var(--bg-primary, #1e1e1e)';
     this.container.style.color = 'var(--text-primary, #cccccc)';
-    this.container.style.fontFamily = "'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace";
+    this.container.style.fontFamily = '\'SF Mono\', Monaco, \'Cascadia Code\', \'Roboto Mono\', Consolas, \'Courier New\', monospace';
     this.container.style.fontSize = 'var(--terminal-font-size, 13px)';
     this.container.style.padding = '15px';
     this.container.style.overflow = 'auto';

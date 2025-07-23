@@ -42,7 +42,7 @@ jobs:
       
     - name: 构建 Linux 版本
       if: matrix.os == 'ubuntu-latest'
-      run: npm run build -- --linux
+      run: npm run dist-linux
       
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
@@ -142,7 +142,6 @@ jobs:
         files: release-files/*
         draft: false
         prerelease: false
-        make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         

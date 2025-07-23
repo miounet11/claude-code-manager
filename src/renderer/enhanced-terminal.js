@@ -260,28 +260,28 @@ class EnhancedTerminal extends SimpleTerminal {
     
     // 处理普通命令
     switch (cmd.toLowerCase()) {
-      case 'help':
-        this.showHelp();
-        break;
-      case 'clear':
-        this.clear();
-        break;
-      case 'version':
-        this.writeln(`Miaoda v${window.electronAPI.versions.app || '2.0.0'}`);
-        break;
-      case 'status':
-        this.showStatus();
-        break;
-      case 'approval':
-      case 'auto-approval':
-        if (window.autoApproval) {
-          window.autoApproval.openSettings();
-        }
-        break;
-      default:
-        if (this.onDataCallback) {
-          this.onDataCallback(command + '\n');
-        }
+    case 'help':
+      this.showHelp();
+      break;
+    case 'clear':
+      this.clear();
+      break;
+    case 'version':
+      this.writeln(`Miaoda v${window.electronAPI.versions.app || '2.0.0'}`);
+      break;
+    case 'status':
+      this.showStatus();
+      break;
+    case 'approval':
+    case 'auto-approval':
+      if (window.autoApproval) {
+        window.autoApproval.openSettings();
+      }
+      break;
+    default:
+      if (this.onDataCallback) {
+        this.onDataCallback(command + '\n');
+      }
     }
   }
   

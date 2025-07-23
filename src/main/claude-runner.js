@@ -1,13 +1,8 @@
 'use strict';
 
 const { spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs').promises;
-const os = require('os');
 
 let claudeProcess = null;
-let proxyProcess = null;
-let claudeInputStream = null;
 
 async function startClaudeCode(config, mainWindow) {
   try {
@@ -30,45 +25,53 @@ async function startClaudeCode(config, mainWindow) {
     
     await stopClaudeCode();
     
-    mainWindow.webContents.send('terminal-data', `\n正在启动代理服务器...\n`);
-    await setupProxy(config, mainWindow);
-    
+    // 设置环境变量
     const env = { ...process.env };
-    env.CLAUDE_API_URL = `http://localhost:${config.proxyPort}/v1`;
-    env.CLAUDE_API_KEY = 'proxy-key';
+    env.CLAUDE_API_URL = config.apiUrl;
+    env.CLAUDE_API_KEY = config.apiKey;
     
-    mainWindow.webContents.send('terminal-data', `\n配置信息:\n`);
+    mainWindow.webContents.send('terminal-data', '\n配置信息:\n');
     mainWindow.webContents.send('terminal-data', `- 配置名称: ${config.name}\n`);
     mainWindow.webContents.send('terminal-data', `- API URL: ${config.apiUrl}\n`);
     mainWindow.webContents.send('terminal-data', `- 模型: ${config.model}\n`);
-    mainWindow.webContents.send('terminal-data', `- 代理端口: ${config.proxyPort}\n`);
-    mainWindow.webContents.send('terminal-data', `\n正在启动 Claude Code...\n\n`);
+    mainWindow.webContents.send('terminal-data', '\n正在启动 Claude Code...\n\n');
     
-    claudeProcess = spawn('claude', ['chat', '--model', config.model], {
-      env,
-      shell: true
-    });
+    // 根据平台选择合适的终端命令
+    let terminalCmd, terminalArgs;
     
-    claudeProcess.stdout.on('data', (data) => {
-      mainWindow.webContents.send('terminal-data', data.toString());
-    });
+    if (process.platform === 'darwin') {
+      // macOS - 使用 Terminal.app
+      terminalCmd = 'osascript';
+      terminalArgs = [
+        '-e', 'tell application "Terminal"',
+        '-e', 'activate',
+        '-e', `do script "export CLAUDE_API_URL='${config.apiUrl}' && export CLAUDE_API_KEY='${config.apiKey}' && claude chat --model ${config.model}"`,
+        '-e', 'end tell'
+      ];
+    } else if (process.platform === 'win32') {
+      // Windows - 使用 cmd.exe
+      terminalCmd = 'cmd.exe';
+      terminalArgs = ['/c', 'start', 'cmd.exe', '/k', `set CLAUDE_API_URL=${config.apiUrl} && set CLAUDE_API_KEY=${config.apiKey} && claude chat --model ${config.model}`];
+    } else {
+      // Linux - 尝试使用常见的终端
+      terminalCmd = 'gnome-terminal';
+      terminalArgs = ['--', 'bash', '-c', `export CLAUDE_API_URL='${config.apiUrl}' && export CLAUDE_API_KEY='${config.apiKey}' && claude chat --model ${config.model}; exec bash`];
+    }
     
-    claudeProcess.stderr.on('data', (data) => {
-      mainWindow.webContents.send('terminal-data', data.toString());
+    claudeProcess = spawn(terminalCmd, terminalArgs, {
+      detached: true,
+      stdio: 'ignore'
     });
     
     claudeProcess.on('error', (error) => {
       mainWindow.webContents.send('terminal-data', `\n❌ 启动错误: ${error.message}\n`);
     });
     
-    claudeProcess.on('close', (code) => {
-      mainWindow.webContents.send('terminal-data', `\n\nClaude Code 已退出 (代码: ${code})\n`);
-      claudeProcess = null;
-      claudeInputStream = null;
-      stopClaudeCode(); // 清理代理服务器
-    });
+    // 不再跟踪进程关闭，因为它在独立终端中运行
+    claudeProcess.unref();
     
-    claudeInputStream = claudeProcess.stdin;
+    mainWindow.webContents.send('terminal-data', '\n✓ Claude Code 已在新终端窗口中启动\n');
+    mainWindow.webContents.send('terminal-data', '请在新打开的终端窗口中使用 Claude Code\n');
     
     return {
       success: true,
@@ -83,95 +86,17 @@ async function startClaudeCode(config, mainWindow) {
   }
 }
 
-async function setupProxy(config, mainWindow) {
-  const proxyScript = `
-const http = require('http');
-const https = require('https');
-const url = require('url');
-
-const server = http.createServer((req, res) => {
-  const targetUrl = '${config.apiUrl}' + req.url;
-  const parsedUrl = url.parse(targetUrl);
-  
-  const options = {
-    hostname: parsedUrl.hostname,
-    port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
-    path: parsedUrl.path,
-    method: req.method,
-    headers: {
-      ...req.headers,
-      'Authorization': 'Bearer ${config.apiKey}',
-      'Host': parsedUrl.hostname
-    }
-  };
-  
-  delete options.headers['host'];
-  
-  const protocol = parsedUrl.protocol === 'https:' ? https : http;
-  
-  const proxyReq = protocol.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
-    proxyRes.pipe(res);
-  });
-  
-  proxyReq.on('error', (err) => {
-    console.error('代理错误:', err);
-    res.writeHead(500);
-    res.end(JSON.stringify({ error: err.message }));
-  });
-  
-  req.pipe(proxyReq);
-});
-
-server.listen(${config.proxyPort}, () => {
-  console.log('代理服务器已启动在端口 ${config.proxyPort}');
-});
-
-server.on('error', (err) => {
-  console.error('服务器错误:', err);
-});
-`;
-
-  const proxyPath = path.join(os.tmpdir(), 'miaoda-proxy.js');
-  await fs.writeFile(proxyPath, proxyScript);
-  
-  proxyProcess = spawn('node', [proxyPath], {
-    detached: false
-  });
-  
-  proxyProcess.stdout.on('data', (data) => {
-    const message = data.toString().trim();
-    if (message) {
-      mainWindow.webContents.send('terminal-data', `[代理] ${message}\n`);
-    }
-  });
-  
-  proxyProcess.stderr.on('data', (data) => {
-    const message = data.toString().trim();
-    if (message) {
-      mainWindow.webContents.send('terminal-data', `[代理错误] ${message}\n`);
-    }
-  });
-  
-  await new Promise(resolve => setTimeout(resolve, 1000));
-}
 
 async function stopClaudeCode() {
   if (claudeProcess) {
     claudeProcess.kill();
     claudeProcess = null;
   }
-  
-  if (proxyProcess) {
-    proxyProcess.kill();
-    proxyProcess = null;
-  }
 }
 
-function sendInputToClaudeCode(data) {
-  if (claudeInputStream && !claudeInputStream.destroyed) {
-    claudeInputStream.write(data);
-  }
+function sendInputToClaudeCode() {
+  // 因为 Claude Code 运行在独立终端中，无法直接发送输入
+  // 可以在界面上提示用户
 }
 
 module.exports = {

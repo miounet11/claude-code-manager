@@ -102,19 +102,16 @@ function setupEventListeners() {
   document.getElementById('test-config-btn').addEventListener('click', testConfig);
   document.getElementById('save-and-start-btn').addEventListener('click', saveAndStartConfig);
   document.getElementById('stop-claude-btn').addEventListener('click', stopClaudeCode);
+  document.getElementById('quick-fill-btn').addEventListener('click', quickFillTestConfig);
   document.getElementById('clear-terminal-btn').addEventListener('click', clearTerminal);
   document.getElementById('copy-terminal-btn').addEventListener('click', copyTerminal);
   document.getElementById('about-btn').addEventListener('click', showAbout);
   document.getElementById('share-btn').addEventListener('click', showShare);
   
-  // 添加自动批准设置按钮（如果存在）
+  // 设置按钮事件
   const settingsBtn = document.getElementById('settings-btn');
   if (settingsBtn) {
-    settingsBtn.addEventListener('click', () => {
-      if (window.autoApproval) {
-        window.autoApproval.openSettings();
-      }
-    });
+    settingsBtn.addEventListener('click', showSettings);
   }
   
   // 添加 Ctrl+C 快捷键来停止 Claude Code
@@ -338,8 +335,7 @@ function showNewConfigForm() {
     name: '',
     apiUrl: '',
     apiKey: '',
-    model: 'claude-3-opus-20240229',
-    proxyPort: 8082
+    model: 'claude-3-opus-20240229'
   };
   showConfigForm(currentConfig);
 }
@@ -350,7 +346,6 @@ function showConfigForm(config) {
   document.getElementById('api-url').value = config.apiUrl;
   document.getElementById('api-key').value = config.apiKey;
   document.getElementById('model').value = config.model;
-  document.getElementById('proxy-port').value = config.proxyPort;
   
   document.getElementById('config-form').style.display = 'block';
   document.getElementById('terminal-container').style.display = 'none';
@@ -421,9 +416,7 @@ async function saveAndStartConfig(e) {
     name: document.getElementById('config-name').value,
     apiUrl: document.getElementById('api-url').value,
     apiKey: document.getElementById('api-key').value,
-    model: document.getElementById('model').value,
-    proxy: false,
-    proxyPort: parseInt(document.getElementById('proxy-port').value) || 0
+    model: document.getElementById('model').value
   };
 
   // 验证配置
@@ -463,9 +456,7 @@ async function saveConfig(e) {
     name: document.getElementById('config-name').value,
     apiUrl: document.getElementById('api-url').value,
     apiKey: document.getElementById('api-key').value,
-    model: document.getElementById('model').value,
-    proxy: false,
-    proxyPort: parseInt(document.getElementById('proxy-port').value) || 0
+    model: document.getElementById('model').value
   };
 
   // 验证配置
@@ -509,9 +500,6 @@ function validateConfig(config) {
     return { valid: false, message: '请输入 API Key' };
   }
   
-  if (config.proxyPort < 1024 || config.proxyPort > 65535) {
-    return { valid: false, message: '代理端口必须在 1024-65535 之间' };
-  }
   
   return { valid: true };
 }
@@ -625,6 +613,18 @@ async function restoreDefaults() {
       terminal.writeln(`\n恢复默认设置失败: ${error.message}\n`);
     }
   }
+}
+
+function quickFillTestConfig() {
+  // 填充免费测试配置
+  document.getElementById('config-name').value = '免费测试 API';
+  document.getElementById('api-url').value = 'http://www.miaoda.vip/v1';
+  document.getElementById('api-key').value = 'sk-3vxiV5wctLaERpZ6F7ap0Ys4nh0cmE1uK9NNmYg08DcHzQ44';
+  document.getElementById('model').value = 'claude-3-7-sonnet-20250219';
+  
+  updateStatus('已填充免费测试配置');
+  terminal.writeln('\n已填充免费测试配置\n');
+  terminal.writeln('提示: 这是第三方提供的免费测试 API，可能有使用限制\n');
 }
 
 function clearTerminal() {
@@ -890,5 +890,44 @@ function showShare() {
   // 统计功能使用
   window.electronAPI.trackFeatureUse('share');
 }
+
+// 显示设置对话框
+async function showSettings() {
+  document.getElementById('settings-dialog').style.display = 'flex';
+  
+  // 加载当前设置
+  const autoLaunchStatus = await window.electronAPI.getAutoLaunchStatus();
+  document.getElementById('auto-launch-checkbox').checked = autoLaunchStatus;
+  
+  // 加载自动更新设置
+  const autoUpdateEnabled = await window.electronAPI.getConfig('autoUpdate');
+  document.getElementById('auto-update-checkbox').checked = autoUpdateEnabled !== false;
+}
+
+// 关闭设置对话框
+window.closeSettingsDialog = function() {
+  document.getElementById('settings-dialog').style.display = 'none';
+};
+
+// 保存设置
+window.saveSettings = async function() {
+  const autoLaunch = document.getElementById('auto-launch-checkbox').checked;
+  const autoUpdate = document.getElementById('auto-update-checkbox').checked;
+  
+  // 设置开机启动
+  const autoLaunchResult = await window.electronAPI.setAutoLaunch(autoLaunch);
+  if (!autoLaunchResult.success) {
+    updateStatus('设置开机启动失败');
+    terminal.writeln(`\n❌ 设置开机启动失败: ${autoLaunchResult.error}\n`);
+  }
+  
+  // 保存自动更新设置
+  await window.electronAPI.setConfig('autoUpdate', autoUpdate);
+  
+  updateStatus('设置已保存');
+  terminal.writeln('\n✓ 设置已保存\n');
+  
+  closeSettingsDialog();
+};
 
 document.addEventListener('DOMContentLoaded', init);

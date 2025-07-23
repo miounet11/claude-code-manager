@@ -14,6 +14,7 @@
       <h1>Miaoda</h1>
       <div class="header-subtitle">Claude Code Manager</div>
       <div class="header-actions">
+        <button id="settings-btn" class="btn btn-small" title="设置">设置</button>
         <button id="about-btn" class="btn btn-small" title="关于 Miaoda">关于</button>
         <button id="share-btn" class="btn btn-small" title="分享 Miaoda">分享</button>
       </div>
@@ -59,7 +60,7 @@
 
       <div class="content">
         <div id="config-form" class="config-form" style="display: none;">
-          <h2>配置编辑</h2>
+          <h2>配置编辑 <button type="button" id="quick-fill-btn" class="btn btn-small btn-secondary" style="float: right;">免费测试</button></h2>
           <form id="config-edit-form">
             <input type="hidden" id="config-id">
             
@@ -97,10 +98,6 @@
               </datalist>
             </div>
 
-            <div class="form-group">
-              <label for="proxy-port">代理端口</label>
-              <input type="number" id="proxy-port" value="8082" min="1024" max="65535" required>
-            </div>
 
             <div class="form-actions">
               <button type="button" id="test-config-btn" class="btn btn-secondary">测试连接</button>
@@ -133,6 +130,38 @@
       <div class="footer-status" id="status-message">就绪</div>
       <div class="footer-version">Miaoda v2.0.4</div>
     </footer>
+  </div>
+
+  <!-- 设置对话框 -->
+  <div id="settings-dialog" class="dialog-overlay" style="display: none;">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h2>设置</h2>
+        <button class="dialog-close" onclick="closeSettingsDialog()">×</button>
+      </div>
+      <div class="dialog-content">
+        <div class="settings-section">
+          <h3>系统设置</h3>
+          <div class="settings-item">
+            <label>
+              <input type="checkbox" id="auto-launch-checkbox"> 开机自动启动
+            </label>
+            <p class="settings-hint">勾选后，Miaoda 将在系统启动时自动运行</p>
+          </div>
+          
+          <div class="settings-item">
+            <label>
+              <input type="checkbox" id="auto-update-checkbox" checked> 自动检查更新
+            </label>
+            <p class="settings-hint">自动检查并提示新版本更新</p>
+          </div>
+        </div>
+        
+        <div class="settings-actions">
+          <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 关于对话框 -->
@@ -199,6 +228,7 @@
   <script src="welcome-guide.js"></script>
   <script src="claude-shortcuts.js"></script>
   <script src="auto-approval.js"></script>
+  <script src="guardian-control.js"></script>
   <script src="renderer.js"></script>
   <script src="validate-app.js"></script>
 </body>

@@ -26,99 +26,99 @@ class XtermTerminal {
       // 使用全局的 Terminal 类（需要在 HTML 中通过 script 标签加载）
       // 这些类已经在全局作用域中，不需要重新声明
     
-    // 创建终端实例
-    this.terminal = new Terminal({
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#cccccc',
-        cursor: '#569cd6',
-        cursorAccent: '#000000',
-        selection: '#264f78',
-        black: '#000000',
-        red: '#f48771',
-        green: '#6a9955',
-        yellow: '#dcdcaa',
-        blue: '#569cd6',
-        magenta: '#c586c0',
-        cyan: '#4ec9b0',
-        white: '#cccccc',
-        brightBlack: '#666666',
-        brightRed: '#f48771',
-        brightGreen: '#6a9955',
-        brightYellow: '#dcdcaa',
-        brightBlue: '#569cd6',
-        brightMagenta: '#c586c0',
-        brightCyan: '#4ec9b0',
-        brightWhite: '#ffffff'
-      },
-      fontFamily: "'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace",
-      fontSize: 13,
-      fontWeight: 'normal',
-      fontWeightBold: 'bold',
-      lineHeight: 1.4,
-      letterSpacing: 0,
-      cursorBlink: true,
-      cursorStyle: 'block',
-      scrollback: 10000,
-      allowTransparency: false,
-      windowsMode: window.electronAPI && window.electronAPI.platform === 'win32',
-      macOptionIsMeta: true,
-      macOptionClickForcesSelection: true,
-      rendererType: 'canvas',
-      convertEol: true,
-      wordSeparator: ' ()[]{}\'"',
-      fastScrollModifier: 'alt',
-      fastScrollSensitivity: 5,
-      scrollSensitivity: 1,
-      rightClickSelectsWord: true
-    });
+      // 创建终端实例
+      this.terminal = new Terminal({
+        theme: {
+          background: '#1e1e1e',
+          foreground: '#cccccc',
+          cursor: '#569cd6',
+          cursorAccent: '#000000',
+          selection: '#264f78',
+          black: '#000000',
+          red: '#f48771',
+          green: '#6a9955',
+          yellow: '#dcdcaa',
+          blue: '#569cd6',
+          magenta: '#c586c0',
+          cyan: '#4ec9b0',
+          white: '#cccccc',
+          brightBlack: '#666666',
+          brightRed: '#f48771',
+          brightGreen: '#6a9955',
+          brightYellow: '#dcdcaa',
+          brightBlue: '#569cd6',
+          brightMagenta: '#c586c0',
+          brightCyan: '#4ec9b0',
+          brightWhite: '#ffffff'
+        },
+        fontFamily: '\'SF Mono\', Monaco, \'Cascadia Code\', \'Roboto Mono\', Consolas, \'Courier New\', monospace',
+        fontSize: 13,
+        fontWeight: 'normal',
+        fontWeightBold: 'bold',
+        lineHeight: 1.4,
+        letterSpacing: 0,
+        cursorBlink: true,
+        cursorStyle: 'block',
+        scrollback: 10000,
+        allowTransparency: false,
+        windowsMode: window.electronAPI && window.electronAPI.platform === 'win32',
+        macOptionIsMeta: true,
+        macOptionClickForcesSelection: true,
+        rendererType: 'canvas',
+        convertEol: true,
+        wordSeparator: ' ()[]{}\'"',
+        fastScrollModifier: 'alt',
+        fastScrollSensitivity: 5,
+        scrollSensitivity: 1,
+        rightClickSelectsWord: true
+      });
     
-    // 加载插件
-    // 检查插件是否正确加载
-    if (typeof FitAddon !== 'undefined') {
-      this.fitAddon = new FitAddon.FitAddon();
-      this.terminal.loadAddon(this.fitAddon);
-    } else {
-      console.warn('FitAddon 未能加载');
-    }
-    
-    if (typeof WebLinksAddon !== 'undefined') {
-      this.webLinksAddon = new WebLinksAddon.WebLinksAddon();
-      this.terminal.loadAddon(this.webLinksAddon);
-    } else {
-      console.warn('WebLinksAddon 未能加载');
-    }
-    
-    if (typeof SearchAddon !== 'undefined') {
-      this.searchAddon = new SearchAddon.SearchAddon();
-      this.terminal.loadAddon(this.searchAddon);
-    } else {
-      console.warn('SearchAddon 未能加载');
-    }
-    
-    // 打开终端
-    this.terminal.open(this.container);
-    
-    // 自适应大小
-    this.fit();
-    
-    // 监听数据事件
-    this.terminal.onData((data) => {
-      if (this.onDataCallback) {
-        this.onDataCallback(data);
+      // 加载插件
+      // 检查插件是否正确加载
+      if (typeof FitAddon !== 'undefined') {
+        this.fitAddon = new FitAddon.FitAddon();
+        this.terminal.loadAddon(this.fitAddon);
+      } else {
+        console.warn('FitAddon 未能加载');
       }
-    });
     
-    // 监听窗口大小变化
-    window.addEventListener('resize', () => {
+      if (typeof WebLinksAddon !== 'undefined') {
+        this.webLinksAddon = new WebLinksAddon.WebLinksAddon();
+        this.terminal.loadAddon(this.webLinksAddon);
+      } else {
+        console.warn('WebLinksAddon 未能加载');
+      }
+    
+      if (typeof SearchAddon !== 'undefined') {
+        this.searchAddon = new SearchAddon.SearchAddon();
+        this.terminal.loadAddon(this.searchAddon);
+      } else {
+        console.warn('SearchAddon 未能加载');
+      }
+    
+      // 打开终端
+      this.terminal.open(this.container);
+    
+      // 自适应大小
       this.fit();
-    });
     
-    // 添加快捷键支持
-    this.setupKeyboardShortcuts();
+      // 监听数据事件
+      this.terminal.onData((data) => {
+        if (this.onDataCallback) {
+          this.onDataCallback(data);
+        }
+      });
     
-    // 显示欢迎信息
-    this.showWelcomeMessage();
+      // 监听窗口大小变化
+      window.addEventListener('resize', () => {
+        this.fit();
+      });
+    
+      // 添加快捷键支持
+      this.setupKeyboardShortcuts();
+    
+      // 显示欢迎信息
+      this.showWelcomeMessage();
     } catch (error) {
       console.error('终端初始化失败:', error);
       this.useFallbackTerminal();
