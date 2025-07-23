@@ -37,6 +37,9 @@ body {
   background-color: var(--bg-secondary);
   padding: 15px 20px;
   border-bottom: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .header h1 {
@@ -44,12 +47,18 @@ body {
   font-size: 24px;
   font-weight: normal;
   display: inline-block;
+  margin-right: 10px;
 }
 
 .header-subtitle {
   color: var(--text-secondary);
   font-size: 12px;
   margin-top: 5px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
 }
 
 .main-container {

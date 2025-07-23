@@ -22,34 +22,71 @@ async function init() {
   setupEventListeners();
   await loadConfigs();
   
-  // 延迟执行环境检查，确保所有内容都已加载
-  setTimeout(async () => {
-    console.log('延迟执行环境检查...');
-    await checkEnvironment();
-  }, 1000);
+  // 检查是否需要显示新手引导
+  const hasSeenGuide = await window.electronAPI.getConfig('hasSeenGuide');
+  if (!hasSeenGuide && window.WelcomeGuide) {
+    const guide = new window.WelcomeGuide();
+    guide.start();
+    
+    // 监听引导完成事件
+    window.addEventListener('guideComplete', async () => {
+      await checkEnvironment();
+    });
+  } else {
+    // 延迟执行环境检查，确保所有内容都已加载
+    setTimeout(async () => {
+      console.log('延迟执行环境检查...');
+      await checkEnvironment();
+    }, 1000);
+  }
 }
 
 function setupTerminal() {
-  // SimpleTerminal 已经在 simple-terminal.js 中定义为全局变量
-  terminal = new window.SimpleTerminal(document.getElementById('terminal'));
+  // 使用增强终端（如果可用），否则使用简单终端
+  const TerminalClass = window.EnhancedTerminal || window.SimpleTerminal;
+  terminal = new TerminalClass(document.getElementById('terminal'));
   
-  terminal.writeln('🔥 欢迎使用 Miaoda - AI 编程神器！');
-  terminal.writeln(`版本: ${window.electronAPI.versions.app || '2.0.0'}`);
-  terminal.writeln('');
-  terminal.writeln('💥 全球唯一支持 380+ AI 大模型的管理工具！');
-  terminal.writeln('⚡ 效率提升 100 倍，成本降低 90%！');
-  terminal.writeln('🌟 用了 Miaoda = 赢在 AI 时代起跑线！');
-  terminal.writeln('');
-  terminal.writeln('💎 点击"关于"了解我们的强大功能');
-  terminal.writeln('📢 点击"分享"让更多人受益！');
-  terminal.writeln('');
+  // 显示欢迎信息
+  if (terminal.showWelcomeMessage) {
+    terminal.showWelcomeMessage();
+  } else {
+    terminal.writeln('欢迎使用 Miaoda - Claude Code 图形化管理工具');
+    terminal.writeln(`版本: ${window.electronAPI.versions.app || '2.0.0'}`);
+    terminal.writeln('');
+    terminal.writeln('✓ 支持多种 AI 模型配置');
+    terminal.writeln('✓ 内置代理服务器');
+    terminal.writeln('✓ 简单易用的图形界面');
+    terminal.writeln('');
+    terminal.writeln('提示: 首次使用请先完成环境检查');
+    terminal.writeln('');
+  }
 
   window.electronAPI.onTerminalData((data) => {
     terminal.write(data);
   });
 
   terminal.onData((data) => {
+    // 检查是否是内部命令
+    if (data.trim() && !data.startsWith('\n')) {
+      const cmd = data.trim();
+      if (cmd.startsWith('/') || ['help', 'clear', 'status', 'version', 'approval', 'auto-approval'].includes(cmd.toLowerCase())) {
+        terminal.handleCommand(cmd);
+        return;
+      }
+    }
+    
     window.electronAPI.sendTerminalInput(data);
+  });
+  
+  // 设置全局终端引用
+  window.terminal = terminal;
+  
+  // 监听批准请求
+  window.electronAPI.onApprovalRequest && window.electronAPI.onApprovalRequest(async (type, request) => {
+    if (terminal.handleApprovalRequest) {
+      return await terminal.handleApprovalRequest(type, request);
+    }
+    return false;
   });
 }
 
@@ -67,6 +104,16 @@ function setupEventListeners() {
   document.getElementById('copy-terminal-btn').addEventListener('click', copyTerminal);
   document.getElementById('about-btn').addEventListener('click', showAbout);
   document.getElementById('share-btn').addEventListener('click', showShare);
+  
+  // 添加自动批准设置按钮（如果存在）
+  const settingsBtn = document.getElementById('settings-btn');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      if (window.autoApproval) {
+        window.autoApproval.openSettings();
+      }
+    });
+  }
   
   // 添加 Ctrl+C 快捷键来停止 Claude Code
   document.addEventListener('keydown', async (e) => {
@@ -189,10 +236,38 @@ async function installDependency(dep) {
 
 async function loadConfigs() {
   try {
-    configs = await window.electronAPI.getConfigs();
+    // 初始化默认配置（如果需要）
+    if (window.initializeDefaultConfigs) {
+      configs = await window.initializeDefaultConfigs();
+    } else {
+      configs = await window.electronAPI.getConfigs();
+    }
+    
     renderConfigList();
+    
+    // 如果有推荐配置且没有当前选中的配置，自动选择推荐配置
+    if (!currentConfig && configs.length > 0) {
+      const recommendedConfig = window.getRecommendedConfig ? 
+        configs.find(c => c.id === window.getRecommendedConfig().id) : 
+        configs[0];
+      
+      if (recommendedConfig) {
+        selectConfig(recommendedConfig);
+      }
+    }
+    
+    // 检查是否需要配置提示
+    if (currentConfig && window.needsConfiguration && window.needsConfiguration(currentConfig)) {
+      const tips = window.getConfigurationTips(currentConfig);
+      if (tips.length > 0) {
+        terminal.writeln('\n⚠️ 配置提示:');
+        tips.forEach(tip => terminal.writeln(`  • ${tip}`));
+        terminal.writeln('');
+      }
+    }
   } catch (error) {
     console.error('加载配置失败:', error);
+    terminal.writeln('❌ 加载配置失败: ' + error.message);
   }
 }
 
@@ -347,9 +422,24 @@ async function startClaudeCode() {
     updateStatus('请先选择一个配置');
     return;
   }
+  
+  // 检查配置是否需要设置
+  if (window.needsConfiguration && window.needsConfiguration(currentConfig)) {
+    const tips = window.getConfigurationTips(currentConfig);
+    terminal.writeln('\n❌ 配置不完整:');
+    tips.forEach(tip => terminal.writeln(`  • ${tip}`));
+    terminal.writeln('\n请先完成配置设置');
+    updateStatus('配置不完整');
+    return;
+  }
 
   updateStatus('正在启动 Claude Code...');
   terminal.writeln('\n正在启动 Claude Code...\n');
+  
+  // 设置终端为处理状态
+  if (terminal.setProcessing) {
+    terminal.setProcessing(true);
+  }
   
   // 统计功能使用
   window.electronAPI.trackFeatureUse('start_claude');
@@ -359,13 +449,28 @@ async function startClaudeCode() {
     if (result.success) {
       updateStatus('Claude Code 已启动');
       terminal.writeln('\nClaude Code 已启动，现在可以开始对话了\n');
+      if (terminal.setProcessing) {
+        terminal.setProcessing(false);
+      }
     } else {
       updateStatus('启动失败');
       terminal.writeln(`\n启动失败: ${result.message}\n`);
+      if (terminal.setError) {
+        terminal.setError(true);
+        setTimeout(() => terminal.setError(false), 3000);
+      }
     }
   } catch (error) {
     updateStatus('启动出错');
     terminal.writeln(`\n启动出错: ${error.message}\n`);
+    if (terminal.setError) {
+      terminal.setError(true);
+      setTimeout(() => terminal.setError(false), 3000);
+    }
+  } finally {
+    if (terminal.setProcessing) {
+      terminal.setProcessing(false);
+    }
   }
 }
 

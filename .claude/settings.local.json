@@ -1,20 +1,24 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)",
-      "Bash(find:*)",
-      "Bash(cat:*)",
-      "Bash(mkdir:*)",
-      "Bash(npm install:*)",
-      "Bash(cd:*)",
-      "Bash(chmod:*)",
-      "Bash(rm:*)",
-      "Bash(git init:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git remote add:*)",
-      "Bash(git branch:*)"
+      "Bash(git add:*)"
     ],
     "deny": []
+  },
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-context7"
+      ]
+    },
+    "zen": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-zen"
+      ]
+    }
   }
 }

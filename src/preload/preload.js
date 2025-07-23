@@ -37,7 +37,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   versions: {
     node: process.versions.node,
     chrome: process.versions.chrome,
-    electron: process.versions.electron
+    electron: process.versions.electron,
+    app: require('electron').remote ? require('electron').remote.app.getVersion() : '2.0.0'
   },
   
   // 数据统计
