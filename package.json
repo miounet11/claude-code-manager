@@ -8,10 +8,10 @@
     "dev": "electron . --dev",
     "build": "electron-builder",
     "dist": "electron-builder --publish=never",
-    "dist-mac": "electron-builder --mac",
+    "dist-mac": "electron-builder --mac --publish=never",
     "dist-win": "electron-builder --win --publish=never",
-    "dist-win-portable": "electron-builder --win portable --x64",
-    "dist-all": "electron-builder -mw",
+    "dist-win-portable": "electron-builder --win portable --x64 --publish=never",
+    "dist-all": "electron-builder -mw --publish=never",
     "lint": "eslint src/**/*.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -36,6 +36,7 @@
   "build": {
     "appId": "com.miaoda.app",
     "productName": "Miaoda",
+    "publish": null,
     "directories": {
       "output": "dist"
     },

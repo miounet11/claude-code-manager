@@ -28,7 +28,7 @@ jobs:
         run: npm ci
       
       - name: Build macOS app
-        run: npm run dist-mac
+        run: npm run dist-mac -- --publish=never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
@@ -59,7 +59,7 @@ jobs:
         run: npm ci
       
       - name: Build Windows app
-        run: npm run dist-win
+        run: npm run dist-win -- --publish=never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
