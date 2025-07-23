@@ -28,9 +28,10 @@ jobs:
         run: npm ci
       
       - name: Build macOS app
-        run: npm run dist-mac -- --publish=never
+        run: npm run dist-mac
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
       
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -59,9 +60,10 @@ jobs:
         run: npm ci
       
       - name: Build Windows app
-        run: npm run dist-win -- --publish=never
+        run: npm run dist-win
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
       
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
