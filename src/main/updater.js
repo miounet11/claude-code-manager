@@ -2,8 +2,8 @@
 
 const { app, dialog, shell } = require('electron');
 const https = require('https');
-const os = require('os');
-const path = require('path');
+// const os = require('os'); // 未使用
+// const path = require('path'); // 未使用
 const fs = require('fs').promises;
 const crypto = require('crypto');
 

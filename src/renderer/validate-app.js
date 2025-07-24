@@ -34,7 +34,7 @@ window.appValidator = {
       { id: 'app', desc: '主应用容器' },
       { id: 'terminal', desc: '终端容器' },
       { id: 'config-list', desc: '配置列表' },
-      { id: 'config-form', desc: '配置表单' }
+      { id: 'config-edit-form', desc: '配置表单' }
     ];
     
     requiredElements.forEach(item => {
@@ -50,7 +50,7 @@ window.appValidator = {
     const requiredFunctions = [
       { name: 'setupTerminal', desc: '终端设置函数' },
       { name: 'loadConfigs', desc: '配置加载函数' },
-      { name: 'startClaudeCode', desc: 'Claude Code 启动函数' }
+      { name: 'startClaude', desc: 'Claude Code 启动函数' }
     ];
     
     requiredFunctions.forEach(item => {
@@ -69,25 +69,40 @@ window.appValidator = {
     console.log('验证事件监听器...');
     
     const buttons = [
-      { id: 'new-config-btn', desc: '新建配置按钮' },
-      { id: 'start-claude-btn', desc: '启动按钮' },
-      { id: 'check-env-btn', desc: '检查环境按钮' },
-      { id: 'about-btn', desc: '关于按钮' }
+      { id: 'new-config-btn', desc: '新建配置按钮', handler: 'showNewConfigForm' },
+      { id: 'start-claude-btn', desc: '启动按钮', handler: 'startClaude' },
+      { id: 'check-env-btn', desc: '检查环境按钮', handler: 'checkEnvironment' },
+      { id: 'about-btn', desc: '关于按钮', handler: 'showAbout' }
     ];
+    
+    // 获取已绑定的事件监听器记录
+    const boundListeners = window._boundEventListeners || [];
     
     buttons.forEach(item => {
       const btn = document.getElementById(item.id);
       if (btn) {
-        // 检查是否有点击事件监听器
-        const hasListener = btn.onclick !== null || 
-                          btn.getAttribute('onclick') !== null ||
-                          btn._listeners?.click?.length > 0;
+        // 检查按钮是否存在
+        console.log(`✓ ${item.desc} 存在`);
         
-        if (!hasListener) {
-          this.warnings.push(`${item.desc} (#${item.id}) 可能没有事件监听器`);
+        // 检查是否在记录中找到绑定信息
+        const isBound = boundListeners.some(listener => listener.id === item.id);
+        if (isBound) {
+          console.log(`✓ ${item.desc} 已绑定事件监听器`);
         } else {
-          console.log(`✓ ${item.desc} 有事件监听器`);
+          // 只在延迟验证时才报警告（因为事件可能还未绑定）
+          if (this.isDelayedValidation) {
+            this.warnings.push(`${item.desc} (#${item.id}) 可能没有事件监听器`);
+          }
         }
+        
+        // 检查处理函数是否存在
+        if (item.handler && typeof window[item.handler] === 'function') {
+          console.log(`✓ ${item.desc} 的处理函数 ${item.handler} 已定义`);
+        } else if (item.handler) {
+          this.warnings.push(`${item.desc} 的处理函数 ${item.handler} 未定义`);
+        }
+      } else {
+        this.warnings.push(`${item.desc} (#${item.id}) 未找到`);
       }
     });
   },
@@ -121,10 +136,11 @@ window.appValidator = {
   },
   
   // 执行完整验证
-  runFullValidation() {
+  runFullValidation(isDelayed = false) {
     console.log('=== 开始完整应用程序验证 ===');
     this.errors = [];
     this.warnings = [];
+    this.isDelayedValidation = isDelayed;
     
     // 运行所有验证
     this.validateDependencies();
@@ -159,6 +175,6 @@ window.appValidator = {
 document.addEventListener('DOMContentLoaded', () => {
   // 延迟执行，确保所有脚本都已加载
   setTimeout(() => {
-    window.appValidator.runFullValidation();
+    window.appValidator.runFullValidation(true);
   }, 1000);
 });

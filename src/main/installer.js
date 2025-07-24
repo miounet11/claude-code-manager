@@ -1,6 +1,6 @@
 'use strict';
 
-const { exec, spawn } = require('child_process');
+const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 const { ipcMain } = require('electron');
@@ -29,7 +29,7 @@ async function installUV() {
       throw new Error(`Unsupported platform: ${platform}`);
     }
     
-    const { stdout, stderr } = await execPromise(command);
+    const { stderr } = await execPromise(command);
     
     if (stderr && !stderr.includes('warning')) {
       throw new Error(stderr);
@@ -49,7 +49,7 @@ async function installUV() {
 
 async function installClaudeCode() {
   try {
-    const { stdout, stderr } = await execPromise('uv tool install claude-code');
+    const { stderr } = await execPromise('uv tool install claude-code');
     
     if (stderr && !stderr.includes('warning')) {
       throw new Error(stderr);

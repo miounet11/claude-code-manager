@@ -1,6 +1,6 @@
 'use strict';
 
-const { app } = require('electron');
+// const { app } = require('electron'); // 未使用
 const Store = require('electron-store');
 const https = require('https');
 const crypto = require('crypto');

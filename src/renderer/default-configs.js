@@ -3,7 +3,7 @@ const DEFAULT_CONFIGS = [
   {
     id: 'free-claude-trial',
     name: '免费试用（第三方API）',
-    apiUrl: 'http://www.miaoda.vip/v1',
+    apiUrl: 'http://www.miaoda.vip/',
     apiKey: 'sk-3vxiV5wctLaERpZ6F7ap0Ys4nh0cmE1uK9NNmYg08DcHzQ44',
     model: 'claude-3-7-sonnet-20250219',
     note: '免费试用，无需配置即可使用',
@@ -37,7 +37,8 @@ function getRecommendedConfig() {
 // 初始化默认配置
 async function initializeDefaultConfigs() {
   try {
-    const existingConfigs = await window.electronAPI.getConfigs();
+    const result = await window.electronAPI.getConfigs();
+    const existingConfigs = result.configs || [];
         
     // 如果没有任何配置，添加默认配置
     if (!existingConfigs || existingConfigs.length === 0) {
@@ -133,9 +134,27 @@ function getConfigurationTips(config) {
   return tips;
 }
 
+// 获取官方默认配置 - 完全清空所有自定义设置
+function getOfficialDefaultConfig() {
+  return {
+    id: 'official-claude-default',
+    name: '恢复官方默认设置',
+    apiUrl: '', // 空值 - 使用 Claude Code 原生默认值
+    apiKey: '', // 空值 - 由 Claude Code 自行处理认证
+    model: '',  // 空值 - 使用 Claude Code 默认模型
+    note: '清除所有自定义配置，使用 Claude Code 完全默认行为',
+    isOfficial: true,
+    // 特殊标记，表示完全使用 Claude Code 原生配置
+    useNativeConfig: true,
+    // 标记为空配置，不传递任何参数
+    isEmptyConfig: true
+  };
+}
+
 // 导出
 window.DEFAULT_CONFIGS = DEFAULT_CONFIGS;
 window.initializeDefaultConfigs = initializeDefaultConfigs;
 window.needsConfiguration = needsConfiguration;
 window.getConfigurationTips = getConfigurationTips;
 window.getRecommendedConfig = getRecommendedConfig;
+window.getOfficialDefaultConfig = getOfficialDefaultConfig;

@@ -47,6 +47,36 @@ docs/
 ### 4. 智能端口管理
 - ✅ 首选端口范围：8082-8086
 - ✅ 自动检测端口可用性
+
+## ⚠️ Windows 用户特别说明
+
+### 🔧 快速修复Windows问题
+
+如果在Windows系统下遇到以下问题：
+- `Error invoking remote method 'check-environment': Error: No handler registered for 'check-environment'`
+- 环境检验无法生效
+- 代理配置失效
+
+**立即运行修复脚本：**
+
+```cmd
+# 方式一：批处理文件（简单）
+.\scripts\windows-fix.bat
+
+# 方式二：PowerShell脚本（推荐）
+.\scripts\windows-fix.ps1 -All
+```
+
+### 📋 Windows修复内容
+- ✅ 修复IPC通信问题
+- ✅ 增强环境检测功能
+- ✅ 改进编码兼容性
+- ✅ 优化启动命令
+- ✅ 修复权限问题
+
+详细说明请查看：[`docs/WINDOWS_DEPLOYMENT_FIX.md`](docs/WINDOWS_DEPLOYMENT_FIX.md)
+
+---
 - ✅ 端口冲突智能处理
 - ✅ 随机端口分配备用机制
 

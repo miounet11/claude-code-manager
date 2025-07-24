@@ -8,8 +8,11 @@ class XtermTerminal {
     this.searchAddon = null;
     this.onDataCallback = null;
     this.isProcessing = false;
+    this.commandHistory = [];
+    this.historyIndex = -1;
     
-    this.setupTerminal();
+    // 延迟初始化，确保库已加载
+    setTimeout(() => this.setupTerminal(), 100);
   }
   
   async setupTerminal() {
@@ -25,6 +28,7 @@ class XtermTerminal {
       
       // 使用全局的 Terminal 类（需要在 HTML 中通过 script 标签加载）
       // 这些类已经在全局作用域中，不需要重新声明
+      /* global Terminal */
     
       // 创建终端实例
       this.terminal = new Terminal({
@@ -51,12 +55,12 @@ class XtermTerminal {
           brightCyan: '#4ec9b0',
           brightWhite: '#ffffff'
         },
-        fontFamily: '\'SF Mono\', Monaco, \'Cascadia Code\', \'Roboto Mono\', Consolas, \'Courier New\', monospace',
-        fontSize: 13,
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        fontSize: 12,  // 统一字体大小
         fontWeight: 'normal',
         fontWeightBold: 'bold',
-        lineHeight: 1.4,
-        letterSpacing: 0,
+        lineHeight: 1.2,  // 统一行高
+        letterSpacing: -0.2,  // 统一字符间距
         cursorBlink: true,
         cursorStyle: 'block',
         scrollback: 10000,
@@ -70,11 +74,14 @@ class XtermTerminal {
         fastScrollModifier: 'alt',
         fastScrollSensitivity: 5,
         scrollSensitivity: 1,
-        rightClickSelectsWord: true
+        rightClickSelectsWord: true,
+        drawBoldTextInBrightColors: true,
+        minimumContrastRatio: 4.5
       });
     
       // 加载插件
       // 检查插件是否正确加载
+      /* global FitAddon */
       if (typeof FitAddon !== 'undefined') {
         this.fitAddon = new FitAddon.FitAddon();
         this.terminal.loadAddon(this.fitAddon);
@@ -82,6 +89,7 @@ class XtermTerminal {
         console.warn('FitAddon 未能加载');
       }
     
+      /* global WebLinksAddon */
       if (typeof WebLinksAddon !== 'undefined') {
         this.webLinksAddon = new WebLinksAddon.WebLinksAddon();
         this.terminal.loadAddon(this.webLinksAddon);
@@ -89,6 +97,7 @@ class XtermTerminal {
         console.warn('WebLinksAddon 未能加载');
       }
     
+      /* global SearchAddon */
       if (typeof SearchAddon !== 'undefined') {
         this.searchAddon = new SearchAddon.SearchAddon();
         this.terminal.loadAddon(this.searchAddon);
@@ -162,33 +171,41 @@ class XtermTerminal {
   }
   
   showWelcomeMessage() {
-    const welcomeText = `
-\x1b[1;32m╔══════════════════════════════════════════════════════════════╗
-║                                                              ║
-║  \x1b[1;36m███╗   ███╗██╗ █████╗  ██████╗ ██████╗  █████╗\x1b[1;32m              ║
-║  \x1b[1;36m████╗ ████║██║██╔══██╗██╔═══██╗██╔══██╗██╔══██╗\x1b[1;32m             ║
-║  \x1b[1;36m██╔████╔██║██║███████║██║   ██║██║  ██║███████║\x1b[1;32m             ║
-║  \x1b[1;36m██║╚██╔╝██║██║██╔══██║██║   ██║██║  ██║██╔══██║\x1b[1;32m             ║
-║  \x1b[1;36m██║ ╚═╝ ██║██║██║  ██║╚██████╔╝██████╔╝██║  ██║\x1b[1;32m             ║
-║  \x1b[1;36m╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝\x1b[1;32m             ║
-║                                                              ║
-║  \x1b[1;33mClaude Code Manager v2.0.3\x1b[1;32m                                   ║
-║  \x1b[0;37m让 AI 编程变得简单高效\x1b[1;32m                                      ║
-║                                                              ║
-╚══════════════════════════════════════════════════════════════╝\x1b[0m
-
-\x1b[0;36m🚀 欢迎使用 Miaoda - 全球领先的 AI 编程工具！\x1b[0m
-
-\x1b[0;33m快捷键：\x1b[0m
-  • \x1b[0;32mCtrl+C\x1b[0m - 复制选中文本
-  • \x1b[0;32mCtrl+V\x1b[0m - 粘贴文本
-  • \x1b[0;32mCtrl+F\x1b[0m - 搜索内容
-  • \x1b[0;32mCtrl+K\x1b[0m - 清空终端
-  • \x1b[0;32m↑↓\x1b[0m    - 浏览命令历史
-
-\x1b[0;36m💡 提示：点击配置管理创建或选择配置，然后启动 Claude Code！\x1b[0m
-`;
-    this.write(welcomeText);
+    // 清空终端
+    this.clear();
+    
+    // ASCII 艺术字标题 - 使用亮绿色
+    this.writeln('\x1b[38;2;0;255;128m███╗   ███╗██╗ █████╗  ██████╗ ██████╗  █████╗');
+    this.writeln('████╗ ████║██║██╔══██╗██╔═══██╗██╔══██╗██╔══██╗');
+    this.writeln('██╔████╔██║██║███████║██║   ██║██║  ██║███████║');
+    this.writeln('██║╚██╔╝██║██║██╔══██║██║   ██║██║  ██║██╔══██║');
+    this.writeln('██║ ╚═╝ ██║██║██║  ██║╚██████╔╝██████╔╝██║  ██║');
+    this.writeln('╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝\x1b[0m');
+    
+    // 副标题 - 使用青绿色（减少间距）
+    this.writeln('\x1b[38;2;100;255;180m        CLAUDE CODE MANAGER        \x1b[0m');
+    this.writeln('\x1b[38;2;50;150;100m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+    
+    // 版本和状态信息（更紧凑的布局）
+    this.write('\x1b[38;2;0;255;200m◆ v2.0.8\x1b[0m ');
+    this.write('\x1b[38;2;100;100;100m│\x1b[0m ');
+    this.write('\x1b[38;2;255;200;0m◆ xterm.js\x1b[0m ');
+    this.write('\x1b[38;2;100;100;100m│\x1b[0m ');
+    this.writeln('\x1b[38;2;255;100;100m◆ Ready\x1b[0m');
+    
+    // 快捷提示（更紧凑的版本）
+    this.writeln('\x1b[38;2;150;150;255m┌─ Commands ────────────────────────────────────┐\x1b[0m');
+    this.writeln('\x1b[38;2;150;150;255m│\x1b[0m \x1b[38;2;255;255;100mhelp\x1b[0m    - Show available commands           \x1b[38;2;150;150;255m│\x1b[0m');
+    this.writeln('\x1b[38;2;150;150;255m│\x1b[0m \x1b[38;2;255;255;100mclear\x1b[0m   - Clear terminal                   \x1b[38;2;150;150;255m│\x1b[0m');
+    this.writeln('\x1b[38;2;150;150;255m│\x1b[0m \x1b[38;2;255;255;100mconfig\x1b[0m  - Manage configurations            \x1b[38;2;150;150;255m│\x1b[0m');
+    this.writeln('\x1b[38;2;150;150;255m│\x1b[0m \x1b[38;2;255;255;100mstart\x1b[0m   - Start Claude Code                \x1b[38;2;150;150;255m│\x1b[0m');
+    this.writeln('\x1b[38;2;150;150;255m└───────────────────────────────────────────────┘\x1b[0m');
+    
+    // 提示信息
+    this.writeln('\x1b[38;2;100;100;100m💡 Click terminal to focus • Ctrl+K to clear\x1b[0m');
+    
+    // 命令提示符
+    this.write('\x1b[38;2;0;255;0mmiaoda\x1b[0m \x1b[38;2;100;200;255m>\x1b[0m ');
   }
   
   write(data) {
@@ -282,7 +299,7 @@ class XtermTerminal {
     // 可以在这里添加处理状态的视觉反馈
   }
   
-  setError(error) {
+  setError(/* error */) {
     // 可以在这里添加错误状态的视觉反馈
   }
   

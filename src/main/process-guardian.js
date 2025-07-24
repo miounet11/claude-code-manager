@@ -8,7 +8,7 @@
 const { spawn, exec } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
-const { app, dialog, BrowserWindow } = require('electron');
+const { app, dialog } = require('electron');
 const Store = require('electron-store');
 const os = require('os');
 
@@ -33,12 +33,14 @@ class ProcessGuardian {
   /**
    * 启动完整的保活机制
    */
-  async startGuardian() {
+  async startGuardian(skipAdminCheck = false) {
     console.log('🛡️ 启动进程守护系统...');
     
     try {
-      // 1. 请求管理员权限
-      await this.requestAdminPrivileges();
+      // 1. 如果不跳过，请求管理员权限
+      if (!skipAdminCheck) {
+        await this.requestAdminPrivileges();
+      }
       
       // 2. 启动系统级守护进程
       await this.startSystemDaemon();
@@ -74,8 +76,8 @@ class ProcessGuardian {
     if (platform === 'darwin') {
       // macOS - 请求管理员权限
       return new Promise((resolve, reject) => {
-        const osascript = `osascript -e 'do shell script "echo \\"Admin access granted\\"" with administrator privileges'`;
-        exec(osascript, (error, stdout, stderr) => {
+        const osascript = 'osascript -e \'do shell script "echo \\"Admin access granted\\"" with administrator privileges\'';
+        exec(osascript, (error) => {
           if (error) {
             reject(new Error('需要管理员权限才能启用保活机制'));
           } else {
@@ -288,6 +290,12 @@ $Shortcut.Save()
    * 启动备份进程
    */
   async startBackupProcesses() {
+    // 暂时禁用备份进程，避免重复渲染问题
+    console.log('🔄 备份进程功能已暂时禁用');
+    return;
+    
+    // 原始代码保留，供后续修复
+    /*
     const appPath = app.getPath('exe');
     const backupCount = 2;
     
@@ -303,6 +311,7 @@ $Shortcut.Save()
         console.log(`🔄 启动备份进程 ${i + 1}`);
       }, (i + 1) * 2000);
     }
+    */
   }
 
   /**
@@ -540,7 +549,9 @@ $Shortcut.Save()
     this.backupProcesses.forEach(proc => {
       try {
         proc.kill();
-      } catch (e) {}
+      } catch (e) {
+        // 忽略进程已经结束的错误
+      }
     });
     
     this.isGuardianActive = false;
@@ -587,7 +598,6 @@ class PortManager {
   }
 
   async findAvailablePort() {
-    const net = require('net');
     
     for (const port of this.preferredPorts) {
       if (await this.isPortAvailable(port)) {

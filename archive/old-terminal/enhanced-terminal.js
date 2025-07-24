@@ -1,4 +1,5 @@
-class EnhancedTerminal extends SimpleTerminal {
+// 继承简单终端类，需要确保 SimpleTerminal 已经加载
+class EnhancedTerminal extends (window.SimpleTerminal || class {}) {
   constructor(container) {
     super(container);
     this.commandHistory = [];

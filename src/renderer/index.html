@@ -6,6 +6,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
   <title>Miaoda - Claude Code Manager</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="terminal.css">
+  <link rel="stylesheet" href="simple-terminal.css">
   <link rel="stylesheet" href="xterm-terminal.css">
 </head>
 <body>
@@ -59,63 +61,11 @@
       </aside>
 
       <div class="content">
-        <div id="config-form" class="config-form" style="display: none;">
-          <h2>配置编辑 <button type="button" id="quick-fill-btn" class="btn btn-small btn-secondary" style="float: right;">免费测试</button></h2>
-          <form id="config-edit-form">
-            <input type="hidden" id="config-id">
-            
-            <div class="form-group">
-              <label for="config-name">配置名称</label>
-              <input type="text" id="config-name" required>
-            </div>
-
-            <div class="form-group">
-              <label for="api-url">API URL</label>
-              <input type="url" id="api-url" placeholder="https://api.example.com" required>
-            </div>
-
-            <div class="form-group">
-              <label for="api-key">API Key</label>
-              <input type="password" id="api-key" placeholder="输入你的 API Key" required>
-            </div>
-
-            <div class="form-group">
-              <label for="model">模型</label>
-              <input type="text" id="model" list="model-options" placeholder="输入模型名称或从列表选择" required>
-              <datalist id="model-options">
-                <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (最新)</option>
-                <option value="claude-opus-4-20250514">Claude Opus 4</option>
-                <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
-                <option value="grok-3">Grok 3</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="claude-3-opus-20240229">Claude 3 Opus</option>
-                <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
-                <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
-                <option value="gpt-4">GPT-4</option>
-                <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-              </datalist>
-            </div>
-
-
-            <div class="form-actions">
-              <button type="button" id="test-config-btn" class="btn btn-secondary">测试连接</button>
-              <button type="submit" class="btn btn-primary">保存配置</button>
-              <button type="button" id="save-and-start-btn" class="btn btn-primary">保存并启动</button>
-              <button type="button" id="cancel-config-btn" class="btn btn-secondary">取消</button>
-            </div>
-            
-            <div id="test-result" class="test-result" style="display: none;">
-              <div class="test-result-content"></div>
-            </div>
-          </form>
-        </div>
-
         <div id="terminal-container" class="terminal-container">
           <div class="terminal-header">
             <h2>终端</h2>
             <div class="terminal-actions">
+              <button id="fullscreen-terminal-btn" class="btn btn-small" title="全屏">⛶</button>
               <button id="stop-claude-btn" class="btn btn-small btn-danger">停止</button>
               <button id="clear-terminal-btn" class="btn btn-small">清空</button>
               <button id="copy-terminal-btn" class="btn btn-small">复制</button>
@@ -127,9 +77,77 @@
     </main>
 
     <footer class="footer">
-      <div class="footer-status" id="status-message">就绪</div>
-      <div class="footer-version">Miaoda v2.0.4</div>
+      <div class="footer-left">
+        <span id="config-path">/miaoda/claude-code</span>
+      </div>
+      <div class="footer-center">
+        <span id="api-url-display">未配置</span>
+      </div>
+      <div class="footer-right">
+        <span id="model-display">未选择模型</span>
+      </div>
     </footer>
+  </div>
+
+  <!-- 配置编辑对话框 -->
+  <div id="config-dialog" class="dialog-overlay" style="display: none;">
+    <div class="dialog" style="max-width: 600px;">
+      <div class="dialog-header">
+        <h2>配置编辑</h2>
+        <button class="dialog-close" id="config-close-btn">×</button>
+      </div>
+      <div class="dialog-content">
+        <form id="config-edit-form">
+          <input type="hidden" id="config-id">
+          
+          <div class="form-group">
+            <label for="config-name">配置名称</label>
+            <input type="text" id="config-name" required>
+          </div>
+
+          <div class="form-group">
+            <label for="api-url">API URL</label>
+            <input type="url" id="api-url" placeholder="https://api.example.com" required>
+          </div>
+
+          <div class="form-group">
+            <label for="api-key">API Key</label>
+            <input type="password" id="api-key" placeholder="输入你的 API Key" required>
+          </div>
+
+          <div class="form-group">
+            <label for="model">模型</label>
+            <input type="text" id="model" list="model-options" placeholder="输入模型名称或从列表选择" required>
+            <datalist id="model-options">
+              <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (最新)</option>
+              <option value="claude-opus-4-20250514">Claude Opus 4</option>
+              <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+              <option value="grok-3">Grok 3</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+              <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+              <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+              <option value="gpt-4">GPT-4</option>
+              <option value="gpt-4-turbo">GPT-4 Turbo</option>
+              <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+            </datalist>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="quick-fill-btn" class="btn btn-secondary">免费测试</button>
+            <button type="button" id="test-config-btn" class="btn btn-secondary">测试连接</button>
+            <button type="submit" class="btn btn-primary">保存配置</button>
+            <button type="button" id="save-and-start-btn" class="btn btn-primary">保存并启动</button>
+            <button type="button" id="cancel-config-btn" class="btn btn-secondary">取消</button>
+          </div>
+          
+          <div id="test-result" class="test-result" style="display: none;">
+            <div class="test-result-content"></div>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- 设置对话框 -->
@@ -137,7 +155,7 @@
     <div class="dialog">
       <div class="dialog-header">
         <h2>设置</h2>
-        <button class="dialog-close" onclick="closeSettingsDialog()">×</button>
+        <button class="dialog-close" id="settings-close-btn">×</button>
       </div>
       <div class="dialog-content">
         <div class="settings-section">
@@ -158,7 +176,7 @@
         </div>
         
         <div class="settings-actions">
-          <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+          <button class="btn btn-primary" id="save-settings-btn">保存设置</button>
         </div>
       </div>
     </div>
@@ -169,12 +187,12 @@
     <div class="dialog">
       <div class="dialog-header">
         <h2>关于 Miaoda</h2>
-        <button class="dialog-close" onclick="closeAboutDialog()">×</button>
+        <button class="dialog-close" id="about-close-btn">×</button>
       </div>
       <div class="dialog-content">
         <div class="about-logo">
           <h1>Miaoda</h1>
-          <p class="version-info">版本 <span id="current-version">2.0.4</span></p>
+          <p class="version-info">版本 <span id="current-version">2.0.8</span></p>
         </div>
         
         <div class="about-description">
@@ -199,10 +217,10 @@
         
         <div class="about-actions">
           <button class="btn btn-primary" id="check-update-btn">检查更新</button>
-          <button class="btn btn-secondary" onclick="openGithub()">
+          <button class="btn btn-secondary" id="github-btn">
             <span>GitHub</span>
           </button>
-          <button class="btn btn-secondary" onclick="openWebsite()">
+          <button class="btn btn-secondary" id="website-btn">
             <span>访问官网</span>
           </button>
         </div>
@@ -214,18 +232,30 @@
     </div>
   </div>
 
+  <!-- xterm.js CSS -->
+  <link rel="stylesheet" href="../../node_modules/xterm/css/xterm.css">
+  
   <!-- xterm.js 核心库和插件 -->
+  <script>
+    // 在加载其他脚本之前确保 xterm 已加载
+    window.onerror = function(msg, url, line) {
+      console.error('Script error:', msg, 'at', url, 'line', line);
+    };
+  </script>
   <script src="../../node_modules/xterm/lib/xterm.js"></script>
+  <script src="xterm-init.js"></script>
   <script src="../../node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
   <script src="../../node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js"></script>
   <script src="../../node_modules/xterm-addon-search/lib/xterm-addon-search.js"></script>
   
-  <!-- 应用脚本 -->
-  <script src="simple-terminal.js"></script>
-  <script src="enhanced-terminal.js"></script>
-  <script src="xterm-terminal.js"></script>
+  <!-- 应用脚本 - 新的终端实现 -->
+  <script src="xterm-wrapper.js"></script>
+  <script src="simple-xterm.js"></script>
+  <script src="terminal.js"></script>
+  <script src="terminal-session.js"></script>
+  <!-- <script src="terminal-commands.js"></script> 暂时禁用，避免输入处理冲突 -->
+  <script src="welcome-menu.js"></script>
   <script src="default-configs.js"></script>
-  <script src="welcome-guide.js"></script>
   <script src="claude-shortcuts.js"></script>
   <script src="auto-approval.js"></script>
   <script src="guardian-control.js"></script>

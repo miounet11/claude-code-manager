@@ -205,6 +205,7 @@ class AutoApprovalSystem {
     const isWin = window.electronAPI?.platform === 'win32';
     if (isWin) {
       // Windows 绝对路径通常以盘符开头 (C:\ D:\ 等)
+      // eslint-disable-next-line no-useless-escape
       return !/^[A-Za-z]:[\\\/]/.test(path);
     } else {
       // Unix 系统绝对路径以 / 开头

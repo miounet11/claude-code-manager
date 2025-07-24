@@ -1,933 +1,1169 @@
 'use strict';
 
 let terminal = null;
+let session = null;
+let commandInterceptor = null;
 let currentConfig = null;
 let configs = [];
 
+// 欢迎菜单状态
+let welcomeMenu = null;
+let isInWelcomeMenu = false;
+
+/**
+ * 初始化应用
+ */
 async function init() {
-  console.log('初始化渲染进程...');
+  console.log('初始化应用...');
   
-  // 测试 IPC 通信
-  console.log('测试 electronAPI:', window.electronAPI);
+  // 初始化终端
+  await setupTerminal();
   
-  try {
-    // 先测试 IPC 是否正常
-    const testResult = await window.electronAPI.testIPC();
-    console.log('IPC 测试结果:', testResult);
-  } catch (error) {
-    console.error('IPC 测试失败:', error);
-  }
-  
-  setupTerminal();
+  // 设置事件监听
   setupEventListeners();
+  
+  // 加载配置
   await loadConfigs();
   
-  // 检查是否需要显示新手引导
-  const hasSeenGuide = await window.electronAPI.getConfig('hasSeenGuide');
-  if (!hasSeenGuide && window.WelcomeGuide) {
-    const guide = new window.WelcomeGuide();
-    guide.start();
-    
-    // 监听引导完成事件
-    window.addEventListener('guideComplete', async () => {
-      await checkEnvironment();
-    });
+  // 显示美化的欢迎界面
+  await showWelcomeScreen();
+  
+  // 根据终端模式决定是否显示欢迎菜单
+  if (terminal.isRealTerminal) {
+    // 真实终端模式：显示提示信息
+    terminal.writeln('\x1b[90m提示: 输入 \x1b[33mmenu\x1b[90m 显示功能菜单，输入 \x1b[33mhelp\x1b[90m 查看帮助\x1b[0m');
+    terminal.writeln('');
   } else {
-    // 延迟执行环境检查，确保所有内容都已加载
-    setTimeout(async () => {
-      console.log('延迟执行环境检查...');
-      await checkEnvironment();
-    }, 1000);
+    // 模拟终端模式：自动显示欢迎菜单
+    showWelcomeMenu();
   }
 }
 
-function setupTerminal() {
-  // 优先使用 xterm.js 终端，提供最佳体验
-  const TerminalClass = window.XtermTerminal || window.EnhancedTerminal || window.SimpleTerminal;
-  terminal = new TerminalClass(document.getElementById('terminal'));
-  
-  // 显示欢迎信息
-  if (terminal.showWelcomeMessage) {
-    terminal.showWelcomeMessage();
-  } else {
-    terminal.writeln('欢迎使用 Miaoda - Claude Code 图形化管理工具');
-    terminal.writeln(`版本: ${window.electronAPI.versions.app || '2.0.0'}`);
-    terminal.writeln('');
-    terminal.writeln('✓ 支持多种 AI 模型配置');
-    terminal.writeln('✓ 内置代理服务器');
-    terminal.writeln('✓ 简单易用的图形界面');
-    terminal.writeln('');
-    terminal.writeln('提示: 首次使用请先完成环境检查');
-    terminal.writeln('');
+/**
+ * 设置终端
+ */
+async function setupTerminal() {
+  const container = document.getElementById('terminal');
+  if (!container) {
+    console.error('找不到终端容器');
+    return;
   }
 
+  // 调试 xterm.js 加载状态
+  console.log('window.Terminal:', window.Terminal);
+  console.log('window.XtermWrapper:', window.XtermWrapper);
+  console.log('window.SimpleXterm:', window.SimpleXterm);
+  
+  // 创建终端实例（优先使用 XtermWrapper）
+  if (window.XtermWrapper) {
+    terminal = new window.XtermWrapper();
+  } else if (window.SimpleXterm) {
+    terminal = new window.SimpleXterm();
+  } else if (window.MiaodaTerminal) {
+    // 如果其他包装器不可用，尝试使用 MiaodaTerminal
+    console.warn('使用 MiaodaTerminal 类');
+    terminal = new window.MiaodaTerminal();
+  } else {
+    console.error('没有可用的终端实现');
+    return;
+  }
+  
+  try {
+    const success = await terminal.initialize(container);
+    
+    if (!success) {
+      console.error('终端初始化失败');
+      return;
+    }
+  } catch (error) {
+    console.error('终端初始化异常:', error);
+    return;
+  }
+
+  // 检查是否是真实终端
+  if (terminal.isRealTerminal) {
+    console.log('使用真实终端模式');
+    // 真实终端模式下不需要会话管理
+    session = null;
+    
+    // 创建命令拦截器
+    if (window.TerminalCommandInterceptor) {
+      commandInterceptor = new window.TerminalCommandInterceptor(terminal);
+    }
+  } else {
+    console.log('使用模拟终端模式');
+    // 创建会话（仅在模拟模式下）
+    session = new window.TerminalSession(terminal);
+    
+    // 设置命令处理器
+    session.setCommandHandler(handleCommand);
+  }
+  
+  // 监听来自主进程的终端数据（用于 Claude 输出）
   window.electronAPI.onTerminalData((data) => {
     terminal.write(data);
   });
 
-  terminal.onData((data) => {
-    // 检查是否是内部命令
-    if (data.trim() && !data.startsWith('\n')) {
-      const cmd = data.trim();
-      if (cmd.startsWith('/') || ['help', 'clear', 'status', 'version', 'approval', 'auto-approval'].includes(cmd.toLowerCase())) {
-        terminal.handleCommand(cmd);
-        return;
+  // 设置键盘快捷键监听
+  terminal.onKey(({ key, domEvent }) => {
+    // 只在欢迎界面显示时处理快捷键
+    if (!isInWelcomeMenu && !session) {
+      switch (key.toLowerCase()) {
+      case '1':
+        startClaude();
+        break;
+      case '2':
+        showWelcomeMenu();
+        break;
+      case '3':
+        checkEnvironment();
+        break;
+      case 'h':
+        showHelp();
+        break;
       }
     }
-    
-    window.electronAPI.sendTerminalInput(data);
   });
   
-  // 设置全局终端引用
-  window.terminal = terminal;
+  // 聚焦终端
+  terminal.focus();
   
-  // 监听批准请求
-  window.electronAPI.onApprovalRequest && window.electronAPI.onApprovalRequest(async (type, request) => {
-    if (terminal.handleApprovalRequest) {
-      return await terminal.handleApprovalRequest(type, request);
-    }
-    return false;
-  });
+  console.log('终端初始化成功');
 }
 
-function setupEventListeners() {
-  document.getElementById('check-env-btn').addEventListener('click', checkEnvironment);
-  document.getElementById('new-config-btn').addEventListener('click', showNewConfigForm);
-  document.getElementById('start-claude-btn').addEventListener('click', startClaudeCode);
-  document.getElementById('export-config-btn').addEventListener('click', exportConfigs);
-  document.getElementById('import-config-btn').addEventListener('click', importConfigs);
-  document.getElementById('restore-default-btn').addEventListener('click', restoreDefaults);
-  document.getElementById('config-edit-form').addEventListener('submit', saveConfig);
-  document.getElementById('cancel-config-btn').addEventListener('click', hideConfigForm);
-  document.getElementById('test-config-btn').addEventListener('click', testConfig);
-  document.getElementById('save-and-start-btn').addEventListener('click', saveAndStartConfig);
-  document.getElementById('stop-claude-btn').addEventListener('click', stopClaudeCode);
-  document.getElementById('quick-fill-btn').addEventListener('click', quickFillTestConfig);
-  document.getElementById('clear-terminal-btn').addEventListener('click', clearTerminal);
-  document.getElementById('copy-terminal-btn').addEventListener('click', copyTerminal);
-  document.getElementById('about-btn').addEventListener('click', showAbout);
-  document.getElementById('share-btn').addEventListener('click', showShare);
-  
-  // 设置按钮事件
-  const settingsBtn = document.getElementById('settings-btn');
-  if (settingsBtn) {
-    settingsBtn.addEventListener('click', showSettings);
-  }
-  
-  // 添加 Ctrl+C 快捷键来停止 Claude Code
-  document.addEventListener('keydown', async (e) => {
-    if (e.ctrlKey && e.key === 'c' && document.activeElement === terminal.input) {
-      e.preventDefault();
-      await stopClaudeCode();
-    }
-  });
-
-  window.addEventListener('resize', () => {
-    // 简单终端会自动适应
-  });
-
-  window.electronAPI.onStatusUpdate((data) => {
-    updateStatus(data.message);
-  });
-}
-
-async function checkEnvironment() {
-  const checkBtn = document.getElementById('check-env-btn');
-  const originalText = checkBtn.textContent;
-  
-  // 禁用按钮，防止重复点击
-  checkBtn.disabled = true;
-  checkBtn.textContent = '检查中...';
-  
-  // 统计功能使用
-  window.electronAPI.trackFeatureUse('check_environment');
-  
-  updateStatus('正在检查环境...');
-  terminal.writeln('\n正在检查系统环境...\n');
-  
-  // 立即显示检查状态，避免界面无响应
-  const envItems = ['nodejs', 'git', 'uv', 'claude'];
-  envItems.forEach(key => {
-    const statusEl = document.querySelector(`[data-env="${key}"]`);
-    if (statusEl) {
-      statusEl.textContent = '检查中...';
-      statusEl.setAttribute('data-status', 'checking');
-    }
-  });
-
-  try {
-    console.log('开始调用 checkEnvironment API...');
-    const results = await window.electronAPI.checkEnvironment();
-    console.log('收到环境检查结果:', results);
-    
-    for (const [key, value] of Object.entries(results)) {
-      const statusEl = document.querySelector(`[data-env="${key}"]`);
-      const installBtn = document.querySelector(`[data-dep="${key}"]`);
+/**
+ * 处理命令
+ */
+async function handleCommand(command, session) {
+  // 特殊命令
+  switch (command.toLowerCase()) {
+  case 'menu':
+    showWelcomeMenu();
+    return;
       
-      if (statusEl) {
-        if (value.installed) {
-          statusEl.textContent = value.version || '已安装';
-          statusEl.setAttribute('data-status', 'installed');
-          terminal.writeln(`✓ ${key}: ${value.version || '已安装'}`);
-          if (installBtn) installBtn.style.display = 'none';
-        } else {
-          const errorMsg = value.error || '未安装';
-          statusEl.textContent = errorMsg;
-          statusEl.setAttribute('data-status', 'not-installed');
-          terminal.writeln(`✗ ${key}: ${errorMsg}`);
-          if (installBtn) installBtn.style.display = 'inline-block';
-        }
-      }
-    }
-    
-    terminal.writeln('\n环境检查完成\n');
-    updateStatus('环境检查完成');
-    setupInstallButtons();
-  } catch (error) {
-    console.error('环境检查失败:', error);
-    terminal.writeln(`\n错误: ${error.message}\n`);
-    updateStatus('环境检查失败');
-    
-    // 如果检查失败，将所有状态重置为错误状态
-    envItems.forEach(key => {
-      const statusEl = document.querySelector(`[data-env="${key}"]`);
-      if (statusEl) {
-        statusEl.textContent = '检查失败';
-        statusEl.setAttribute('data-status', 'error');
-      }
-    });
-  } finally {
-    // 恢复按钮状态
-    checkBtn.disabled = false;
-    checkBtn.textContent = originalText;
-  }
-}
-
-function setupInstallButtons() {
-  const installButtons = document.querySelectorAll('.install-btn');
-  installButtons.forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const dep = e.target.getAttribute('data-dep');
-      await installDependency(dep);
-    });
-  });
-}
-
-async function installDependency(dep) {
-  updateStatus(`正在安装 ${dep}...`);
-  terminal.writeln(`\n正在安装 ${dep}...\n`);
-  
-  try {
-    const result = await window.electronAPI.installDependency(dep);
-    if (result.success) {
-      terminal.writeln(`\n${result.message}\n`);
-      updateStatus(result.message);
-      await checkEnvironment();
-    } else {
-      terminal.writeln(`\n安装失败: ${result.message}\n`);
-      updateStatus(`安装 ${dep} 失败`);
-    }
-  } catch (error) {
-    terminal.writeln(`\n安装出错: ${error.message}\n`);
-    updateStatus(`安装 ${dep} 出错`);
-  }
-}
-
-async function loadConfigs() {
-  try {
-    // 初始化默认配置（如果需要）
-    if (window.initializeDefaultConfigs) {
-      configs = await window.initializeDefaultConfigs();
-    } else {
-      configs = await window.electronAPI.getConfigs();
-    }
-    
-    renderConfigList();
-    
-    // 如果有推荐配置且没有当前选中的配置，自动选择推荐配置
-    if (!currentConfig && configs.length > 0) {
-      const recommendedConfig = window.getRecommendedConfig ? 
-        configs.find(c => c.id === window.getRecommendedConfig().id) : 
-        configs[0];
+  case 'help':
+    showHelp();
+    return;
       
-      if (recommendedConfig) {
-        selectConfig(recommendedConfig);
-      }
-    }
-    
-    // 检查是否需要配置提示
-    if (currentConfig && window.needsConfiguration && window.needsConfiguration(currentConfig)) {
-      const tips = window.getConfigurationTips(currentConfig);
-      if (tips.length > 0) {
-        terminal.writeln('\n⚠️ 配置提示:');
-        tips.forEach(tip => terminal.writeln(`  • ${tip}`));
-        terminal.writeln('');
-      }
-    }
-  } catch (error) {
-    console.error('加载配置失败:', error);
-    terminal.writeln('❌ 加载配置失败: ' + error.message);
+  case 'clear':
+    terminal.clear();
+    return;
+      
+  case 'claude':
+    await startClaude();
+    return;
+      
+  case 'config':
+    showConfigHelp();
+    return;
+      
+  case 'env':
+  case 'check':
+    await checkEnvironment();
+    return;
+  }
+
+  // 如果没有匹配的命令，尝试作为系统命令执行
+  if (!isInWelcomeMenu) {
+    terminal.writeln(`执行命令: ${command}`);
+    window.electronAPI.sendTerminalInput(command + '\r');
   }
 }
 
-function renderConfigList() {
-  const listEl = document.getElementById('config-list');
-  listEl.innerHTML = '';
-
-  configs.forEach(config => {
-    const item = document.createElement('div');
-    item.className = 'config-item';
-    if (currentConfig && currentConfig.id === config.id) {
-      item.classList.add('active');
-    }
-    
-    item.innerHTML = `
-      <div class="config-item-content">
-        <div class="config-item-name">${config.name}</div>
-        <div class="config-item-url">${config.apiUrl}</div>
-      </div>
-      <button class="btn btn-small btn-danger delete-config-btn" data-id="${config.id}" title="删除配置">删除</button>
-    `;
-    
-    // 为配置内容区域添加点击事件
-    const contentArea = item.querySelector('.config-item-content');
-    contentArea.addEventListener('click', () => selectConfig(config));
-    
-    // 双击直接启动
-    contentArea.addEventListener('dblclick', async () => {
-      currentConfig = config;
-      renderConfigList();
-      updateStartButton();
-      await startClaudeCode();
-    });
-    
-    // 删除按钮事件
-    const deleteBtn = item.querySelector('.delete-config-btn');
-    deleteBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await deleteConfig(config.id, config.name);
-    });
-    
-    listEl.appendChild(item);
-  });
+/**
+ * 显示帮助信息
+ */
+function showHelp() {
+  terminal.writeln('\x1b[36m可用命令:\x1b[0m');
+  terminal.writeln('  \x1b[32mmenu\x1b[0m      - 显示欢迎菜单');
+  terminal.writeln('  \x1b[32mclaude\x1b[0m    - 启动 Claude Code');
+  terminal.writeln('  \x1b[32mconfig\x1b[0m    - 配置管理');
+  terminal.writeln('  \x1b[32menv\x1b[0m       - 检查环境');
+  terminal.writeln('  \x1b[32mclear\x1b[0m     - 清空终端');
+  terminal.writeln('  \x1b[32mhelp\x1b[0m      - 显示此帮助');
 }
 
-function selectConfig(config) {
-  currentConfig = config;
-  renderConfigList();
-  showConfigForm(config);
-  updateStartButton();
-}
-
-function updateStartButton() {
-  const startBtn = document.getElementById('start-claude-btn');
-  if (currentConfig && currentConfig.apiUrl && currentConfig.apiKey) {
-    startBtn.style.display = 'inline-block';
-    startBtn.textContent = `启动 ${currentConfig.name || 'Claude Code'}`;
+/**
+ * 显示美化的欢迎界面
+ */
+async function showWelcomeScreen() {
+  // 清空终端
+  terminal.clear();
+  
+  // 获取当前时间的问候语
+  const hour = new Date().getHours();
+  let greeting = '早上好';
+  if (hour >= 12 && hour < 18) {
+    greeting = '下午好';
+  } else if (hour >= 18 || hour < 6) {
+    greeting = '晚上好';
+  }
+  
+  // 显示 ASCII 艺术字 LOGO
+  terminal.writeln('\x1b[36m');
+  terminal.writeln('     ███╗   ███╗██╗ █████╗  ██████╗ ██████╗  █████╗ ');
+  terminal.writeln('     ████╗ ████║██║██╔══██╗██╔═══██╗██╔══██╗██╔══██╗');
+  terminal.writeln('     ██╔████╔██║██║███████║██║   ██║██║  ██║███████║');
+  terminal.writeln('     ██║╚██╔╝██║██║██╔══██║██║   ██║██║  ██║██╔══██║');
+  terminal.writeln('     ██║ ╚═╝ ██║██║██║  ██║╚██████╔╝██████╔╝██║  ██║');
+  terminal.writeln('     ╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝');
+  terminal.writeln('\x1b[0m');
+  
+  // 显示副标题
+  terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+  terminal.writeln(`     \x1b[95m✨ ${greeting}！欢迎使用 Miaoda Claude Code 管理器 ✨\x1b[0m`);
+  terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+  terminal.writeln('');
+  
+  // 显示系统信息
+  terminal.writeln('     \x1b[33m📊 系统信息\x1b[0m');
+  terminal.writeln(`     \x1b[90m├─ 版本: ${await window.electronAPI.getAppVersion() || '2.0.0'}\x1b[0m`);
+  terminal.writeln(`     \x1b[90m├─ 平台: ${navigator.platform}\x1b[0m`);
+  terminal.writeln(`     \x1b[90m└─ 时间: ${new Date().toLocaleString('zh-CN')}\x1b[0m`);
+  terminal.writeln('');
+  
+  // 显示当前配置信息
+  if (currentConfig) {
+    terminal.writeln('     \x1b[32m🔧 当前配置\x1b[0m');
+    terminal.writeln(`     \x1b[90m├─ 名称: ${currentConfig.name}\x1b[0m`);
+    terminal.writeln(`     \x1b[90m├─ 模型: ${currentConfig.model || '未设置'}\x1b[0m`);
+    terminal.writeln('     \x1b[90m└─ 状态: \x1b[92m已就绪\x1b[0m');
   } else {
-    startBtn.style.display = 'none';
+    terminal.writeln('     \x1b[31m⚠️  尚未选择配置\x1b[0m');
   }
-}
-
-function showNewConfigForm() {
-  currentConfig = {
-    id: Date.now().toString(),
-    name: '',
-    apiUrl: '',
-    apiKey: '',
-    model: 'claude-3-opus-20240229'
-  };
-  showConfigForm(currentConfig);
-}
-
-function showConfigForm(config) {
-  document.getElementById('config-id').value = config.id;
-  document.getElementById('config-name').value = config.name;
-  document.getElementById('api-url').value = config.apiUrl;
-  document.getElementById('api-key').value = config.apiKey;
-  document.getElementById('model').value = config.model;
+  terminal.writeln('');
   
-  document.getElementById('config-form').style.display = 'block';
-  document.getElementById('terminal-container').style.display = 'none';
+  // 显示快捷提示
+  terminal.writeln('     \x1b[36m🚀 快速开始\x1b[0m');
+  terminal.writeln('     \x1b[90m├─ 按 \x1b[33m[1]\x1b[90m 启动 Claude Code\x1b[0m');
+  terminal.writeln('     \x1b[90m├─ 按 \x1b[33m[2]\x1b[90m 管理配置\x1b[0m');
+  terminal.writeln('     \x1b[90m├─ 按 \x1b[33m[3]\x1b[90m 检查环境\x1b[0m');
+  terminal.writeln('     \x1b[90m└─ 按 \x1b[33m[H]\x1b[90m 查看帮助\x1b[0m');
+  terminal.writeln('');
+  terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+  terminal.writeln('');
 }
 
-function hideConfigForm() {
-  document.getElementById('config-form').style.display = 'none';
-  document.getElementById('terminal-container').style.display = 'flex';
-  // 隐藏测试结果
-  const testResultDiv = document.getElementById('test-result');
-  if (testResultDiv) {
-    testResultDiv.style.display = 'none';
-  }
-}
-
-async function testConfig() {
-  const testResultDiv = document.getElementById('test-result');
-  const testResultContent = testResultDiv.querySelector('.test-result-content');
-  const testBtn = document.getElementById('test-config-btn');
-  
-  // 获取当前表单中的配置
-  const config = {
-    apiUrl: document.getElementById('api-url').value,
-    apiKey: document.getElementById('api-key').value,
-    model: document.getElementById('model').value
-  };
-  
-  // 基本验证
-  if (!config.apiUrl || !config.apiKey || !config.model) {
-    testResultDiv.style.display = 'block';
-    testResultDiv.className = 'test-result error';
-    testResultContent.textContent = '请填写所有必需的配置项';
+/**
+ * 显示欢迎菜单
+ */
+function showWelcomeMenu() {
+  if (isInWelcomeMenu) {
     return;
   }
+
+  // 清空终端
+  terminal.clear();
   
-  // 显示测试中状态
-  testBtn.disabled = true;
-  testBtn.textContent = '测试中...';
-  testResultDiv.style.display = 'block';
-  testResultDiv.className = 'test-result testing';
-  testResultContent.textContent = '正在测试连接...';
+  // 设置欢迎菜单模式
+  isInWelcomeMenu = true;
   
-  try {
-    // 调用主进程测试 API
-    const result = await window.electronAPI.testApiConnection(config);
+  // 在模拟模式下禁用会话输入
+  if (session) {
+    session.setInputEnabled(false);
+  }
+
+  // 创建并显示欢迎菜单
+  if (window.WelcomeMenu) {
+    welcomeMenu = new window.WelcomeMenu(terminal, {
+      currentConfig,
+      updateFooterStatus
+    });
+
+    // 设置关闭回调
+    welcomeMenu.onClose = () => {
+      isInWelcomeMenu = false;
+      
+      if (terminal.isRealTerminal) {
+        // 真实终端模式：直接清屏并显示新提示符
+        terminal.clear();
+        // 真实终端会自动显示系统提示符
+      } else if (session) {
+        // 模拟模式：恢复会话
+        session.setInputEnabled(true);
+        session.reset();
+        session.showPrompt();
+      }
+    };
+
+    welcomeMenu.show();
+  } else {
+    console.error('WelcomeMenu 类不可用');
+    isInWelcomeMenu = false;
     
-    if (result.success) {
-      testResultDiv.className = 'test-result success';
-      testResultContent.textContent = '✓ 连接成功！API 配置有效';
+    if (session) {
+      session.setInputEnabled(true);
+      terminal.writeln('Error: 无法加载欢迎菜单');
+      session.showPrompt();
     } else {
-      testResultDiv.className = 'test-result error';
-      testResultContent.textContent = `✗ 连接失败：${result.message || '无法连接到 API'}`;
+      terminal.writeln('Error: 无法加载欢迎菜单');
     }
-  } catch (error) {
-    testResultDiv.className = 'test-result error';
-    testResultContent.textContent = `✗ 测试失败：${error.message}`;
-  } finally {
-    testBtn.disabled = false;
-    testBtn.textContent = '测试连接';
   }
 }
 
-async function saveAndStartConfig(e) {
-  if (e) e.preventDefault();
-  
-  const config = {
-    id: document.getElementById('config-id').value,
-    name: document.getElementById('config-name').value,
-    apiUrl: document.getElementById('api-url').value,
-    apiKey: document.getElementById('api-key').value,
-    model: document.getElementById('model').value
-  };
-
-  // 验证配置
-  const validation = validateConfig(config);
-  if (!validation.valid) {
-    updateStatus(validation.message);
-    terminal.writeln(`\n配置错误: ${validation.message}\n`);
-    return;
-  }
-
-  try {
-    // 保存配置
-    await window.electronAPI.saveConfig(config);
-    await loadConfigs();
-    hideConfigForm();
-    updateStatus('配置已保存');
-    terminal.writeln(`\n配置 "${config.name}" 已保存\n`);
-    
-    // 设置当前配置
-    currentConfig = config;
-    updateStartButton();
-    
-    // 立即启动 Claude Code
-    terminal.writeln('\n正在启动 Claude Code...\n');
-    await startClaudeCode();
-  } catch (error) {
-    updateStatus('保存配置失败');
-    terminal.writeln(`\n保存配置失败: ${error.message}\n`);
-  }
-}
-
-async function saveConfig(e) {
-  e.preventDefault();
-  
-  const config = {
-    id: document.getElementById('config-id').value,
-    name: document.getElementById('config-name').value,
-    apiUrl: document.getElementById('api-url').value,
-    apiKey: document.getElementById('api-key').value,
-    model: document.getElementById('model').value
-  };
-
-  // 验证配置
-  const validation = validateConfig(config);
-  if (!validation.valid) {
-    updateStatus(validation.message);
-    terminal.writeln(`\n配置错误: ${validation.message}\n`);
-    return;
-  }
-
-  try {
-    await window.electronAPI.saveConfig(config);
-    await loadConfigs();
-    hideConfigForm();
-    updateStatus('配置已保存');
-    terminal.writeln(`\n配置 "${config.name}" 已保存\n`);
-    
-    // 设置当前配置
-    currentConfig = config;
-    updateStartButton();
-    
-    // 自动启动 Claude Code
-    terminal.writeln('\n正在自动启动 Claude Code...\n');
-    await startClaudeCode();
-  } catch (error) {
-    updateStatus('保存配置失败');
-    terminal.writeln(`\n保存配置失败: ${error.message}\n`);
-  }
-}
-
-function validateConfig(config) {
-  if (!config.name || config.name.trim() === '') {
-    return { valid: false, message: '请输入配置名称' };
-  }
-  
-  if (!config.apiUrl || !isValidUrl(config.apiUrl)) {
-    return { valid: false, message: '请输入有效的 API URL' };
-  }
-  
-  if (!config.apiKey || config.apiKey.trim() === '') {
-    return { valid: false, message: '请输入 API Key' };
-  }
-  
-  
-  return { valid: true };
-}
-
-function isValidUrl(string) {
-  try {
-    new URL(string);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
-async function startClaudeCode() {
+/**
+ * 启动 Claude
+ */
+async function startClaude() {
   if (!currentConfig) {
-    updateStatus('请先选择一个配置');
-    return;
-  }
-  
-  // 检查配置是否需要设置
-  if (window.needsConfiguration && window.needsConfiguration(currentConfig)) {
-    const tips = window.getConfigurationTips(currentConfig);
-    terminal.writeln('\n❌ 配置不完整:');
-    tips.forEach(tip => terminal.writeln(`  • ${tip}`));
-    terminal.writeln('\n请先完成配置设置');
-    updateStatus('配置不完整');
+    terminal.writeln('\x1b[33m⚠️  请先选择一个配置\x1b[0m');
+    terminal.writeln('   使用左侧配置列表选择，或按 \x1b[33m[2]\x1b[0m 打开配置菜单');
     return;
   }
 
-  updateStatus('正在启动 Claude Code...');
-  terminal.writeln('\n正在启动 Claude Code...\n');
-  
-  // 设置终端为处理状态
-  if (terminal.setProcessing) {
-    terminal.setProcessing(true);
+  // 清空终端并显示启动画面
+  terminal.clear();
+  terminal.writeln('');
+  terminal.writeln('     \x1b[36m🚀 正在启动 Claude Code\x1b[0m');
+  terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+  terminal.writeln('');
+  terminal.writeln(`     \x1b[90m配置名称:\x1b[0m ${currentConfig.name}`);
+  terminal.writeln(`     \x1b[90m模型:\x1b[0m ${currentConfig.model || '默认'}`);
+  if (!currentConfig.isEmptyConfig && currentConfig.apiUrl) {
+    terminal.writeln(`     \x1b[90mAPI 地址:\x1b[0m ${currentConfig.apiUrl}`);
   }
+  terminal.writeln('');
+  terminal.writeln('     \x1b[90m正在检查环境...\x1b[0m');
   
-  // 统计功能使用
-  window.electronAPI.trackFeatureUse('start_claude');
-
   try {
     const result = await window.electronAPI.startClaudeCode(currentConfig);
     if (result.success) {
-      updateStatus('Claude Code 已启动');
-      terminal.writeln('\nClaude Code 已启动，现在可以开始对话了\n');
-      if (terminal.setProcessing) {
-        terminal.setProcessing(false);
-      }
+      terminal.writeln('');
+      terminal.writeln('     \x1b[92m✨ Claude Code 启动成功！\x1b[0m');
+      terminal.writeln('');
+      terminal.writeln('     \x1b[90m提示: Claude Code 已在新的终端窗口中打开\x1b[0m');
+      terminal.writeln('     \x1b[90m请在新窗口中与 Claude 进行对话\x1b[0m');
+      terminal.writeln('');
+      terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
     } else {
-      updateStatus('启动失败');
-      terminal.writeln(`\n启动失败: ${result.message}\n`);
-      if (terminal.setError) {
-        terminal.setError(true);
-        setTimeout(() => terminal.setError(false), 3000);
-      }
+      terminal.writeln('');
+      terminal.writeln(`     \x1b[91m❌ 启动失败: ${result.message}\x1b[0m`);
+      terminal.writeln('');
+      terminal.writeln('     \x1b[90m请检查:\x1b[0m');
+      terminal.writeln('     \x1b[90m1. Claude Code 是否已安装\x1b[0m');
+      terminal.writeln('     \x1b[90m2. 配置信息是否正确\x1b[0m');
+      terminal.writeln('     \x1b[90m3. 网络连接是否正常\x1b[0m');
+      terminal.writeln('');
+      terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
     }
   } catch (error) {
-    updateStatus('启动出错');
-    terminal.writeln(`\n启动出错: ${error.message}\n`);
-    if (terminal.setError) {
-      terminal.setError(true);
-      setTimeout(() => terminal.setError(false), 3000);
-    }
-  } finally {
-    if (terminal.setProcessing) {
-      terminal.setProcessing(false);
-    }
+    terminal.writeln('');
+    terminal.writeln(`     \x1b[91m❌ 启动异常: ${error.message}\x1b[0m`);
+    terminal.writeln('');
+    terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
   }
 }
 
-async function deleteConfig(configId, configName) {
-  // 检查是否是默认的免费试用配置
-  if (configId === 'free-claude-trial') {
-    updateStatus('不能删除默认的免费试用配置');
-    terminal.writeln('\n❌ 不能删除默认的免费试用配置\n');
+/**
+ * 切换终端全屏
+ */
+function toggleTerminalFullscreen() {
+  const terminalContainer = document.getElementById('terminal-container');
+  const fullscreenBtn = document.getElementById('fullscreen-terminal-btn');
+  
+  if (!terminalContainer) return;
+  
+  if (terminalContainer.classList.contains('fullscreen')) {
+    // 退出全屏
+    terminalContainer.classList.remove('fullscreen');
+    fullscreenBtn.textContent = '⛶';
+    fullscreenBtn.title = '全屏';
+  } else {
+    // 进入全屏
+    terminalContainer.classList.add('fullscreen');
+    fullscreenBtn.textContent = '⛷';
+    fullscreenBtn.title = '退出全屏';
+  }
+  
+  // 调整终端大小
+  if (terminal && terminal.fit) {
+    setTimeout(() => {
+      terminal.fit();
+    }, 100);
+  }
+}
+
+/**
+ * 检查环境
+ */
+async function checkEnvironment() {
+  console.log('checkEnvironment 函数被调用');
+  
+  if (!terminal) {
+    console.error('终端未初始化');
     return;
   }
   
-  if (confirm(`确定要删除配置 "${configName}" 吗？`)) {
-    try {
-      await window.electronAPI.deleteConfig(configId);
-      
-      // 如果删除的是当前选中的配置，清空选择
-      if (currentConfig && currentConfig.id === configId) {
-        currentConfig = null;
-        updateStartButton();
-      }
-      
-      await loadConfigs();
-      updateStatus(`已删除配置: ${configName}`);
-      terminal.writeln(`\n已删除配置 "${configName}"\n`);
-    } catch (error) {
-      updateStatus('删除配置失败');
-      terminal.writeln(`\n删除配置失败: ${error.message}\n`);
-    }
-  }
-}
-
-async function restoreDefaults() {
-  if (confirm('确定要恢复官方默认设置吗？这将删除所有自定义配置。')) {
-    try {
-      configs = [];
-      for (const config of await window.electronAPI.getConfigs()) {
-        await window.electronAPI.deleteConfig(config.id);
-      }
-      renderConfigList();
-      updateStatus('已恢复默认设置');
-      terminal.writeln('\n已恢复官方默认设置\n');
-    } catch (error) {
-      updateStatus('恢复默认设置失败');
-      terminal.writeln(`\n恢复默认设置失败: ${error.message}\n`);
-    }
-  }
-}
-
-function quickFillTestConfig() {
-  // 填充免费测试配置
-  document.getElementById('config-name').value = '免费测试 API';
-  document.getElementById('api-url').value = 'http://www.miaoda.vip/v1';
-  document.getElementById('api-key').value = 'sk-3vxiV5wctLaERpZ6F7ap0Ys4nh0cmE1uK9NNmYg08DcHzQ44';
-  document.getElementById('model').value = 'claude-3-7-sonnet-20250219';
-  
-  updateStatus('已填充免费测试配置');
-  terminal.writeln('\n已填充免费测试配置\n');
-  terminal.writeln('提示: 这是第三方提供的免费测试 API，可能有使用限制\n');
-}
-
-function clearTerminal() {
+  // 清空终端并显示检查画面
   terminal.clear();
-}
-
-function copyTerminal() {
-  const selection = terminal.getSelection();
-  if (selection) {
-    navigator.clipboard.writeText(selection);
-    updateStatus('已复制到剪贴板');
-  }
-}
-
-function updateStatus(message) {
-  const statusEl = document.getElementById('status-message');
-  statusEl.textContent = message;
+  terminal.writeln('');
+  terminal.writeln('     \x1b[36m🔍 环境检查\x1b[0m');
+  terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+  terminal.writeln('');
+  terminal.writeln('     \x1b[90m正在检查系统环境，请稍候...\x1b[0m');
+  terminal.writeln('');
   
-  // 添加时间戳
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString('zh-CN', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    second: '2-digit' 
-  });
-  
-  // 状态栏动画效果
-  statusEl.style.opacity = '0';
-  setTimeout(() => {
-    statusEl.textContent = `[${timeStr}] ${message}`;
-    statusEl.style.opacity = '1';
-  }, 100);
-  
-  // 自动清除状态消息
-  clearTimeout(window.statusTimeout);
-  window.statusTimeout = setTimeout(() => {
-    if (statusEl.textContent.includes(message)) {
-      statusEl.textContent = '就绪';
-    }
-  }, 5000);
-}
-
-async function exportConfigs() {
-  if (configs.length === 0) {
-    updateStatus('没有配置可导出');
-    return;
-  }
-  
-  const data = JSON.stringify(configs, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `miaoda-configs-${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  
-  updateStatus(`已导出 ${configs.length} 个配置`);
-  terminal.writeln(`\n已导出 ${configs.length} 个配置到文件\n`);
-}
-
-async function importConfigs() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  try {
+    const result = await window.electronAPI.checkEnvironment();
     
-    try {
-      const text = await file.text();
-      const importedConfigs = JSON.parse(text);
+    // 显示结果
+    terminal.writeln('     \x1b[33m📋 检查结果\x1b[0m');
+    terminal.writeln('');
+    
+    const components = [
+      { key: 'nodejs', name: 'Node.js', icon: '🟢' },
+      { key: 'git', name: 'Git', icon: '🔧' },
+      { key: 'uv', name: 'UV', icon: '📦' },
+      { key: 'claude', name: 'Claude Code', icon: '🤖' }
+    ];
+    
+    let allInstalled = true;
+    
+    for (const comp of components) {
+      const status = result[comp.key];
       
-      if (!Array.isArray(importedConfigs)) {
-        throw new Error('无效的配置文件格式');
-      }
-      
-      for (const config of importedConfigs) {
-        // 验证导入的配置
-        const validation = validateConfig(config);
-        if (validation.valid) {
-          // 生成新ID避免冲突
-          config.id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-          await window.electronAPI.saveConfig(config);
+      // 更新UI状态显示
+      const statusElement = document.querySelector(`[data-env="${comp.key}"]`);
+      if (statusElement) {
+        if (status?.installed) {
+          statusElement.textContent = status.version || '已安装';
+          statusElement.classList.add('status-success');
+          statusElement.classList.remove('status-checking');
+        } else {
+          statusElement.textContent = '未安装';
+          statusElement.classList.add('status-error');
+          statusElement.classList.remove('status-checking');
+          allInstalled = false;
+          
+          // 显示安装按钮（管理员权限除外）
+          if (comp.key !== 'admin') {
+            const installBtn = document.querySelector(`[data-dep="${comp.key}"]`);
+            if (installBtn) {
+              installBtn.style.display = 'inline-block';
+            }
+          }
         }
       }
       
-      await loadConfigs();
-      updateStatus(`已导入 ${importedConfigs.length} 个配置`);
-      terminal.writeln(`\n已从文件导入 ${importedConfigs.length} 个配置\n`);
-    } catch (error) {
-      updateStatus('导入配置失败');
-      terminal.writeln(`\n导入失败: ${error.message}\n`);
-    }
-  };
-  
-  input.click();
-}
-
-async function stopClaudeCode() {
-  try {
-    await window.electronAPI.stopClaudeCode();
-    terminal.writeln('\n\n已停止 Claude Code 进程\n');
-    updateStatus('Claude Code 已停止');
-  } catch (error) {
-    terminal.writeln(`\n停止失败: ${error.message}\n`);
-  }
-}
-
-function showAbout() {
-  const dialog = document.getElementById('about-dialog');
-  dialog.style.display = 'flex';
-  
-  // 设置当前版本号
-  const currentVersion = '2.0.3';
-  document.getElementById('current-version').textContent = currentVersion;
-  
-  // 添加检查更新按钮事件
-  const checkUpdateBtn = document.getElementById('check-update-btn');
-  checkUpdateBtn.onclick = () => checkForUpdates(currentVersion);
-}
-
-function closeAboutDialog() {
-  const dialog = document.getElementById('about-dialog');
-  dialog.style.display = 'none';
-}
-
-function openGithub() {
-  window.electronAPI.openExternal('https://github.com/miaoda-ai/miaoda');
-}
-
-function openWebsite() {
-  window.electronAPI.openExternal('https://www.imiaoda.cn');
-}
-
-async function checkForUpdates(currentVersion) {
-  const updateInfo = document.getElementById('update-info');
-  const updateContent = updateInfo.querySelector('.update-content');
-  const checkBtn = document.getElementById('check-update-btn');
-  
-  // 显示检查中状态
-  updateInfo.style.display = 'block';
-  updateInfo.className = 'update-info';
-  updateContent.textContent = '正在检查更新...';
-  checkBtn.disabled = true;
-  
-  try {
-    // 调用主进程检查更新
-    const result = await window.electronAPI.checkForUpdates();
-    
-    if (result.error) {
-      updateInfo.className = 'update-info error';
-      updateContent.textContent = `检查更新失败：${result.error}`;
-    } else if (result.hasUpdate) {
-      updateInfo.className = 'update-info available';
-      
-      // 根据平台选择正确的下载链接
-      const platform = window.electronAPI.platform;
-      let downloadUrl = result.downloadUrl;
-      
-      if (platform === 'darwin') {
-        // Mac 平台 - 检测是否为 Apple Silicon
-        const isAppleSilicon = window.electronAPI.isAppleSilicon;
-        downloadUrl = isAppleSilicon ? result.downloadUrlMacArm : result.downloadUrlMac;
-      } else if (platform === 'win32') {
-        downloadUrl = result.downloadUrlWin;
+      // 终端输出
+      if (status?.installed) {
+        terminal.writeln(`     ${comp.icon} ${comp.name}: \x1b[92m${status.version || '已安装'}\x1b[0m`);
+      } else {
+        terminal.writeln(`     ❌ ${comp.name}: \x1b[91m未安装\x1b[0m`);
       }
-      
-      updateContent.innerHTML = `
-        <p>发现新版本 <strong>${result.latestVersion}</strong></p>
-        <p>当前版本：${currentVersion}</p>
-        <p style="margin-top: 10px;">
-          <a href="#" onclick="window.electronAPI.openExternal('${downloadUrl}'); return false;">
-            点击下载最新版本
-          </a>
-        </p>
-        <p style="margin-top: 10px; font-size: 12px; color: var(--text-secondary);">
-          提示：下载完成后，请关闭当前应用并安装新版本
-        </p>
-      `;
-    } else {
-      updateInfo.className = 'update-info success';
-      updateContent.textContent = '✓ 您正在使用最新版本';
     }
+    
+    terminal.writeln('');
+    terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+    terminal.writeln('');
+    
+    if (allInstalled) {
+      terminal.writeln('     \x1b[92m✅ 所有组件已就绪！\x1b[0m');
+      terminal.writeln('     \x1b[90m您可以开始使用 Claude Code 了\x1b[0m');
+    } else {
+      terminal.writeln('     \x1b[93m⚠️  部分组件未安装\x1b[0m');
+      terminal.writeln('     \x1b[90m请使用左侧面板中的安装按钮进行安装\x1b[0m');
+    }
+    terminal.writeln('');
   } catch (error) {
-    updateInfo.className = 'update-info error';
-    updateContent.textContent = `检查更新失败：${error.message}`;
-  } finally {
-    checkBtn.disabled = false;
+    terminal.writeln('');
+    terminal.writeln(`     \x1b[91m❌ 检查失败: ${error.message}\x1b[0m`);
+    terminal.writeln('');
+    terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
   }
 }
 
-// 将函数暴露到全局作用域
-window.closeAboutDialog = closeAboutDialog;
-window.openGithub = openGithub;
-window.openWebsite = openWebsite;
+/**
+ * 显示配置帮助
+ */
+function showConfigHelp() {
+  terminal.writeln('\x1b[36m配置管理:\x1b[0m');
+  terminal.writeln('  使用左侧面板管理配置');
+  terminal.writeln('  或使用 "menu" 命令选择配置');
+}
 
-// 添加对话框点击外部关闭功能
-document.addEventListener('DOMContentLoaded', () => {
-  const aboutDialog = document.getElementById('about-dialog');
-  if (aboutDialog) {
-    aboutDialog.addEventListener('click', (e) => {
-      if (e.target === aboutDialog) {
-        closeAboutDialog();
+/**
+ * 加载配置
+ */
+async function loadConfigs() {
+  try {
+    const result = await window.electronAPI.getConfigs();
+    configs = result.configs || [];
+    renderConfigList();
+  } catch (error) {
+    console.error('加载配置失败:', error);
+  }
+}
+
+/**
+ * 渲染配置列表
+ */
+function renderConfigList() {
+  const configList = document.getElementById('config-list');
+  if (!configList) return;
+
+  configList.innerHTML = '';
+
+  configs.forEach(config => {
+    const configItem = document.createElement('div');
+    configItem.className = 'config-item';
+    if (currentConfig && currentConfig.id === config.id) {
+      configItem.classList.add('active');
+    }
+
+    configItem.innerHTML = `
+      <div class="config-name">${config.name}</div>
+      <div class="config-model">${config.model}</div>
+    `;
+
+    configItem.addEventListener('click', async () => await selectConfig(config));
+    configList.appendChild(configItem);
+  });
+}
+
+/**
+ * 选择配置
+ */
+async function selectConfig(config) {
+  // 检查 Claude Code 是否正在运行
+  const status = await window.electronAPI.getClaudeStatus();
+  
+  if (status.running) {
+    // Claude Code 正在运行，询问是否退出并使用新配置
+    const confirmed = await window.electronAPI.showConfirmDialog({
+      message: 'Claude Code 正在运行中。',
+      detail: `是否要退出当前 Claude Code 并使用配置"${config.name}"重新运行？`
+    });
+    
+    if (confirmed) {
+      // 停止当前的 Claude Code
+      terminal.writeln('\x1b[33m正在停止当前 Claude Code...\x1b[0m');
+      await window.electronAPI.stopClaudeCode();
+      
+      // 选择新配置并启动
+      currentConfig = config;
+      renderConfigList();
+      updateFooterStatus();
+      terminal.writeln(`\x1b[32m已选择配置: ${config.name}\x1b[0m`);
+      
+      // 启动新的 Claude Code
+      await startClaude();
+    }
+  } else {
+    // Claude Code 未运行，询问是否选择并启动
+    const confirmed = await window.electronAPI.showConfirmDialog({
+      message: `是否选择配置"${config.name}"并启动 Claude Code？`
+    });
+    
+    if (confirmed) {
+      // 选择配置
+      currentConfig = config;
+      renderConfigList();
+      updateFooterStatus();
+      terminal.writeln(`\x1b[32m已选择配置: ${config.name}\x1b[0m`);
+      
+      // 启动 Claude Code
+      await startClaude();
+    }
+  }
+}
+
+/**
+ * 更新底部状态栏
+ */
+function updateFooterStatus() {
+  // 更新 API URL 显示
+  const apiUrlDisplay = document.getElementById('api-url-display');
+  if (apiUrlDisplay) {
+    if (currentConfig && currentConfig.apiUrl) {
+      try {
+        const url = new URL(currentConfig.apiUrl);
+        apiUrlDisplay.textContent = url.hostname;
+      } catch (e) {
+        apiUrlDisplay.textContent = currentConfig.apiUrl;
+      }
+    } else {
+      apiUrlDisplay.textContent = '未配置';
+    }
+  }
+
+  // 更新模型显示
+  const modelDisplay = document.getElementById('model-display');
+  if (modelDisplay) {
+    modelDisplay.textContent = currentConfig?.model || '未选择模型';
+  }
+}
+
+/**
+ * 设置事件监听器
+ */
+function setupEventListeners() {
+  // 初始化事件监听器记录
+  window._boundEventListeners = window._boundEventListeners || [];
+  
+  // 辅助函数：添加事件监听器并记录
+  function addListener(id, handler, eventType = 'click') {
+    const element = document.getElementById(id);
+    if (element) {
+      console.log(`绑定事件: ${id} -> ${handler.name}`);
+      element.addEventListener(eventType, handler);
+      window._boundEventListeners.push({ id, handler: handler.name, eventType });
+    } else {
+      console.error(`找不到元素: ${id}`);
+    }
+  }
+
+  // 检查环境按钮
+  const checkEnvBtn = document.getElementById('check-env-btn');
+  if (checkEnvBtn) {
+    console.log('找到检查环境按钮，样式:', window.getComputedStyle(checkEnvBtn).pointerEvents);
+    // 确保按钮可点击
+    checkEnvBtn.style.pointerEvents = 'auto';
+    checkEnvBtn.style.cursor = 'pointer';
+  }
+  
+  addListener('check-env-btn', async (e) => {
+    console.log('检查环境按钮被点击');
+    e.preventDefault();
+    try {
+      await checkEnvironment();
+    } catch (error) {
+      console.error('检查环境时出错:', error);
+      if (terminal) {
+        terminal.writeln(`\x1b[31m检查环境失败: ${error.message}\x1b[0m`);
+      }
+    }
+  });
+
+  // 新建配置按钮
+  addListener('new-config-btn', showNewConfigForm);
+
+  // 启动按钮
+  addListener('start-claude-btn', startClaude);
+  
+  // 导出配置按钮
+  addListener('export-config-btn', exportConfigs);
+  
+  // 导入配置按钮
+  addListener('import-config-btn', importConfigs);
+  
+  // 恢复官方设置按钮
+  addListener('restore-default-btn', restoreOfficialSettings);
+
+  // 停止按钮
+  const stopBtn = document.getElementById('stop-claude-btn');
+  if (stopBtn) {
+    stopBtn.addEventListener('click', async () => {
+      terminal.writeln('\x1b[33m正在停止 Claude Code...\x1b[0m');
+      try {
+        const result = await window.electronAPI.stopClaudeCode();
+        if (result.success) {
+          terminal.writeln('\x1b[32m✓ Claude Code 已停止\x1b[0m');
+        }
+      } catch (error) {
+        terminal.writeln(`\x1b[31m✗ 停止失败: ${error.message}\x1b[0m`);
       }
     });
   }
-});
 
-function showShare() {
-  terminal.writeln('\n========== 🔥 必须分享！这是 AI 编程革命！==========');
-  terminal.writeln('');
-  terminal.writeln('💥 **震撼！全球唯一支持 380+ AI 模型的神器！**');
-  terminal.writeln('');
-  terminal.writeln('📋 一键复制，分享给所有人：');
-  terminal.writeln('');
-  terminal.writeln('【🔥AI编程神器】Miaoda - 让你赢在 AI 时代起跑线！');
-  terminal.writeln('');
-  terminal.writeln('💥 为什么说用了就回不去了？');
-  terminal.writeln('✅ 支持 380+ 种 AI 大模型（全球唯一！）');
-  terminal.writeln('✅ 效率提升 100 倍（3秒启动！）');
-  terminal.writeln('✅ 永久免费（省下几千块！）');
-  terminal.writeln('✅ 中文原生支持（完美体验！）');
-  terminal.writeln('');
-  terminal.writeln('🎯 支持所有大厂：OpenAI/Claude/Google/百度/阿里/腾讯...');
-  terminal.writeln('');
-  terminal.writeln('⚡ 立即下载：https://github.com/miounet11/claude-code-manager');
-  terminal.writeln('');
-  terminal.writeln('#Miaoda #AI编程神器 #效率100倍 #开发者必备');
-  terminal.writeln('');
-  terminal.writeln('📢 分享渠道：');
-  terminal.writeln('  • 💬 微信群 - 让朋友们都用上！');
-  terminal.writeln('  • 🌟 朋友圈 - 展示你的前瞻眼光！');
-  terminal.writeln('  • 📱 抖音/小红书 - 成为 AI 领域 KOL！');
-  terminal.writeln('  • ⭐ GitHub Star - 支持优秀开源！');
-  terminal.writeln('');
-  terminal.writeln('🎁 **分享就是最大的支持！让更多人受益！**');
-  terminal.writeln('=========================================\n');
-  
-  // 复制分享文本到剪贴板
-  const shareText = `【🔥AI编程神器】Miaoda - 让你赢在 AI 时代起跑线！
+  // 清空终端按钮
+  const clearBtn = document.getElementById('clear-terminal-btn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      terminal.clear();
+      if (!isInWelcomeMenu && session) {
+        session.showPrompt();
+      }
+    });
+  }
 
-💥 为什么说用了就回不去了？
-✅ 支持 380+ 种 AI 大模型（全球唯一！）
-✅ 效率提升 100 倍（3秒启动！）
-✅ 永久免费（省下几千块！）
-✅ 中文原生支持（完美体验！）
-
-🎯 支持所有大厂：OpenAI/Claude/Google/百度/阿里/腾讯...
-
-⚡ 立即下载：https://github.com/miounet11/claude-code-manager
-
-#Miaoda #AI编程神器 #效率100倍 #开发者必备`;
-  
-  navigator.clipboard.writeText(shareText).then(() => {
-    updateStatus('震撼文案已复制！快去分享吧！');
-  });
-  
-  // 统计功能使用
-  window.electronAPI.trackFeatureUse('share');
-}
-
-// 显示设置对话框
-async function showSettings() {
-  document.getElementById('settings-dialog').style.display = 'flex';
-  
-  // 加载当前设置
-  const autoLaunchStatus = await window.electronAPI.getAutoLaunchStatus();
-  document.getElementById('auto-launch-checkbox').checked = autoLaunchStatus;
-  
-  // 加载自动更新设置
-  const autoUpdateEnabled = await window.electronAPI.getConfig('autoUpdate');
-  document.getElementById('auto-update-checkbox').checked = autoUpdateEnabled !== false;
-}
-
-// 关闭设置对话框
-window.closeSettingsDialog = function() {
-  document.getElementById('settings-dialog').style.display = 'none';
-};
-
-// 保存设置
-window.saveSettings = async function() {
-  const autoLaunch = document.getElementById('auto-launch-checkbox').checked;
-  const autoUpdate = document.getElementById('auto-update-checkbox').checked;
-  
-  // 设置开机启动
-  const autoLaunchResult = await window.electronAPI.setAutoLaunch(autoLaunch);
-  if (!autoLaunchResult.success) {
-    updateStatus('设置开机启动失败');
-    terminal.writeln(`\n❌ 设置开机启动失败: ${autoLaunchResult.error}\n`);
+  // 复制按钮
+  const copyBtn = document.getElementById('copy-terminal-btn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const selection = terminal.getSelection();
+      if (selection) {
+        navigator.clipboard.writeText(selection);
+        terminal.writeln('\x1b[32m已复制到剪贴板\x1b[0m');
+      }
+    });
   }
   
-  // 保存自动更新设置
-  await window.electronAPI.setConfig('autoUpdate', autoUpdate);
-  
-  updateStatus('设置已保存');
-  terminal.writeln('\n✓ 设置已保存\n');
-  
-  closeSettingsDialog();
-};
+  // 全屏终端按钮
+  const fullscreenBtn = document.getElementById('fullscreen-terminal-btn');
+  if (fullscreenBtn) {
+    fullscreenBtn.addEventListener('click', toggleTerminalFullscreen);
+  }
 
-document.addEventListener('DOMContentLoaded', init);
+  // 关于按钮
+  addListener('about-btn', showAbout);
+
+  // 设置按钮
+  const settingsBtn = document.getElementById('settings-btn');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      const dialog = document.getElementById('settings-dialog');
+      if (dialog) dialog.style.display = 'flex';
+    });
+  }
+
+  // 分享按钮
+  const shareBtn = document.getElementById('share-btn');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', async () => {
+      try {
+        await navigator.share({
+          title: 'Miaoda - Claude Code Manager',
+          text: '全球唯一支持 380+ AI 模型的管理工具',
+          url: 'https://github.com/miaoda-code/miaoda'
+        });
+      } catch (err) {
+        console.log('分享失败:', err);
+      }
+    });
+  }
+
+  // 对话框关闭按钮
+  const dialogCloseButtons = document.querySelectorAll('.dialog-close');
+  dialogCloseButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const dialog = e.target.closest('.dialog-overlay');
+      if (dialog) dialog.style.display = 'none';
+    });
+  });
+
+  // 配置表单相关事件
+  setupConfigFormEvents();
+  
+  // 设置对话框事件
+  setupSettingsEvents();
+  
+  // 关于对话框事件
+  setupAboutEvents();
+  
+  // 安装/授权按钮点击处理
+  document.addEventListener('click', async (e) => {
+    if (e.target.classList.contains('install-btn')) {
+      const dep = e.target.getAttribute('data-dep');
+      
+      if (dep === 'uv') {
+        // 安装 UV
+        terminal.writeln('\x1b[36m正在安装 UV...\x1b[0m');
+        try {
+          const result = await window.electronAPI.installDependency('uv');
+          if (result.success) {
+            terminal.writeln('\x1b[32m✓ UV 安装成功\x1b[0m');
+            await checkEnvironment();
+          } else {
+            terminal.writeln(`\x1b[31m✗ UV 安装失败: ${result.error}\x1b[0m`);
+          }
+        } catch (error) {
+          terminal.writeln(`\x1b[31m✗ UV 安装错误: ${error.message}\x1b[0m`);
+        }
+      } else if (dep === 'claude') {
+        // 安装 Claude Code
+        terminal.writeln('\x1b[36m正在安装 Claude Code...\x1b[0m');
+        try {
+          const result = await window.electronAPI.installDependency('claude');
+          if (result.success) {
+            terminal.writeln('\x1b[32m✓ Claude Code 安装成功\x1b[0m');
+            await checkEnvironment();
+          } else {
+            terminal.writeln(`\x1b[31m✗ Claude Code 安装失败: ${result.error}\x1b[0m`);
+          }
+        } catch (error) {
+          terminal.writeln(`\x1b[31m✗ Claude Code 安装错误: ${error.message}\x1b[0m`);
+        }
+      }
+    }
+  });
+}
+
+/**
+ * 显示新建配置表单
+ */
+function showNewConfigForm() {
+  const dialog = document.getElementById('config-dialog');
+  if (dialog) {
+    dialog.style.display = 'flex';
+    
+    // 清空表单
+    document.getElementById('config-id').value = '';
+    document.getElementById('config-name').value = '';
+    document.getElementById('api-url').value = '';
+    document.getElementById('api-key').value = '';
+    document.getElementById('model').value = '';
+  }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM 加载完成，开始初始化...');
+  
+  // 验证关键函数是否存在
+  const requiredFunctions = [
+    'setupTerminal',
+    'loadConfigs',
+    'startClaude',
+    'showNewConfigForm',
+    'checkEnvironment',
+    'showAbout'
+  ];
+  
+  const missingFunctions = requiredFunctions.filter(fname => typeof window[fname] !== 'function' && typeof eval(fname) !== 'function');
+  
+  if (missingFunctions.length > 0) {
+    console.warn('警告：以下函数可能未定义：', missingFunctions);
+  }
+  
+  // 开始初始化
+  init();
+});
+
+/**
+ * 显示关于对话框
+ */
+function showAbout() {
+  const dialog = document.getElementById('about-dialog');
+  if (dialog) {
+    dialog.style.display = 'flex';
+  }
+}
+
+/**
+ * 恢复官方设置
+ */
+async function restoreOfficialSettings() {
+  const confirmed = await window.electronAPI.showConfirmDialog({
+    message: '确定要恢复官方默认设置吗？',
+    detail: '这将清除所有自定义配置，让 Claude Code 使用完全默认的行为。\n您之后可以通过 Claude Code 自身的方式登录或配置。'
+  });
+  
+  if (!confirmed) return;
+  
+  try {
+    // 获取官方默认配置
+    const officialConfig = window.getOfficialDefaultConfig();
+    
+    // 检查是否已存在官方配置
+    const result = await window.electronAPI.getConfigs();
+    const existingConfigs = result.configs || [];
+    const existingOfficial = existingConfigs.find(c => c.id === officialConfig.id);
+    
+    if (existingOfficial) {
+      // 如果已存在，更新它
+      await window.electronAPI.updateConfig({ ...existingOfficial, ...officialConfig });
+      terminal.writeln('\x1b[32m✓ 已恢复官方默认设置\x1b[0m');
+    } else {
+      // 如果不存在，创建新的
+      await window.electronAPI.saveConfig(officialConfig);
+      terminal.writeln('\x1b[32m✓ 已恢复官方默认设置\x1b[0m');
+    }
+    
+    // 重新加载配置列表
+    await loadConfigs();
+    
+    // 选择官方配置
+    const officialConfigItem = configs.find(c => c.id === officialConfig.id);
+    if (officialConfigItem) {
+      await selectConfig(officialConfigItem);
+    }
+    
+    terminal.writeln('\x1b[36m提示：所有自定义配置已清除\x1b[0m');
+    terminal.writeln('\x1b[36m注意：Claude Code 将使用完全默认的行为，您可以在 Claude Code 中直接配置\x1b[0m');
+  } catch (error) {
+    terminal.writeln(`\x1b[31m✗ 恢复官方设置失败: ${error.message}\x1b[0m`);
+  }
+}
+
+/**
+ * 导出配置
+ */
+async function exportConfigs() {
+  try {
+    const result = await window.electronAPI.getConfigs();
+    const configsToExport = result.configs || [];
+    
+    if (configsToExport.length === 0) {
+      terminal.writeln('\x1b[33m没有可导出的配置\x1b[0m');
+      return;
+    }
+    
+    // 创建导出数据
+    const exportData = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      configs: configsToExport
+    };
+    
+    // 创建下载链接
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `miaoda-configs-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    terminal.writeln(`\x1b[32m✓ 已导出 ${configsToExport.length} 个配置\x1b[0m`);
+  } catch (error) {
+    terminal.writeln(`\x1b[31m✗ 导出配置失败: ${error.message}\x1b[0m`);
+  }
+}
+
+/**
+ * 导入配置
+ */
+async function importConfigs() {
+  try {
+    // 创建文件输入元素
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      try {
+        const text = await file.text();
+        const importData = JSON.parse(text);
+        
+        // 验证导入数据
+        if (!importData.configs || !Array.isArray(importData.configs)) {
+          throw new Error('无效的配置文件格式');
+        }
+        
+        // 导入每个配置
+        let importedCount = 0;
+        for (const config of importData.configs) {
+          // 检查是否已存在相同ID的配置
+          const result = await window.electronAPI.getConfigs();
+          const existingConfigs = result.configs || [];
+          const existing = existingConfigs.find(c => c.id === config.id);
+          
+          if (existing) {
+            const overwrite = await window.electronAPI.showConfirmDialog({
+              message: `配置"${config.name}"已存在，是否覆盖？`
+            });
+            if (overwrite) {
+              await window.electronAPI.updateConfig(config);
+              importedCount++;
+            }
+          } else {
+            await window.electronAPI.saveConfig(config);
+            importedCount++;
+          }
+        }
+        
+        // 重新加载配置
+        await loadConfigs();
+        
+        terminal.writeln(`\x1b[32m✓ 成功导入 ${importedCount} 个配置\x1b[0m`);
+      } catch (error) {
+        terminal.writeln(`\x1b[31m✗ 导入失败: ${error.message}\x1b[0m`);
+      }
+    };
+    
+    input.click();
+  } catch (error) {
+    terminal.writeln(`\x1b[31m✗ 导入配置失败: ${error.message}\x1b[0m`);
+  }
+}
+
+/**
+ * 设置配置表单事件
+ */
+function setupConfigFormEvents() {
+  const form = document.getElementById('config-edit-form');
+  if (!form) return;
+
+  // 表单提交
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveConfig();
+  });
+
+  // 取消按钮
+  const cancelBtn = document.getElementById('cancel-config-btn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      document.getElementById('config-dialog').style.display = 'none';
+    });
+  }
+
+  // 保存并启动按钮
+  const saveAndStartBtn = document.getElementById('save-and-start-btn');
+  if (saveAndStartBtn) {
+    saveAndStartBtn.addEventListener('click', async () => {
+      const saved = await saveConfig();
+      if (saved) {
+        await startClaude();
+      }
+    });
+  }
+
+  // 测试连接按钮
+  const testBtn = document.getElementById('test-config-btn');
+  if (testBtn) {
+    testBtn.addEventListener('click', async () => {
+      const apiUrl = document.getElementById('api-url').value;
+      const apiKey = document.getElementById('api-key').value;
+      const model = document.getElementById('model').value;
+      
+      if (!apiUrl || !apiKey || !model) {
+        showTestResult('请填写所有必填字段', 'error');
+        return;
+      }
+
+      showTestResult('正在测试连接...', 'info');
+      
+      try {
+        const result = await window.electronAPI.testApiConnection({ apiUrl, apiKey, model });
+        if (result.success) {
+          showTestResult('连接成功！', 'success');
+        } else {
+          showTestResult(`连接失败: ${result.message}`, 'error');
+        }
+      } catch (error) {
+        showTestResult(`测试失败: ${error.message}`, 'error');
+      }
+    });
+  }
+
+  // 快速填充按钮
+  const quickFillBtn = document.getElementById('quick-fill-btn');
+  if (quickFillBtn) {
+    quickFillBtn.addEventListener('click', () => {
+      document.getElementById('config-name').value = '免费测试 API';
+      document.getElementById('api-url').value = 'http://www.miaoda.vip/';
+      document.getElementById('api-key').value = 'sk-3vxiV5wctLaERpZ6F7ap0Ys4nh0cmE1uK9NNmYg08DcHzQ44';
+      document.getElementById('model').value = 'claude-3-7-sonnet-20250219';
+    });
+  }
+}
+
+/**
+ * 保存配置
+ */
+async function saveConfig() {
+  const config = {
+    id: document.getElementById('config-id').value || 'config-' + Date.now(),
+    name: document.getElementById('config-name').value,
+    apiUrl: document.getElementById('api-url').value,
+    apiKey: document.getElementById('api-key').value,
+    model: document.getElementById('model').value
+  };
+
+  try {
+    await window.electronAPI.saveConfig(config);
+    await loadConfigs();
+    selectConfig(config);
+    document.getElementById('config-dialog').style.display = 'none';
+    terminal.writeln(`\x1b[32m✓ 配置已保存: ${config.name}\x1b[0m`);
+    return true;
+  } catch (error) {
+    terminal.writeln(`\x1b[31m✗ 保存失败: ${error.message}\x1b[0m`);
+    return false;
+  }
+}
+
+/**
+ * 显示测试结果
+ */
+function showTestResult(message, type) {
+  const resultDiv = document.getElementById('test-result');
+  const contentDiv = resultDiv.querySelector('.test-result-content');
+  
+  resultDiv.style.display = 'block';
+  contentDiv.textContent = message;
+  contentDiv.className = `test-result-content ${type}`;
+}
+
+/**
+ * 设置设置对话框事件
+ */
+function setupSettingsEvents() {
+  const saveBtn = document.getElementById('save-settings-btn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const autoLaunch = document.getElementById('auto-launch-checkbox').checked;
+      const autoUpdate = document.getElementById('auto-update-checkbox').checked;
+      
+      try {
+        await window.electronAPI.saveSettings({ autoLaunch, autoUpdate });
+        terminal.writeln('\x1b[32m✓ 设置已保存\x1b[0m');
+        document.getElementById('settings-dialog').style.display = 'none';
+      } catch (error) {
+        terminal.writeln(`\x1b[31m✗ 保存设置失败: ${error.message}\x1b[0m`);
+      }
+    });
+  }
+}
+
+/**
+ * 设置关于对话框事件
+ */
+function setupAboutEvents() {
+  // 检查更新按钮
+  const checkUpdateBtn = document.getElementById('check-update-btn');
+  if (checkUpdateBtn) {
+    checkUpdateBtn.addEventListener('click', async () => {
+      const updateInfo = document.getElementById('update-info');
+      const updateContent = updateInfo.querySelector('.update-content');
+      
+      updateInfo.style.display = 'block';
+      updateContent.textContent = '正在检查更新...';
+      
+      try {
+        const result = await window.electronAPI.checkForUpdates();
+        if (result.updateAvailable) {
+          updateContent.innerHTML = `
+            <p>发现新版本: ${result.version}</p>
+            <p>${result.releaseNotes}</p>
+            <button class="btn btn-primary" onclick="window.electronAPI.downloadUpdate()">下载更新</button>
+          `;
+        } else {
+          updateContent.textContent = '已是最新版本';
+        }
+      } catch (error) {
+        updateContent.textContent = `检查更新失败: ${error.message}`;
+      }
+    });
+  }
+
+  // GitHub 按钮
+  const githubBtn = document.getElementById('github-btn');
+  if (githubBtn) {
+    githubBtn.addEventListener('click', () => {
+      window.electronAPI.openExternal('https://github.com/miaoda-code/miaoda');
+    });
+  }
+
+  // 官网按钮
+  const websiteBtn = document.getElementById('website-btn');
+  if (websiteBtn) {
+    websiteBtn.addEventListener('click', () => {
+      window.electronAPI.openExternal('https://miaoda.vip');
+    });
+  }
+}
+
+// 导出必要的函数和变量
+window.updateFooterStatus = updateFooterStatus;
+window.currentConfig = currentConfig;
+window.startClaude = startClaude;
+window.showAbout = showAbout;
+window.showNewConfigForm = showNewConfigForm;
+window.checkEnvironment = checkEnvironment;
+window.setupTerminal = setupTerminal;
+window.loadConfigs = loadConfigs;
+window.showWelcomeMenu = showWelcomeMenu;
+
+// 导出状态变量
+Object.defineProperty(window, 'isInWelcomeMenu', {
+  get: () => isInWelcomeMenu,
+  set: (value) => { isInWelcomeMenu = value; }
+});

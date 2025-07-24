@@ -5,7 +5,7 @@
  * 实现应用最小化到系统托盘，隐藏运行
  */
 
-const { Tray, Menu, nativeImage, app, BrowserWindow } = require('electron');
+const { Tray, Menu, nativeImage, app } = require('electron');
 const path = require('path');
 
 class SystemTray {
@@ -304,9 +304,20 @@ class SystemTray {
   quitApplication() {
     console.log('🚪 用户通过托盘退出应用');
     
-    // 发送退出确认事件
-    if (this.mainWindow) {
-      this.mainWindow.webContents.send('confirm-quit');
+    // 显示确认对话框
+    const { dialog } = require('electron');
+    const choice = dialog.showMessageBoxSync(this.mainWindow, {
+      type: 'question',
+      buttons: ['退出', '取消'],
+      defaultId: 1,
+      title: '确认退出',
+      message: '确定要退出 Miaoda 吗？',
+      detail: '退出后将无法继续管理 Claude Code'
+    });
+    
+    if (choice === 0) {
+      // 用户选择退出
+      this.forceQuit();
     }
   }
 
@@ -316,10 +327,15 @@ class SystemTray {
   forceQuit() {
     console.log('🚪 强制退出应用');
     
+    // 设置强制退出标志
+    global.forceQuit = true;
+    
+    // 销毁托盘
     if (this.tray) {
       this.tray.destroy();
     }
     
+    // 退出应用
     app.quit();
   }
 
@@ -327,14 +343,10 @@ class SystemTray {
    * 绑定应用事件
    */
   bindEvents() {
-    // 监听窗口关闭事件
+    // 监听窗口事件
     if (this.mainWindow) {
-      this.mainWindow.on('close', (event) => {
-        // 阻止窗口关闭，改为隐藏到托盘
-        event.preventDefault();
-        this.hideMainWindow();
-      });
-
+      // 注意：窗口关闭事件已在主进程中处理
+      
       this.mainWindow.on('minimize', (event) => {
         // 最小化时隐藏到托盘
         event.preventDefault();

@@ -14,13 +14,30 @@
   flex: 1;
   background-color: var(--bg-primary, #1e1e1e);
   position: relative;
-  padding: 10px;
+  padding: 6px;
 }
 
 /* xterm.js 终端样式覆盖 */
 .xterm {
-  padding: 10px;
+  padding: 6px;
   height: 100%;
+  line-height: 0.9 !important;
+  letter-spacing: -0.2px !important;
+}
+
+/* 进一步紧凑化 xterm 行距 */
+.xterm .xterm-rows {
+  line-height: 0.9 !important;
+}
+
+.xterm .xterm-row {
+  line-height: 0.9 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.xterm .xterm-char {
+  line-height: 0.9 !important;
 }
 
 .xterm-viewport {
