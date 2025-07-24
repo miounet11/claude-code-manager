@@ -19,25 +19,30 @@
 
 /* xterm.js 终端样式覆盖 */
 .xterm {
-  padding: 6px;
+  padding: 8px;
   height: 100%;
-  line-height: 0.9 !important;
-  letter-spacing: -0.2px !important;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace !important;
+  font-size: var(--terminal-font-size, 12px) !important;
+  line-height: var(--terminal-line-height, 1.2) !important;
+  letter-spacing: 0px !important;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* 进一步紧凑化 xterm 行距 */
+/* 优化 xterm 行距 - 参考VSCode */
 .xterm .xterm-rows {
-  line-height: 0.9 !important;
+  line-height: var(--terminal-line-height, 1.2) !important;
 }
 
 .xterm .xterm-row {
-  line-height: 0.9 !important;
+  line-height: var(--terminal-line-height, 1.2) !important;
   margin: 0 !important;
   padding: 0 !important;
 }
 
 .xterm .xterm-char {
-  line-height: 0.9 !important;
+  line-height: var(--terminal-line-height, 1.2) !important;
 }
 
 .xterm-viewport {
@@ -144,29 +149,39 @@
   font-weight: bold;
 }
 
-/* 响应式字体大小 */
+/* 响应式字体大小 - 优化为更小的字体 */
 @media (max-width: 1280px) {
-  .xterm {
-    font-size: 12px !important;
+  :root {
+    --terminal-font-size: 11px;
+    --terminal-line-height: 1.2;
   }
 }
 
 @media (min-width: 1281px) and (max-width: 1920px) {
-  .xterm {
-    font-size: 13px !important;
+  :root {
+    --terminal-font-size: 12px;
+    --terminal-line-height: 1.2;
   }
 }
 
 @media (min-width: 1921px) and (max-width: 2560px) {
-  .xterm {
-    font-size: 14px !important;
+  :root {
+    --terminal-font-size: 13px;
+    --terminal-line-height: 1.2;
   }
 }
 
 @media (min-width: 2561px) {
-  .xterm {
-    font-size: 15px !important;
+  :root {
+    --terminal-font-size: 13px;
+    --terminal-line-height: 1.2;
   }
+}
+
+/* 全屏模式下的字体设置 */
+.terminal-container.fullscreen .xterm {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
 }
 
 /* 高 DPI 优化 */

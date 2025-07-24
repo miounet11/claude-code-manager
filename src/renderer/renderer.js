@@ -363,19 +363,37 @@ async function startClaude() {
 function toggleTerminalFullscreen() {
   const terminalContainer = document.getElementById('terminal-container');
   const fullscreenBtn = document.getElementById('fullscreen-terminal-btn');
+  const body = document.body;
   
   if (!terminalContainer) return;
   
   if (terminalContainer.classList.contains('fullscreen')) {
     // 退出全屏
     terminalContainer.classList.remove('fullscreen');
+    body.classList.remove('terminal-fullscreen');
     fullscreenBtn.textContent = '⛶';
     fullscreenBtn.title = '全屏';
+    
+    // 移除全屏覆盖层
+    const overlay = document.querySelector('.fullscreen-overlay');
+    if (overlay) {
+      overlay.classList.remove('active');
+    }
   } else {
     // 进入全屏
     terminalContainer.classList.add('fullscreen');
+    body.classList.add('terminal-fullscreen');
     fullscreenBtn.textContent = '⛷';
     fullscreenBtn.title = '退出全屏';
+    
+    // 添加全屏覆盖层
+    let overlay = document.querySelector('.fullscreen-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'fullscreen-overlay';
+      document.body.appendChild(overlay);
+    }
+    overlay.classList.add('active');
   }
   
   // 调整终端大小
@@ -383,6 +401,20 @@ function toggleTerminalFullscreen() {
     setTimeout(() => {
       terminal.fit();
     }, 100);
+  }
+  
+  // ESC键退出全屏
+  const handleEscKey = (e) => {
+    if (e.key === 'Escape' && terminalContainer.classList.contains('fullscreen')) {
+      toggleTerminalFullscreen();
+      document.removeEventListener('keydown', handleEscKey);
+    }
+  };
+  
+  if (terminalContainer.classList.contains('fullscreen')) {
+    document.addEventListener('keydown', handleEscKey);
+  } else {
+    document.removeEventListener('keydown', handleEscKey);
   }
 }
 

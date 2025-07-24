@@ -468,16 +468,56 @@ body {
   z-index: 9999;
   margin: 0;
   border-radius: 0;
+  background-color: var(--bg-primary);
 }
 
 .terminal-container.fullscreen .terminal-header {
   border-radius: 0;
+  background-color: var(--bg-secondary);
+  position: relative;
+  z-index: 10000;
 }
 
 .terminal-container.fullscreen #terminal-wrapper,
 .terminal-container.fullscreen #terminal {
   height: calc(100vh - 45px);
+  width: 100vw;
 }
+
+/* 全屏时隐藏其他界面元素 */
+body.terminal-fullscreen .header,
+body.terminal-fullscreen .sidebar,
+body.terminal-fullscreen .footer {
+  display: none !important;
+}
+
+body.terminal-fullscreen .main-container {
+  height: 100vh;
+}
+
+body.terminal-fullscreen .content {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9998;
+}
+
+/* 确保全屏终端完全覆盖页面 */
+.fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-primary);
+  z-index: 9997;
+  display: none;
+}
+
+.fullscreen-overlay.active {
+  display: block;
 }
 
 /* 响应式布局 */
