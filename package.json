@@ -5,7 +5,8 @@
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev",
+    "dev": "NODE_ENV=development electron . --dev",
+    "prod": "NODE_ENV=production electron .",
     "build": "electron-builder",
     "dist": "electron-builder --publish=never",
     "dist-mac": "electron-builder --mac --publish=never",

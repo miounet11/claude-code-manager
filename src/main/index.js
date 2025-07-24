@@ -1,16 +1,27 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog, globalShortcut } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
+
+// 检查是否有禁用标记
+if (require('fs').existsSync('/tmp/MIAODA_DISABLED')) {
+  console.log('🚫 检测到禁用标记，退出应用');
+  app.quit();
+  process.exit(0);
+}
 
 // 单实例锁
 const gotTheLock = app.requestSingleInstanceLock();
 
 // 调试模式检测
-const isDebugMode = process.env.NODE_ENV === 'development' || process.argv.includes('--debug');
+const isDebugMode = process.env.NODE_ENV === 'development' || process.argv.includes('--debug') || process.argv.includes('--dev');
+const isProduction = !isDebugMode && process.env.NODE_ENV === 'production';
+
 if (isDebugMode) {
-  console.log('🐛 调试模式已启用');
+  console.log('🐛 调试模式已启用 - 保活机制将被禁用');
+} else if (isProduction) {
+  console.log('📦 生产模式已启用 - 保活机制将完全激活');
 }
 
 // 检查并加载可选模块
@@ -87,6 +98,12 @@ const isDev = process.argv.includes('--dev');
 const isBackupMode = process.argv.includes('--backup-mode');
 
 async function createWindow() {
+  // 关闭所有现有窗口
+  BrowserWindow.getAllWindows().forEach(win => {
+    console.log('关闭现有窗口:', win.getTitle());
+    win.close();
+  });
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -94,6 +111,7 @@ async function createWindow() {
     minHeight: 600,
     title: 'Miaoda - Claude Code Manager',
     backgroundColor: '#000000',
+    show: false, // 先不显示，等加载完成后再显示
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -102,7 +120,15 @@ async function createWindow() {
     icon: path.join(__dirname, '../../assets/icon.png')
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  const htmlPath = path.join(__dirname, '../renderer/index.html');
+  console.log('正在加载 HTML 文件:', htmlPath);
+  console.log('文件是否存在:', require('fs').existsSync(htmlPath));
+  
+  mainWindow.loadFile(htmlPath).catch(err => {
+    console.error('加载 HTML 文件失败:', err);
+    // 如果加载失败，显示错误页面
+    mainWindow.loadURL(`data:text/html,<h1>Error loading app</h1><p>${err.message}</p>`);
+  });
 
   if (isDev) {
     mainWindow.webContents.openDevTools();
@@ -111,6 +137,14 @@ async function createWindow() {
   // 在开发模式下打开控制台输出
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('窗口加载完成');
+    console.log('当前 URL:', mainWindow.webContents.getURL());
+    console.log('窗口标题:', mainWindow.getTitle());
+    
+    // 显示窗口
+    mainWindow.show();
+    
+    // 确保窗口在前面
+    mainWindow.focus();
   });
   
   // 监听渲染进程的控制台消息
@@ -153,6 +187,19 @@ async function createWindow() {
  * 初始化保活机制系统
  */
 async function initializeGuardianSystems() {
+  // 开发模式下完全跳过保活机制
+  if (isDebugMode) {
+    console.log('🚫 开发模式：所有保活机制已禁用');
+    console.log('💡 提示：使用 Cmd+Shift+Q (Mac) 或 Ctrl+Shift+Q (Windows/Linux) 快速退出');
+    
+    // 只初始化系统托盘（方便开发时使用）
+    if (SystemTray) {
+      systemTray = new SystemTray(mainWindow);
+      console.log('✅ 系统托盘已创建（仅用于开发）');
+    }
+    return;
+  }
+  
   console.log('🛡️ 正在初始化保活机制系统...');
   
   try {
@@ -1190,6 +1237,7 @@ if (!gotTheLock) {
   // 如果没有获得锁，说明已经有一个实例在运行
   console.log('应用程序已在运行，退出新实例');
   app.quit();
+  return; // 重要：立即返回，防止继续执行
 } else {
   // 当第二个实例启动时，聚焦到第一个实例的窗口
   app.on('second-instance', (event, commandLine, workingDirectory) => {
@@ -1219,6 +1267,31 @@ app.whenReady().then(async () => {
   // 初始化分析和更新服务
   analytics = new Analytics();
   updater = new Updater();
+  
+  // 开发模式下注册快速退出快捷键
+  if (isDebugMode || process.argv.includes('--dev')) {
+    // Cmd+Shift+Q (macOS) 或 Ctrl+Shift+Q (Windows/Linux) 快速退出
+    const ret = globalShortcut.register(process.platform === 'darwin' ? 'Cmd+Shift+Q' : 'Ctrl+Shift+Q', () => {
+      console.log('🛑 开发模式快速退出');
+      
+      // 强制退出所有进程
+      if (processGuardian) {
+        processGuardian.stopGuardian();
+      }
+      
+      // 注销所有快捷键
+      globalShortcut.unregisterAll();
+      
+      // 强制退出应用
+      app.exit(0);
+    });
+    
+    if (ret) {
+      console.log('✅ 开发模式快捷键已注册: ' + (process.platform === 'darwin' ? 'Cmd+Shift+Q' : 'Ctrl+Shift+Q'));
+    } else {
+      console.warn('⚠️ 开发模式快捷键注册失败');
+    }
+  }
   
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -1253,6 +1326,9 @@ process.on('unhandledRejection', (reason, promise) => {
 // 应用退出前的清理工作
 app.on('before-quit', () => {
   console.log('🧹 应用退出前清理...');
+  
+  // 注销所有全局快捷键
+  globalShortcut.unregisterAll();
   
   // 清理定时器
   if (statusUpdateInterval) {

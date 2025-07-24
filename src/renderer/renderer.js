@@ -105,7 +105,9 @@ async function setupTerminal() {
   });
 
   // 设置键盘快捷键监听
-  terminal.onKey(({ key, domEvent }) => {
+  // 检查是否有 xterm 实例（XtermWrapper 和 SimpleXterm 都有）
+  if (terminal.xterm && terminal.xterm.onKey) {
+    terminal.xterm.onKey(({ key, domEvent }) => {
     // 只在欢迎界面显示时处理快捷键
     if (!isInWelcomeMenu && !session) {
       switch (key.toLowerCase()) {
@@ -123,7 +125,8 @@ async function setupTerminal() {
         break;
       }
     }
-  });
+    });
+  }
   
   // 聚焦终端
   terminal.focus();
