@@ -23,7 +23,7 @@ class SystemTray {
    * 创建系统托盘
    */
   createTray() {
-    console.log('🔄 创建系统托盘...');
+    // 🔄 创建系统托盘...
     
     try {
       // 创建托盘图标
@@ -46,7 +46,7 @@ class SystemTray {
       // 设置托盘点击事件
       this.setupTrayEvents();
       
-      console.log('✅ 系统托盘创建成功');
+      // ✅ 系统托盘创建成功
       
     } catch (error) {
       console.error('❌ 系统托盘创建失败:', error);
@@ -60,11 +60,11 @@ class SystemTray {
     const platform = process.platform;
     
     if (platform === 'darwin') {
-      return path.join(__dirname, '../../assets/tray-icon-mac.png');
+      return path.join(app.getAppPath(), 'assets/tray-icon-mac.png');
     } else if (platform === 'win32') {
-      return path.join(__dirname, '../../assets/tray-icon-win.ico');
+      return path.join(app.getAppPath(), 'assets/tray-icon-win.ico');
     } else {
-      return path.join(__dirname, '../../assets/tray-icon-linux.png');
+      return path.join(app.getAppPath(), 'assets/tray-icon-linux.png');
     }
   }
 
@@ -190,7 +190,7 @@ class SystemTray {
       this.isHidden = false;
       this.updateContextMenu();
       
-      console.log('👁️ 主窗口已显示');
+      // 👁️ 主窗口已显示
     }
   }
 
@@ -209,7 +209,7 @@ class SystemTray {
       this.isHidden = true;
       this.updateContextMenu();
       
-      console.log('👁️‍🗨️ 主窗口已隐藏到系统托盘');
+      // 👁️‍🗨️ 主窗口已隐藏到系统托盘
       
       // 显示隐藏通知
       this.showHideNotification();
@@ -250,7 +250,7 @@ class SystemTray {
    * 设置保护级别
    */
   setProtectionLevel(level) {
-    console.log(`🔧 通过托盘设置保护级别: ${level}`);
+    // 🔧 通过托盘设置保护级别: ${level}
     
     // 发送事件到主进程
     if (this.mainWindow) {
@@ -281,7 +281,7 @@ class SystemTray {
    * 切换启动时隐藏
    */
   toggleStartHidden(enabled) {
-    console.log(`🔧 启动时隐藏: ${enabled ? '启用' : '禁用'}`);
+    // 🔧 启动时隐藏: ${enabled ? '启用' : '禁用'}
     
     // 发送事件到主进程
     if (this.mainWindow) {
@@ -302,7 +302,7 @@ class SystemTray {
    * 退出应用程序
    */
   quitApplication() {
-    console.log('🚪 用户通过托盘退出应用');
+    // 🚪 用户通过托盘退出应用
     
     // 显示确认对话框
     const { dialog } = require('electron');
@@ -325,7 +325,7 @@ class SystemTray {
    * 强制退出应用程序
    */
   forceQuit() {
-    console.log('🚪 强制退出应用');
+    // 🚪 强制退出应用
     
     // 设置强制退出标志
     global.forceQuit = true;
@@ -473,7 +473,7 @@ class SystemTray {
     if (this.tray) {
       this.tray.destroy();
       this.tray = null;
-      console.log('🗑️ 系统托盘已销毁');
+      // 🗑️ 系统托盘已销毁
     }
   }
 

@@ -6,8 +6,6 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
   <title>Miaoda - Claude Code Manager</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="terminal.css">
-  <link rel="stylesheet" href="xterm-terminal.css">
 </head>
 <body>
   <div id="app">
@@ -233,14 +231,11 @@
 
   <!-- xterm.js CSS -->
   <link rel="stylesheet" href="../../node_modules/xterm/css/xterm.css">
+  <!-- 自定义终端样式 - 必须在xterm.css之后 -->
+  <link rel="stylesheet" href="terminal.css">
   
   <!-- xterm.js 核心库和插件 -->
-  <script>
-    // 在加载其他脚本之前确保 xterm 已加载
-    window.onerror = function(msg, url, line) {
-      console.error('Script error:', msg, 'at', url, 'line', line);
-    };
-  </script>
+  <script src="error-handler.js"></script>
   <script src="../../node_modules/xterm/lib/xterm.js"></script>
   <script src="xterm-init.js"></script>
   <script src="../../node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>

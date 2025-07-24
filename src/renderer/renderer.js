@@ -2,7 +2,6 @@
 
 let terminal = null;
 let session = null;
-let commandInterceptor = null;
 let currentConfig = null;
 let configs = [];
 
@@ -14,7 +13,7 @@ let isInWelcomeMenu = false;
  * 初始化应用
  */
 async function init() {
-  console.log('初始化应用...');
+  // 初始化应用...
   
   // 初始化终端
   await setupTerminal();
@@ -25,18 +24,11 @@ async function init() {
   // 加载配置
   await loadConfigs();
   
-  // 显示美化的欢迎界面
-  await showWelcomeScreen();
-  
-  // 根据终端模式决定是否显示欢迎菜单
-  if (terminal.isRealTerminal) {
-    // 真实终端模式：显示提示信息
-    terminal.writeln('\x1b[90m提示: 输入 \x1b[33mmenu\x1b[90m 显示功能菜单，输入 \x1b[33mhelp\x1b[90m 查看帮助\x1b[0m');
-    terminal.writeln('');
-  } else {
-    // 模拟终端模式：自动显示欢迎菜单
+  // 终端初始化完成后，显示欢迎菜单
+  // 使用延迟确保终端完全准备就绪
+  setTimeout(() => {
     showWelcomeMenu();
-  }
+  }, 300);
 }
 
 /**
@@ -45,14 +37,11 @@ async function init() {
 async function setupTerminal() {
   const container = document.getElementById('terminal');
   if (!container) {
-    console.error('找不到终端容器');
+    // 找不到终端容器
     return;
   }
 
-  // 调试 xterm.js 加载状态
-  console.log('window.Terminal:', window.Terminal);
-  console.log('window.XtermWrapper:', window.XtermWrapper);
-  console.log('window.SimpleXterm:', window.SimpleXterm);
+  // 检查可用的终端实现
   
   // 创建终端实例（优先使用 XtermWrapper）
   if (window.XtermWrapper) {
@@ -61,10 +50,10 @@ async function setupTerminal() {
     terminal = new window.SimpleXterm();
   } else if (window.MiaodaTerminal) {
     // 如果其他包装器不可用，尝试使用 MiaodaTerminal
-    console.warn('使用 MiaodaTerminal 类');
+    // 使用 MiaodaTerminal 类
     terminal = new window.MiaodaTerminal();
   } else {
-    console.error('没有可用的终端实现');
+    // 没有可用的终端实现
     return;
   }
   
@@ -72,26 +61,26 @@ async function setupTerminal() {
     const success = await terminal.initialize(container);
     
     if (!success) {
-      console.error('终端初始化失败');
+      // 终端初始化失败
       return;
     }
   } catch (error) {
-    console.error('终端初始化异常:', error);
+    // 终端初始化异常: error
     return;
   }
 
   // 检查是否是真实终端
   if (terminal.isRealTerminal) {
-    console.log('使用真实终端模式');
+    // 使用真实终端模式
     // 真实终端模式下不需要会话管理
     session = null;
     
     // 创建命令拦截器
     if (window.TerminalCommandInterceptor) {
-      commandInterceptor = new window.TerminalCommandInterceptor(terminal);
+      new window.TerminalCommandInterceptor(terminal);
     }
   } else {
-    console.log('使用模拟终端模式');
+    // 使用模拟终端模式
     // 创建会话（仅在模拟模式下）
     session = new window.TerminalSession(terminal);
     
@@ -107,37 +96,37 @@ async function setupTerminal() {
   // 设置键盘快捷键监听
   // 检查是否有 xterm 实例（XtermWrapper 和 SimpleXterm 都有）
   if (terminal.xterm && terminal.xterm.onKey) {
-    terminal.xterm.onKey(({ key, domEvent }) => {
-    // 只在欢迎界面显示时处理快捷键
-    if (!isInWelcomeMenu && !session) {
-      switch (key.toLowerCase()) {
-      case '1':
-        startClaude();
-        break;
-      case '2':
-        showWelcomeMenu();
-        break;
-      case '3':
-        checkEnvironment();
-        break;
-      case 'h':
-        showHelp();
-        break;
+    terminal.xterm.onKey(({ key }) => {
+      // 只在欢迎界面显示时处理快捷键
+      if (!isInWelcomeMenu && !session) {
+        switch (key.toLowerCase()) {
+        case '1':
+          startClaude();
+          break;
+        case '2':
+          showWelcomeMenu();
+          break;
+        case '3':
+          checkEnvironment();
+          break;
+        case 'h':
+          showHelp();
+          break;
+        }
       }
-    }
     });
   }
   
   // 聚焦终端
   terminal.focus();
   
-  console.log('终端初始化成功');
+  // 终端初始化成功
 }
 
 /**
  * 处理命令
  */
-async function handleCommand(command, session) {
+async function handleCommand(command) {
   // 特殊命令
   switch (command.toLowerCase()) {
   case 'menu':
@@ -189,6 +178,8 @@ function showHelp() {
 /**
  * 显示美化的欢迎界面
  */
+// 已废弃的欢迎界面函数，使用WelcomeMenu类代替
+/*
 async function showWelcomeScreen() {
   // 清空终端
   terminal.clear();
@@ -246,6 +237,7 @@ async function showWelcomeScreen() {
   terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
   terminal.writeln('');
 }
+*/
 
 /**
  * 显示欢迎菜单
@@ -255,15 +247,25 @@ function showWelcomeMenu() {
     return;
   }
 
+  // 检查终端是否已初始化
+  if (!terminal || !terminal.isReady) {
+    // 终端未初始化，无法显示欢迎菜单
+    return;
+  }
+
   // 清空终端
   terminal.clear();
   
   // 设置欢迎菜单模式
   isInWelcomeMenu = true;
   
-  // 在模拟模式下禁用会话输入
+  // 禁用终端输入（模拟模式和真实终端模式都适用）
   if (session) {
     session.setInputEnabled(false);
+  }
+  // 在真实终端模式下，禁用输入到PTY
+  if (terminal.setInputEnabled) {
+    terminal.setInputEnabled(false);
   }
 
   // 创建并显示欢迎菜单
@@ -278,9 +280,11 @@ function showWelcomeMenu() {
       isInWelcomeMenu = false;
       
       if (terminal.isRealTerminal) {
-        // 真实终端模式：直接清屏并显示新提示符
+        // 真实终端模式：清屏并恢复输入
         terminal.clear();
-        // 真实终端会自动显示系统提示符
+        if (terminal.setInputEnabled) {
+          terminal.setInputEnabled(true);
+        }
       } else if (session) {
         // 模拟模式：恢复会话
         session.setInputEnabled(true);
@@ -291,7 +295,7 @@ function showWelcomeMenu() {
 
     welcomeMenu.show();
   } else {
-    console.error('WelcomeMenu 类不可用');
+    // WelcomeMenu 类不可用
     isInWelcomeMenu = false;
     
     if (session) {
@@ -422,10 +426,10 @@ function toggleTerminalFullscreen() {
  * 检查环境
  */
 async function checkEnvironment() {
-  console.log('checkEnvironment 函数被调用');
+  // checkEnvironment 函数被调用
   
   if (!terminal) {
-    console.error('终端未初始化');
+    // 终端未初始化
     return;
   }
   
@@ -526,7 +530,7 @@ async function loadConfigs() {
     configs = result.configs || [];
     renderConfigList();
   } catch (error) {
-    console.error('加载配置失败:', error);
+    // 加载配置失败: error
   }
 }
 
@@ -640,30 +644,30 @@ function setupEventListeners() {
   function addListener(id, handler, eventType = 'click') {
     const element = document.getElementById(id);
     if (element) {
-      console.log(`绑定事件: ${id} -> ${handler.name}`);
+      // 绑定事件: ${id} -> ${handler.name}
       element.addEventListener(eventType, handler);
       window._boundEventListeners.push({ id, handler: handler.name, eventType });
     } else {
-      console.error(`找不到元素: ${id}`);
+      // 找不到元素: ${id}
     }
   }
 
   // 检查环境按钮
   const checkEnvBtn = document.getElementById('check-env-btn');
   if (checkEnvBtn) {
-    console.log('找到检查环境按钮，样式:', window.getComputedStyle(checkEnvBtn).pointerEvents);
+    // 找到检查环境按钮
     // 确保按钮可点击
     checkEnvBtn.style.pointerEvents = 'auto';
     checkEnvBtn.style.cursor = 'pointer';
   }
   
   addListener('check-env-btn', async (e) => {
-    console.log('检查环境按钮被点击');
+    // 检查环境按钮被点击
     e.preventDefault();
     try {
       await checkEnvironment();
     } catch (error) {
-      console.error('检查环境时出错:', error);
+      // 检查环境时出错: error
       if (terminal) {
         terminal.writeln(`\x1b[31m检查环境失败: ${error.message}\x1b[0m`);
       }
@@ -753,7 +757,7 @@ function setupEventListeners() {
           url: 'https://github.com/miaoda-code/miaoda'
         });
       } catch (err) {
-        console.log('分享失败:', err);
+        // 分享失败: err
       }
     });
   }
@@ -833,7 +837,7 @@ function showNewConfigForm() {
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM 加载完成，开始初始化...');
+  // DOM 加载完成，开始初始化...
   
   // 验证关键函数是否存在
   const requiredFunctions = [
@@ -848,7 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const missingFunctions = requiredFunctions.filter(fname => typeof window[fname] !== 'function' && typeof eval(fname) !== 'function');
   
   if (missingFunctions.length > 0) {
-    console.warn('警告：以下函数可能未定义：', missingFunctions);
+    // 警告：以下函数可能未定义： missingFunctions
   }
   
   // 开始初始化

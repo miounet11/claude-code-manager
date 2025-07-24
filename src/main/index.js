@@ -4,25 +4,59 @@ const { app, BrowserWindow, ipcMain, Menu, dialog, globalShortcut } = require('e
 const path = require('path');
 const Store = require('electron-store');
 
+// 环境和模式检测
+const fs = require('fs');
+const DISABLE_MARKER = '/tmp/MIAODA_DISABLED';
+
 // 检查是否有禁用标记
-if (require('fs').existsSync('/tmp/MIAODA_DISABLED')) {
-  console.log('🚫 检测到禁用标记，退出应用');
-  app.quit();
-  process.exit(0);
+if (fs.existsSync(DISABLE_MARKER)) {
+  console.log('🚫 检测到禁用标记文件，应用将在开发模式下运行');
+  console.log('💡 这通常意味着您正在开发环境中运行应用');
+  
+  // 读取禁用标记内容以获取更多信息
+  try {
+    const markerContent = fs.readFileSync(DISABLE_MARKER, 'utf8');
+    if (markerContent.trim()) {
+      console.log(`📝 禁用原因: ${markerContent.trim()}`);
+    }
+  } catch (e) {
+    // 忽略读取错误
+  }
 }
 
 // 单实例锁
 const gotTheLock = app.requestSingleInstanceLock();
 
-// 调试模式检测
-const isDebugMode = process.env.NODE_ENV === 'development' || process.argv.includes('--debug') || process.argv.includes('--dev');
-const isProduction = !isDebugMode && process.env.NODE_ENV === 'production';
+// 多层环境检测
+const isDebugMode = process.env.NODE_ENV === 'development' ||
+                   process.argv.includes('--debug') ||
+                   process.argv.includes('--dev') ||
+                   fs.existsSync(DISABLE_MARKER);
 
+const isProduction = !isDebugMode &&
+                     process.env.NODE_ENV === 'production' &&
+                     !fs.existsSync(DISABLE_MARKER);
+
+// 输出详细的环境信息
 if (isDebugMode) {
-  console.log('🐛 调试模式已启用 - 保活机制将被禁用');
+  console.log('🐛 开发模式已启用');
+  console.log('   - 保活机制将被完全禁用');
+  console.log('   - 进程保护功能关闭');
+  console.log('   - 自动重启功能关闭');
+  console.log('   - 使用 Cmd+Q (Mac) 或 Alt+F4 (Windows) 可直接退出');
 } else if (isProduction) {
-  console.log('📦 生产模式已启用 - 保活机制将完全激活');
+  console.log('📦 生产模式已启用');
+  console.log('   - 保活机制将完全激活');
+  console.log('   - 进程保护功能开启');
+  console.log('   - 自动重启功能开启');
+  console.log('   - 防卸载保护启用');
+} else {
+  console.log('⚠️  混合模式检测到，将采用安全默认设置');
 }
+
+// 环境变量验证
+console.log(`🔧 环境变量 NODE_ENV: ${process.env.NODE_ENV || '未设置'}`);
+console.log(`🔧 命令行参数: ${process.argv.slice(2).join(' ') || '无'}`);
 
 // 检查并加载可选模块
 let Analytics, Updater, ProcessGuardian, SystemPrivileges, SystemTray;
@@ -79,9 +113,8 @@ try {
 const store = new Store();
 
 // 引入真实终端管理器（可选）
-let terminalPTY = null;
 try {
-  terminalPTY = require('./terminal-pty');
+  require('./terminal-pty');
 } catch (error) {
   console.warn('真实终端模块加载失败，将使用模拟终端:', error.message);
 }
@@ -688,7 +721,6 @@ ipcMain.handle('test-api-connection', async (_, config) => {
       apiUrl = apiUrl.replace(/\/$/, '');
       
       // 直接使用用户输入的 URL
-      const urlsToTest = [apiUrl];
       
       console.log(`测试 API URL: ${apiUrl}`);
       const parsedUrl = new URL(apiUrl);
@@ -720,9 +752,8 @@ ipcMain.handle('test-api-connection', async (_, config) => {
         console.log(`响应状态码: ${res.statusCode}`);
         
         // 收集响应数据
-        let responseData = '';
-        res.on('data', (chunk) => {
-          responseData += chunk;
+        res.on('data', () => {
+          // 数据块接收
         });
         
         res.on('end', () => {
@@ -1237,10 +1268,9 @@ if (!gotTheLock) {
   // 如果没有获得锁，说明已经有一个实例在运行
   console.log('应用程序已在运行，退出新实例');
   app.quit();
-  return; // 重要：立即返回，防止继续执行
 } else {
   // 当第二个实例启动时，聚焦到第一个实例的窗口
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
+  app.on('second-instance', () => {
     console.log('检测到第二个实例尝试启动');
     
     // 如果窗口存在，聚焦到窗口

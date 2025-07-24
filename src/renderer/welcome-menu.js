@@ -29,6 +29,11 @@ class WelcomeMenu {
    * 显示欢迎菜单
    */
   async show() {
+    // 禁用终端输入到PTY
+    if (this.terminal.setInputEnabled) {
+      this.terminal.setInputEnabled(false);
+    }
+    
     this.terminal.clear();
     this.displayLogo();
     this.displayMainMenu();
@@ -84,28 +89,33 @@ class WelcomeMenu {
    */
   waitForInput() {
     // 移除之前的监听器
-    if (this.keyHandler) {
-      document.removeEventListener('keydown', this.keyHandler);
+    if (this.dataHandler) {
+      // 如果之前有数据处理器，先移除
+      this.dataHandler = null;
     }
 
-    this.keyHandler = (e) => {
-      // ESC 键退出
-      if (e.key === 'Escape') {
+    // 使用终端的onInput方法监听输入
+    this.dataHandler = (data) => {
+      // ESC 键的ANSI转义序列
+      if (data === '\x1b' || data === '\x1b\x1b') {
         this.close();
         return;
       }
 
-      // 根据当前菜单处理输入
+      // 处理数字键输入
       if (this.currentMenu === 'main') {
-        this.handleMainMenuInput(e);
+        this.handleMainMenuInputData(data);
       } else if (this.currentMenu === 'proxy') {
-        this.handleProxyMenuInput(e);
+        this.handleProxyMenuInputData(data);
       } else if (this.currentMenu === 'install') {
-        this.handleInstallMenuInput(e);
+        this.handleInstallMenuInputData(data);
       }
     };
 
-    document.addEventListener('keydown', this.keyHandler);
+    // 使用终端的输入处理
+    if (this.terminal.onInput) {
+      this.terminal.onInput(this.dataHandler);
+    }
   }
 
   /**
@@ -125,6 +135,39 @@ class WelcomeMenu {
       // 延迟执行，让用户看到输入
       setTimeout(() => {
         switch (key) {
+        case '1':
+          this.handleQuickStart();
+          break;
+        case '2':
+          this.showProxyMenu();
+          break;
+        case '3':
+          this.handleQuickExperience();
+          break;
+        case '4':
+          this.handleSelectConfig();
+          break;
+        case '5':
+          this.handleEnvironmentCheck();
+          break;
+        }
+      }, 100);
+    }
+  }
+  
+  handleMainMenuInputData(data) {
+    // 处理终端输入数据
+    if (data >= '1' && data <= '5') {
+      this.terminal.write(data);
+      this.terminal.writeln('');
+      this.terminal.writeln('');
+      
+      // 移除输入处理器
+      this.dataHandler = null;
+      
+      // 延迟执行，让用户看到输入
+      setTimeout(() => {
+        switch (data) {
         case '1':
           this.handleQuickStart();
           break;
@@ -218,6 +261,29 @@ class WelcomeMenu {
       document.removeEventListener('keydown', this.keyHandler);
       
       if (key === '0') {
+        // 返回主菜单
+        this.currentMenu = 'main';
+        this.terminal.clear();
+        this.displayLogo();
+        this.displayMainMenu();
+        this.waitForInput();
+      } else {
+        this.terminal.writeln('');
+        this.terminal.writeln('\x1b[33m提示: 请使用左侧配置面板创建代理配置\x1b[0m');
+        this.terminal.writeln('');
+        setTimeout(() => this.close(), 2000);
+      }
+    }
+  }
+  
+  handleProxyMenuInputData(data) {
+    if ((data >= '0' && data <= '4')) {
+      this.terminal.write(data);
+      this.terminal.writeln('');
+      
+      this.dataHandler = null;
+      
+      if (data === '0') {
         // 返回主菜单
         this.currentMenu = 'main';
         this.terminal.clear();
@@ -393,6 +459,23 @@ class WelcomeMenu {
       }
     }
   }
+  
+  handleInstallMenuInputData(data) {
+    if (data >= '0' && data <= '2') {
+      this.terminal.write(data);
+      this.terminal.writeln('');
+      
+      this.dataHandler = null;
+      
+      if (data === '0') {
+        this.close();
+      } else {
+        this.terminal.writeln('');
+        this.terminal.writeln('\x1b[33m请使用命令行工具手动安装缺失的组件\x1b[0m');
+        setTimeout(() => this.close(), 3000);
+      }
+    }
+  }
 
   /**
    * 关闭菜单
@@ -402,6 +485,16 @@ class WelcomeMenu {
     if (this.keyHandler) {
       document.removeEventListener('keydown', this.keyHandler);
       this.keyHandler = null;
+    }
+    
+    // 清理数据处理器
+    if (this.dataHandler) {
+      this.dataHandler = null;
+    }
+    
+    // 恢复终端输入
+    if (this.terminal.setInputEnabled) {
+      this.terminal.setInputEnabled(true);
     }
     
     // 调用关闭回调

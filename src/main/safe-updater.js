@@ -10,7 +10,6 @@ const { spawn } = require('child_process');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const Store = require('electron-store');
 
 class SafeUpdater {
@@ -197,7 +196,7 @@ class SafeUpdater {
   /**
    * 验证更新签名
    */
-  async verifyUpdateSignature(updateInfo) {
+  async verifyUpdateSignature() {
     // 这里应该实现实际的签名验证逻辑
     // 使用公钥验证更新包的签名
     return true;

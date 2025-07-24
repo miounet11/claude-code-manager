@@ -46,7 +46,7 @@ class Terminal {
 
       // 创建 xterm 实例
       this.xterm = new XTerminal({
-        fontSize: 14,
+        fontSize: 11,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: {
           background: '#1e1e1e',
@@ -225,9 +225,8 @@ class Terminal {
     });
 
     // 处理按键事件
-    this.xterm.onKey((e) => {
+    this.xterm.onKey(() => {
       // 可以在这里处理特殊按键
-      // e.key 是字符，e.domEvent 是原始事件
     });
   }
 

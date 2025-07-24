@@ -9,7 +9,6 @@ const { app } = require('electron');
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
 
 class ProcessProtection {
   constructor() {
@@ -172,7 +171,7 @@ class ProcessProtection {
     });
 
     // 处理未处理的Promise拒绝
-    process.on('unhandledRejection', (reason, promise) => {
+    process.on('unhandledRejection', (reason) => {
       console.error('未处理的Promise拒绝:', reason);
       this.logCrash(reason);
     });

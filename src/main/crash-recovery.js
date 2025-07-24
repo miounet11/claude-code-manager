@@ -8,7 +8,6 @@
 const { app, crashReporter } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
 const Store = require('electron-store');
 
 class CrashRecovery {
@@ -139,7 +138,7 @@ class CrashRecovery {
       });
     });
 
-    process.on('unhandledRejection', (reason, promise) => {
+    process.on('unhandledRejection', (reason) => {
       console.error('未处理的Promise拒绝:', reason);
       this.handleCrash('unhandled-rejection', {
         reason: reason?.toString(),

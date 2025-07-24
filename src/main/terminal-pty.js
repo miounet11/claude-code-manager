@@ -2,7 +2,6 @@
 
 const { ipcMain } = require('electron');
 const os = require('os');
-const path = require('path');
 
 // 尝试加载 node-pty
 let pty = null;
@@ -11,10 +10,10 @@ let isPtyAvailable = false;
 try {
   pty = require('node-pty');
   isPtyAvailable = true;
-  console.log('node-pty 加载成功');
+  // node-pty 加载成功
 } catch (error) {
   console.error('node-pty 加载失败:', error.message);
-  console.log('真实终端功能将不可用');
+  // 真实终端功能将不可用
 }
 
 /**
@@ -80,7 +79,7 @@ class TerminalPTY {
       const cwd = options.cwd || os.homedir();
       const env = this.getShellEnv();
       
-      console.log(`创建终端: ${id}, Shell: ${shell}, 工作目录: ${cwd}`);
+      // 创建终端: ${id}, Shell: ${shell}, 工作目录: ${cwd}
       
       // 创建 PTY 进程
       const ptyProcess = pty.spawn(shell, [], {
@@ -109,7 +108,7 @@ class TerminalPTY {
 
       // 处理终端退出
       ptyProcess.onExit((exitCode) => {
-        console.log(`终端 ${id} 退出，退出码: ${exitCode}`);
+        // 终端 ${id} 退出，退出码: ${exitCode}
         this.closeTerminal(id);
         this.sendToRenderer(id, 'terminal:exit', exitCode);
       });
@@ -238,7 +237,7 @@ class TerminalPTY {
     // 获取所有终端
     ipcMain.handle('terminal:list', () => {
       const list = [];
-      for (const [id, terminal] of this.terminals) {
+      for (const [, terminal] of this.terminals) {
         list.push({
           id: terminal.id,
           shell: terminal.shell,

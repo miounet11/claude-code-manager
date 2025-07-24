@@ -11,11 +11,12 @@ class XtermWrapper {
     this.isReady = false;
     this.isRealTerminal = false; // 兼容性标志
     this.terminalId = null;
+    this.inputEnabled = true; // 控制是否允许输入到PTY
   }
 
   async initialize(container) {
     if (!container) {
-      console.error('XtermWrapper: 容器不存在');
+      // XtermWrapper: 容器不存在
       return false;
     }
 
@@ -29,29 +30,67 @@ class XtermWrapper {
 
       // 检查 xterm.js 是否已加载
       if (!window.XTerminal) {
-        console.error('XtermWrapper: window.XTerminal 不存在');
+        // XtermWrapper: window.XTerminal 不存在
         return false;
       }
 
-      console.log('XtermWrapper: 创建终端实例');
+      // 创建终端实例
+      
+      // 计算容器尺寸（考虑内边距）
+      const containerRect = container.getBoundingClientRect();
+      const fontSize = 11;
+      const lineHeight = 1.1;
+      const charWidth = fontSize * 0.6;
+      const charHeight = fontSize * lineHeight;
+      const padding = 16; // 考虑8px的内边距 x 2
+      
+      const cols = Math.floor((containerRect.width - padding) / charWidth) || 80;
+      const rows = Math.floor((containerRect.height - padding) / charHeight) || 24;
+      
+      // 终端尺寸: ${cols}x${rows}
       
       // 创建 xterm 实例
       this.xterm = new window.XTerminal({
-        cols: 80,
-        rows: 24,
-        fontSize: 14,
+        cols: cols,
+        rows: rows,
+        fontSize: fontSize,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: {
           background: '#1e1e1e',
           foreground: '#d4d4d4',
           cursor: '#ffffff'
         },
-        cursorBlink: true
+        cursorBlink: true,
+        scrollback: 1000,
+        allowTransparency: false
       });
 
       // 打开终端
-      console.log('XtermWrapper: 打开终端');
+      // 打开终端
       this.xterm.open(container);
+      
+      // 确保终端完全填充容器
+      if (window.FitAddon && window.FitAddon.FitAddon) {
+        const fitAddon = new window.FitAddon.FitAddon();
+        this.xterm.loadAddon(fitAddon);
+        
+        // 立即适配尺寸
+        setTimeout(() => {
+          fitAddon.fit();
+          // 适配后的终端尺寸
+        }, 100);
+        
+        // 监听窗口大小变化
+        const resizeObserver = new ResizeObserver(() => {
+          setTimeout(() => {
+            fitAddon.fit();
+          }, 50);
+        });
+        resizeObserver.observe(container);
+        
+        this.fitAddon = fitAddon;
+        this.resizeObserver = resizeObserver;
+      }
       
       this.container = container;
       this.isReady = true;
@@ -63,7 +102,7 @@ class XtermWrapper {
       
       return true;
     } catch (error) {
-      console.error('XtermWrapper: 初始化失败', error);
+      // XtermWrapper: 初始化失败
       return false;
     }
   }
@@ -105,7 +144,7 @@ class XtermWrapper {
       if (result.success) {
         this.terminalId = result.id;
         this.isRealTerminal = true;
-        console.log(`XtermWrapper: 真实终端创建成功, ID: ${this.terminalId}, PID: ${result.pid}`);
+        // 真实终端创建成功
 
         // 监听终端输出
         window.electronAPI.terminal.onOutput((terminalId, data) => {
@@ -117,7 +156,7 @@ class XtermWrapper {
         // 监听终端退出
         window.electronAPI.terminal.onExit((terminalId, exitCode) => {
           if (terminalId === this.terminalId) {
-            console.log(`XtermWrapper: 终端退出, 退出码: ${exitCode}`);
+            // 终端退出
             this.writeln(`\r\n[进程已退出，退出码: ${exitCode}]`);
             this.terminalId = null;
             this.isRealTerminal = false;
@@ -126,7 +165,7 @@ class XtermWrapper {
 
         // 设置输入处理
         this.xterm.onData((data) => {
-          if (this.isRealTerminal && this.terminalId) {
+          if (this.isRealTerminal && this.terminalId && this.inputEnabled) {
             window.electronAPI.terminal.write(this.terminalId, data);
           }
         });
@@ -145,15 +184,19 @@ class XtermWrapper {
         throw new Error(result.error || '创建终端失败');
       }
     } catch (error) {
-      console.error('XtermWrapper: 创建真实终端失败', error);
+      // XtermWrapper: 创建真实终端失败
       this.isRealTerminal = false;
     }
   }
 
   onInput(handler) {
-    if (this.xterm && !this.isRealTerminal) {
+    if (this.xterm) {
       this.xterm.onData(handler);
     }
+  }
+  
+  setInputEnabled(enabled) {
+    this.inputEnabled = enabled;
   }
 
   getSelection() {
@@ -174,6 +217,12 @@ class XtermWrapper {
   }
 
   dispose() {
+    // 清理尺寸监听器
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+    
     // 关闭真实终端
     if (this.isRealTerminal && this.terminalId) {
       window.electronAPI.terminal.close(this.terminalId);
@@ -184,6 +233,7 @@ class XtermWrapper {
       this.xterm.dispose();
       this.xterm = null;
     }
+    this.fitAddon = null;
     this.isReady = false;
   }
 }

@@ -83,8 +83,7 @@ class TerminalCommandInterceptor {
    * 设置输入拦截
    */
   setupInterceptor() {
-    // 保存原始的输入处理器
-    const originalOnData = this.terminal.xterm.onData;
+    // 清理之前的输入处理器
     
     // 拦截输入
     this.terminal.xterm.onData((data) => {
