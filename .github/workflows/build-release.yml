@@ -3,150 +3,89 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'  # 当推送以 v 开头的标签时触发
-  workflow_dispatch:  # 允许手动触发
-    inputs:
-      version:
-        description: '版本号 (例如: v2.0.5)'
-        required: true
-        default: 'v2.0.5'
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-        
+  build-mac:
+    runs-on: macos-latest
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
-    - name: 设置 Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
         
-    - name: 安装依赖
-      run: npm ci
-      
-    - name: 构建 macOS 版本
-      if: matrix.os == 'macos-latest'
-      run: npm run dist-mac
-      
-    - name: 构建 Windows 版本
-      if: matrix.os == 'windows-latest'
-      run: npm run dist-win
-      
-    - name: 构建 Linux 版本
-      if: matrix.os == 'ubuntu-latest'
-      run: npm run dist-linux
-      
-    - name: 上传构建产物
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.os }}-builds
-        path: |
-          dist/*.dmg
-          dist/*.zip
-          dist/*.exe
-          dist/*.AppImage
-          dist/*.deb
-        retention-days: 90
+      - name: Build macOS
+        run: npm run dist-mac
         
-  release:
-    needs: build
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-builds
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build Windows
+        run: npm run dist-win
+        
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.blockmap
+
+  create-release:
+    needs: [build-mac, build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
-    - name: 下载所有构建产物
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-        
-    - name: 整理构建产物
-      run: |
-        mkdir -p release-files
-        find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release-files/ \;
-        ls -la release-files/
-        
-    - name: 获取版本号
-      id: get_version
-      run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
-    - name: 生成发布说明
-      id: release_notes
-      run: |
-        VERSION=${{ steps.get_version.outputs.version }}
-        cat > release_notes.md << 'EOF'
-        # Miaoda $VERSION - AI 编程神器
-        
-        ## 🚀 主要特性
-        
-        - **Claude Code 集成**: 深度集成 Claude Code，提供流畅的 AI 编程体验
-        - **进程守护**: 智能进程管理，确保 Claude Code 稳定运行
-        - **系统托盘**: 便捷的系统托盘控制，随时管理应用状态
-        - **跨平台支持**: 支持 macOS、Windows、Linux 多平台
-        
-        ## 📦 下载说明
-        
-        ### Windows 用户
-        - **Miaoda-Setup-{version}.exe**: 完整安装包，推荐使用
-        - **Miaoda-{version}-win.zip**: 便携版，无需安装
-        
-        ### macOS 用户
-        - **Miaoda-{version}.dmg**: Intel Mac 安装包
-        - **Miaoda-{version}-arm64.dmg**: Apple Silicon 安装包
-        - **Miaoda-{version}-mac.zip**: Intel Mac 压缩包
-        - **Miaoda-{version}-arm64-mac.zip**: Apple Silicon 压缩包
-        
-        ### Linux 用户
-        - **Miaoda-{version}.AppImage**: 通用 Linux 应用
-        - **miaoda_{version}_amd64.deb**: Debian/Ubuntu 包
-        
-        ## ⚠️ 重要提示
-        
-        - macOS 用户首次运行可能需要在"系统偏好设置 > 安全性与隐私"中允许应用运行
-        - Windows 用户如遇到安全警告，请选择"更多信息"后点击"仍要运行"
-        - 建议关闭杀毒软件的实时防护再进行安装
-        
-        ## 🔧 系统要求
-        
-        - **操作系统**: macOS 10.15+, Windows 10+, Linux (64-bit)
-        - **内存**: 最低 4GB RAM，推荐 8GB+
-        - **存储**: 至少 1GB 可用空间
-        - **网络**: 需要互联网连接以使用 Claude Code
-        
-        ## 📞 技术支持
-        
-        如遇问题请访问：
-        - [GitHub Issues](https://github.com/miounet11/claude-code-manager/issues)
-        - [使用文档](https://github.com/miounet11/claude-code-manager/blob/main/README.md)
-        EOF
-        
-        # 替换版本号占位符
-        sed -i "s/{version}/${VERSION#v}/g" release_notes.md
-        
-    - name: 创建 GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.get_version.outputs.version }}
-        name: Miaoda ${{ steps.get_version.outputs.version }} - AI 编程神器
-        body_path: release_notes.md
-        files: release-files/*
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: 构建完成通知
-      run: |
-        echo "✅ 构建和发布完成！"
-        echo "📦 发布版本: ${{ steps.get_version.outputs.version }}"
-        echo "🔗 发布页面: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.version }}"
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-builds
+          path: dist-mac/
+          
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-builds
+          path: dist-win/
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          prerelease: false
+          files: |
+            dist-mac/*.dmg
+            dist-mac/*.zip
+            dist-win/*.exe
+            dist-win/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
