@@ -24,9 +24,30 @@ class SimpleXterm {
     this.container = container;
 
     try {
-      // 创建 xterm 实例（使用基本配置）
+      // 等待 xterm-ready 事件或 XTerminal 可用
       if (!window.XTerminal) {
-        throw new Error('xterm.js 未加载');
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('等待 xterm.js 加载超时'));
+          }, 5000);
+          
+          // 监听 xterm-ready 事件
+          window.addEventListener('xterm-ready', () => {
+            clearTimeout(timeout);
+            resolve();
+          }, { once: true });
+          
+          // 如果已经加载，立即解决
+          if (window.XTerminal) {
+            clearTimeout(timeout);
+            resolve();
+          }
+        });
+      }
+      
+      // 创建 xterm 实例（使用基本配置）
+      if (!window.XTerminal || typeof window.XTerminal !== 'function') {
+        throw new Error('xterm.js 未加载或不是有效的构造函数');
       }
 
       // 使用保存的 xterm.js Terminal
@@ -37,7 +58,9 @@ class SimpleXterm {
           background: '#1e1e1e',
           foreground: '#d4d4d4'
         },
-        cursorBlink: true
+        cursorBlink: true,
+        // 禁用括号粘贴模式，避免粘贴时出现乱码
+        bracketedPasteMode: false
       });
 
       // 打开终端

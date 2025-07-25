@@ -11,6 +11,50 @@ function normalizeApiUrl(apiUrl) {
   return apiUrl.replace(/\/$/, '');
 }
 
+async function startClaudeCodeWithRetry(config, mainWindow, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      mainWindow.webContents.send('terminal-data', 
+        `\n\x1b[33m正在尝试启动... (第 ${attempt}/${maxRetries} 次)\x1b[0m\n`);
+      
+      const result = await startClaudeCode(config, mainWindow);
+      
+      if (result.success) {
+        return result;
+      }
+      
+      // 如果不是最后一次尝试，等待后重试
+      if (attempt < maxRetries) {
+        const waitTime = Math.min(2000 * attempt, 5000); // 递增等待时间，最大5秒
+        mainWindow.webContents.send('terminal-data', 
+          `\x1b[33m等待 ${waitTime/1000} 秒后重试...\x1b[0m\n`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        // 最后一次尝试失败
+        mainWindow.webContents.send('terminal-data', 
+          `\n\x1b[31m❌ 经过 ${maxRetries} 次尝试后仍然失败\x1b[0m\n`);
+        return result;
+      }
+      
+    } catch (error) {
+      if (attempt < maxRetries) {
+        const waitTime = Math.min(2000 * attempt, 5000);
+        mainWindow.webContents.send('terminal-data', 
+          `\x1b[33m启动异常，${waitTime/1000} 秒后重试: ${error.message}\x1b[0m\n`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        mainWindow.webContents.send('terminal-data', 
+          `\n\x1b[31m❌ 多次重试后仍然失败: ${error.message}\x1b[0m\n`);
+        return {
+          success: false,
+          error: { type: 'RETRY_EXHAUSTED', message: error.message },
+          message: `重试失败: ${error.message}`
+        };
+      }
+    }
+  }
+}
+
 async function startClaudeCode(config, mainWindow) {
   try {
     // 先检查 Claude Code 是否已安装
@@ -34,19 +78,47 @@ async function startClaudeCode(config, mainWindow) {
       await execPromise(checkCmd, checkOptions);
     } catch (checkError) {
       console.log('Claude检查失败:', checkError.message);
-      mainWindow.webContents.send('terminal-data', '\n❌ Claude Code 未安装或不在系统路径中\n');
-      mainWindow.webContents.send('terminal-data', '请先安装 Claude Code:\n');
+      
+      // 发送用户友好的错误信息
+      const errorInfo = {
+        type: 'CLI_NOT_FOUND',
+        title: '🚫 Claude CLI 未安装',
+        message: 'Claude Code 命令行工具未安装或不在系统路径中',
+        solutions: []
+      };
       
       if (process.platform === 'win32') {
-        mainWindow.webContents.send('terminal-data', '  方法1: npm install -g @anthropic/claude-code\n');
-        mainWindow.webContents.send('terminal-data', '  方法2: 下载Windows安装包并添加到PATH\n');
-        mainWindow.webContents.send('terminal-data', '  注意: 可能需要以管理员身份运行命令提示符\n');
+        errorInfo.solutions = [
+          '📦 方法1: npm install -g @anthropic/claude-code',
+          '💾 方法2: 下载 Windows 安装包并添加到 PATH',
+          '⚡ 方法3: 使用内置安装向导（开发中）',
+          '⚠️  注意: 可能需要以管理员身份运行'
+        ];
       } else {
-        mainWindow.webContents.send('terminal-data', '  npm install -g @anthropic/claude-code\n');
+        errorInfo.solutions = [
+          '📦 执行: npm install -g @anthropic/claude-code',
+          '🍺 macOS 用户: brew install claude-code',
+          '⚡ 或使用内置安装向导（开发中）'
+        ];
       }
+      
+      // 发送格式化的错误信息
+      mainWindow.webContents.send('show-error', errorInfo);
+      
+      // 同时发送到终端（带颜色）
+      mainWindow.webContents.send('terminal-data', `\n\x1b[31m❌ ${errorInfo.title}\x1b[0m\n`);
+      mainWindow.webContents.send('terminal-data', `\x1b[33m${errorInfo.message}\x1b[0m\n\n`);
+      mainWindow.webContents.send('terminal-data', '\x1b[36m💡 解决方案:\x1b[0m\n');
+      
+      errorInfo.solutions.forEach(solution => {
+        mainWindow.webContents.send('terminal-data', `  \x1b[32m${solution}\x1b[0m\n`);
+      });
+      
+      mainWindow.webContents.send('terminal-data', '\n');
       
       return {
         success: false,
+        error: errorInfo,
         message: 'Claude Code 未安装'
       };
     }
@@ -287,7 +359,8 @@ function getActiveProcessCount() {
 }
 
 module.exports = {
-  startClaudeCode,
+  startClaudeCode: startClaudeCodeWithRetry, // 使用重试版本
+  startClaudeCodeOnce: startClaudeCode, // 保留单次尝试版本
   stopClaudeCode,
   sendInputToClaudeCode,
   getActiveProcessCount

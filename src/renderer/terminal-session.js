@@ -155,7 +155,7 @@ class TerminalSession {
    * 处理清屏（Ctrl+L）
    */
   handleClear() {
-    this.terminal.clear();
+    // this.terminal.clear(); // Disabled to prevent terminal clearing
     this.showPrompt();
     this.terminal.write(this.currentLine);
   }
@@ -205,7 +205,7 @@ class TerminalSession {
       this.showHelp();
       break;
     case 'clear':
-      this.terminal.clear();
+      // this.terminal.clear(); // Disabled to prevent terminal clearing
       break;
     case 'exit':
       this.terminal.writeln('Goodbye!');

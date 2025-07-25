@@ -108,8 +108,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('confirm-quit', () => callback());
   },
   
+  // 系统诊断 API
+  runDiagnostics: (options) => ipcRenderer.invoke('run-diagnostics', options),
+  
   // 真实终端 API
   terminal: {
+    logTerminalOutput: (text) => ipcRenderer.invoke('log-terminal-output', text),
     // 创建终端
     create: (options) => ipcRenderer.invoke('terminal:create', options),
     

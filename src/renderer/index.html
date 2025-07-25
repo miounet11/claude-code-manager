@@ -60,7 +60,13 @@
       <div class="content">
         <div id="terminal-container" class="terminal-container">
           <div class="terminal-header">
-            <h2>终端</h2>
+            <div class="terminal-title">
+              <h2>终端</h2>
+              <div id="status-indicator" class="status-indicator">
+                <span class="status-dot idle"></span>
+                <span class="status-text">就绪</span>
+              </div>
+            </div>
             <div class="terminal-actions">
               <button id="fullscreen-terminal-btn" class="btn btn-small" title="全屏">⛶</button>
               <button id="stop-claude-btn" class="btn btn-small btn-danger">停止</button>
@@ -234,26 +240,34 @@
   <!-- 自定义终端样式 - 必须在xterm.css之后 -->
   <link rel="stylesheet" href="terminal.css">
   
-  <!-- xterm.js 核心库和插件 -->
+  <!-- 错误处理必须最先加载 -->
   <script src="error-handler.js"></script>
-  <script src="../../node_modules/xterm/lib/xterm.js"></script>
-  <script src="xterm-init.js"></script>
-  <script src="../../node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
-  <script src="../../node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js"></script>
-  <script src="../../node_modules/xterm-addon-search/lib/xterm-addon-search.js"></script>
+  <script src="xterm-error-suppressor.js"></script>
   
-  <!-- 应用脚本 - 新的终端实现 -->
-  <script src="xterm-wrapper.js"></script>
-  <script src="simple-xterm.js"></script>
-  <script src="terminal.js"></script>
-  <script src="terminal-session.js"></script>
-  <!-- <script src="terminal-commands.js"></script> 暂时禁用，避免输入处理冲突 -->
-  <script src="welcome-menu.js"></script>
-  <script src="default-configs.js"></script>
-  <script src="claude-shortcuts.js"></script>
-  <script src="auto-approval.js"></script>
-  <script src="guardian-control.js"></script>
-  <script src="renderer.js"></script>
-  <script src="validate-app.js"></script>
+  <!-- xterm.js 兼容性修复 -->
+  <script src="xterm-fix.js"></script>
+  
+  <!-- xterm.js 核心库和插件 - 使用 defer 确保按顺序加载 -->
+  <script defer src="../../node_modules/xterm/lib/xterm.js"></script>
+  <script defer src="../../node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+  <script defer src="../../node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js"></script>
+  <script defer src="../../node_modules/xterm-addon-search/lib/xterm-addon-search.js"></script>
+  <script defer src="xterm-loader.js"></script>
+  
+  <!-- 应用脚本 - 新的终端实现 - 也使用 defer 确保在 xterm.js 之后加载 -->
+  <script defer src="xterm-wrapper.js"></script>
+  <script defer src="simple-xterm.js"></script>
+  <script defer src="terminal.js"></script>
+  <script defer src="terminal-session.js"></script>
+  <!-- <script defer src="terminal-commands.js"></script> 暂时禁用，避免输入处理冲突 -->
+  <script defer src="welcome-menu.js"></script>
+  <script defer src="default-configs.js"></script>
+  <script defer src="claude-shortcuts.js"></script>
+  <script defer src="auto-approval.js"></script>
+  <script defer src="guardian-control.js"></script>
+  <script defer src="user-guide.js"></script>
+  <script defer src="quick-actions.js"></script>
+  <script defer src="renderer.js"></script>
+  <script defer src="validate-app.js"></script>
 </body>
 </html>

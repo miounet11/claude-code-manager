@@ -372,24 +372,34 @@ class AutoApprovalSystem {
 
     const remaining = Math.ceil(delay / 1000);
         
-    dialog.innerHTML = `
-            <div style="color: #ffcc00; font-weight: bold; margin-bottom: 10px;">
-                ⏱️ 自动批准倒计时: <span class="countdown">${remaining}</span>秒
-            </div>
-            <div style="color: #999; font-size: 12px; margin-bottom: 10px;">
-                ${this.getRequestDescription(type, request)}
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="window.autoApproval.approve('${requestId}')" 
-                        style="flex: 1; padding: 5px; background: #00ff00; color: #000; border: none; border-radius: 4px; cursor: pointer;">
-                    立即批准
-                </button>
-                <button onclick="window.autoApproval.reject('${requestId}')" 
-                        style="flex: 1; padding: 5px; background: #ff3030; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
-                    拒绝
-                </button>
-            </div>
-        `;
+    // 创建内容元素
+    const countdownDiv = document.createElement('div');
+    countdownDiv.style.cssText = 'color: #ffcc00; font-weight: bold; margin-bottom: 10px;';
+    countdownDiv.innerHTML = `⏱️ 自动批准倒计时: <span class="countdown">${remaining}</span>秒`;
+    
+    const descDiv = document.createElement('div');
+    descDiv.style.cssText = 'color: #999; font-size: 12px; margin-bottom: 10px;';
+    descDiv.textContent = this.getRequestDescription(type, request);
+    
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.style.cssText = 'display: flex; gap: 10px;';
+    
+    const approveBtn = document.createElement('button');
+    approveBtn.textContent = '立即批准';
+    approveBtn.style.cssText = 'flex: 1; padding: 5px; background: #00ff00; color: #000; border: none; border-radius: 4px; cursor: pointer;';
+    approveBtn.addEventListener('click', () => window.autoApproval.approve(requestId));
+    
+    const rejectBtn = document.createElement('button');
+    rejectBtn.textContent = '拒绝';
+    rejectBtn.style.cssText = 'flex: 1; padding: 5px; background: #ff3030; color: #fff; border: none; border-radius: 4px; cursor: pointer;';
+    rejectBtn.addEventListener('click', () => window.autoApproval.reject(requestId));
+    
+    buttonsDiv.appendChild(approveBtn);
+    buttonsDiv.appendChild(rejectBtn);
+    
+    dialog.appendChild(countdownDiv);
+    dialog.appendChild(descDiv);
+    dialog.appendChild(buttonsDiv);
 
     this.dialogContainer.appendChild(dialog);
 
@@ -424,24 +434,34 @@ class AutoApprovalSystem {
             animation: slideIn 0.3s ease;
         `;
 
-    dialog.innerHTML = `
-            <div style="color: var(--putty-green); font-weight: bold; margin-bottom: 10px;">
-                🔒 需要批准: ${this.getTypeLabel(type)}
-            </div>
-            <div style="color: #ccc; font-size: 14px; margin-bottom: 15px; max-height: 100px; overflow-y: auto;">
-                ${this.getRequestDescription(type, request)}
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="window.autoApproval.approve('${requestId}')" 
-                        style="flex: 1; padding: 8px; background: var(--putty-green); color: var(--putty-bg); border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
-                    ✓ 批准
-                </button>
-                <button onclick="window.autoApproval.reject('${requestId}')" 
-                        style="flex: 1; padding: 8px; background: #ff3030; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
-                    ✗ 拒绝
-                </button>
-            </div>
-        `;
+    // 创建内容元素
+    const titleDiv = document.createElement('div');
+    titleDiv.style.cssText = 'color: var(--putty-green); font-weight: bold; margin-bottom: 10px;';
+    titleDiv.textContent = `🔒 需要批准: ${this.getTypeLabel(type)}`;
+    
+    const descDiv = document.createElement('div');
+    descDiv.style.cssText = 'color: #ccc; font-size: 14px; margin-bottom: 15px; max-height: 100px; overflow-y: auto;';
+    descDiv.textContent = this.getRequestDescription(type, request);
+    
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.style.cssText = 'display: flex; gap: 10px;';
+    
+    const approveBtn = document.createElement('button');
+    approveBtn.textContent = '✓ 批准';
+    approveBtn.style.cssText = 'flex: 1; padding: 8px; background: var(--putty-green); color: var(--putty-bg); border: none; border-radius: 4px; cursor: pointer; font-weight: bold;';
+    approveBtn.addEventListener('click', () => window.autoApproval.approve(requestId));
+    
+    const rejectBtn = document.createElement('button');
+    rejectBtn.textContent = '✗ 拒绝';
+    rejectBtn.style.cssText = 'flex: 1; padding: 8px; background: #ff3030; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;';
+    rejectBtn.addEventListener('click', () => window.autoApproval.reject(requestId));
+    
+    buttonsDiv.appendChild(approveBtn);
+    buttonsDiv.appendChild(rejectBtn);
+    
+    dialog.appendChild(titleDiv);
+    dialog.appendChild(descDiv);
+    dialog.appendChild(buttonsDiv);
 
     this.dialogContainer.appendChild(dialog);
   }
@@ -513,50 +533,85 @@ class AutoApprovalSystem {
             font-family: 'Courier New', monospace;
         `;
 
-    panel.innerHTML = `
-            <h2 style="color: var(--putty-green); margin-bottom: 20px;">自动批准设置</h2>
-            
-            <div style="margin-bottom: 20px;">
-                <label style="display: flex; align-items: center; color: #ccc; cursor: pointer;">
-                    <input type="checkbox" id="auto-approval-enabled" style="margin-right: 10px;">
-                    <span>启用自动批准</span>
-                </label>
-                <div style="color: #ff9500; font-size: 12px; margin-top: 5px;">
-                    ⚠️ 只有在您完全信任 AI 并了解安全风险的情况下才启用
-                </div>
-            </div>
-
-            <div id="approval-features" style="margin-bottom: 20px;">
-                <h3 style="color: var(--putty-green); font-size: 16px; margin-bottom: 10px;">功能权限</h3>
-                ${this.renderFeatureToggles()}
-            </div>
-
-            <div id="approval-delays" style="margin-bottom: 20px;">
-                <h3 style="color: var(--putty-green); font-size: 16px; margin-bottom: 10px;">批准延迟</h3>
-                ${this.renderDelaySettings()}
-            </div>
-
-            <div id="approval-whitelist" style="margin-bottom: 20px;">
-                <h3 style="color: var(--putty-green); font-size: 16px; margin-bottom: 10px;">命令白名单</h3>
-                ${this.renderWhitelist()}
-            </div>
-
-            <div id="approval-blacklist" style="margin-bottom: 20px;">
-                <h3 style="color: var(--putty-green); font-size: 16px; margin-bottom: 10px;">命令黑名单</h3>
-                ${this.renderBlacklist()}
-            </div>
-
-            <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button onclick="window.autoApproval.saveSettings()" 
-                        style="flex: 1; padding: 10px; background: var(--putty-green); color: var(--putty-bg); border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
-                    保存设置
-                </button>
-                <button onclick="window.autoApproval.closeSettings()" 
-                        style="flex: 1; padding: 10px; background: #666; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
-                    关闭
-                </button>
-            </div>
-        `;
+    // 创建标题
+    const h2 = document.createElement('h2');
+    h2.style.cssText = 'color: var(--putty-green); margin-bottom: 20px;';
+    h2.textContent = '自动批准设置';
+    panel.appendChild(h2);
+    
+    // 创建启用开关
+    const enableDiv = document.createElement('div');
+    enableDiv.style.cssText = 'margin-bottom: 20px;';
+    
+    const label = document.createElement('label');
+    label.style.cssText = 'display: flex; align-items: center; color: #ccc; cursor: pointer;';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = 'auto-approval-enabled';
+    checkbox.style.cssText = 'margin-right: 10px;';
+    
+    const span = document.createElement('span');
+    span.textContent = '启用自动批准';
+    
+    label.appendChild(checkbox);
+    label.appendChild(span);
+    
+    const warning = document.createElement('div');
+    warning.style.cssText = 'color: #ff9500; font-size: 12px; margin-top: 5px;';
+    warning.textContent = '⚠️ 只有在您完全信任 AI 并了解安全风险的情况下才启用';
+    
+    enableDiv.appendChild(label);
+    enableDiv.appendChild(warning);
+    panel.appendChild(enableDiv);
+    
+    // 创建功能权限部分
+    const featuresDiv = document.createElement('div');
+    featuresDiv.id = 'approval-features';
+    featuresDiv.style.cssText = 'margin-bottom: 20px;';
+    featuresDiv.innerHTML = `<h3 style="color: var(--putty-green); font-size: 16px; margin-bottom: 10px;">功能权限</h3>${this.renderFeatureToggles()}`;
+    panel.appendChild(featuresDiv);
+    
+    // 创建批准延迟部分
+    const delaysDiv = document.createElement('div');
+    delaysDiv.id = 'approval-delays';
+    delaysDiv.style.cssText = 'margin-bottom: 20px;';
+    delaysDiv.innerHTML = `<h3 style="color: var(--putty-green); font-size: 16px; margin-bottom: 10px;">批准延迟</h3>${this.renderDelaySettings()}`;
+    panel.appendChild(delaysDiv);
+    
+    // 创建白名单部分
+    const whitelistDiv = document.createElement('div');
+    whitelistDiv.id = 'approval-whitelist';
+    whitelistDiv.style.cssText = 'margin-bottom: 20px;';
+    whitelistDiv.innerHTML = '<h3 style="color: var(--putty-green); font-size: 16px; margin-bottom: 10px;">命令白名单</h3>';
+    panel.appendChild(whitelistDiv);
+    this.renderWhitelistDOM(whitelistDiv);
+    
+    // 创建黑名单部分
+    const blacklistDiv = document.createElement('div');
+    blacklistDiv.id = 'approval-blacklist';
+    blacklistDiv.style.cssText = 'margin-bottom: 20px;';
+    blacklistDiv.innerHTML = '<h3 style="color: var(--putty-green); font-size: 16px; margin-bottom: 10px;">命令黑名单</h3>';
+    panel.appendChild(blacklistDiv);
+    this.renderBlacklistDOM(blacklistDiv);
+    
+    // 创建按钮部分
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.style.cssText = 'display: flex; gap: 10px; margin-top: 20px;';
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = '保存设置';
+    saveBtn.style.cssText = 'flex: 1; padding: 10px; background: var(--putty-green); color: var(--putty-bg); border: none; border-radius: 4px; cursor: pointer; font-weight: bold;';
+    saveBtn.addEventListener('click', () => window.autoApproval.saveSettings());
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '关闭';
+    closeBtn.style.cssText = 'flex: 1; padding: 10px; background: #666; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;';
+    closeBtn.addEventListener('click', () => window.autoApproval.closeSettings());
+    
+    buttonsDiv.appendChild(saveBtn);
+    buttonsDiv.appendChild(closeBtn);
+    panel.appendChild(buttonsDiv);
 
     document.body.appendChild(panel);
         
@@ -611,54 +666,107 @@ class AutoApprovalSystem {
         `).join('');
   }
 
-  // 渲染白名单
-  renderWhitelist() {
-    return `
-            <div style="margin-bottom: 10px;">
-                <input type="text" id="whitelist-input" placeholder="输入命令前缀（例如 'git '）" 
-                       style="width: 300px; padding: 5px; background: #000; border: 1px solid var(--putty-green); color: var(--putty-green);">
-                <button onclick="window.autoApproval.addWhitelist()" 
-                        style="padding: 5px 15px; background: var(--putty-green); color: var(--putty-bg); border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">
-                    添加
-                </button>
-            </div>
-            <div id="whitelist-items" style="max-height: 150px; overflow-y: auto;">
-                ${this.config.whitelist.commands.map((cmd, i) => `
-                    <div style="padding: 5px; background: rgba(0, 255, 0, 0.1); margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                        <code style="color: var(--putty-green);">${cmd}</code>
-                        <button onclick="window.autoApproval.removeWhitelist(${i})" 
-                                style="background: #ff3030; color: #fff; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;">
-                            删除
-                        </button>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-  }
 
-  // 渲染黑名单
-  renderBlacklist() {
-    return `
-            <div style="margin-bottom: 10px;">
-                <input type="text" id="blacklist-input" placeholder="输入危险命令前缀（例如 'rm -rf'）" 
-                       style="width: 300px; padding: 5px; background: #000; border: 1px solid var(--putty-green); color: var(--putty-green);">
-                <button onclick="window.autoApproval.addBlacklist()" 
-                        style="padding: 5px 15px; background: #ff3030; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">
-                    添加
-                </button>
-            </div>
-            <div id="blacklist-items" style="max-height: 150px; overflow-y: auto;">
-                ${this.config.blacklist.commands.map((cmd, i) => `
-                    <div style="padding: 5px; background: rgba(255, 48, 48, 0.1); margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                        <code style="color: #ff6b6b;">${cmd}</code>
-                        <button onclick="window.autoApproval.removeBlacklist(${i})" 
-                                style="background: #666; color: #fff; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;">
-                            删除
-                        </button>
-                    </div>
-                `).join('')}
-            </div>
-        `;
+  // 渲染白名单 DOM
+  renderWhitelistDOM(container) {
+    const inputDiv = document.createElement('div');
+    inputDiv.style.cssText = 'margin-bottom: 10px;';
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'whitelist-input';
+    input.placeholder = '输入命令前缀（例如 "git "）';
+    input.style.cssText = 'width: 300px; padding: 5px; background: #000; border: 1px solid var(--putty-green); color: var(--putty-green);';
+    
+    const addBtn = document.createElement('button');
+    addBtn.textContent = '添加';
+    addBtn.style.cssText = 'padding: 5px 15px; background: var(--putty-green); color: var(--putty-bg); border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;';
+    addBtn.addEventListener('click', () => window.autoApproval.addWhitelist());
+    
+    inputDiv.appendChild(input);
+    inputDiv.appendChild(addBtn);
+    
+    const itemsDiv = document.createElement('div');
+    itemsDiv.id = 'whitelist-items';
+    itemsDiv.style.cssText = 'max-height: 150px; overflow-y: auto;';
+    
+    this.updateWhitelistItems(itemsDiv);
+    
+    container.appendChild(inputDiv);
+    container.appendChild(itemsDiv);
+  }
+  
+  // 渲染黑名单 DOM
+  renderBlacklistDOM(container) {
+    const inputDiv = document.createElement('div');
+    inputDiv.style.cssText = 'margin-bottom: 10px;';
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'blacklist-input';
+    input.placeholder = '输入危险命令前缀（例如 "rm -rf"）';
+    input.style.cssText = 'width: 300px; padding: 5px; background: #000; border: 1px solid var(--putty-green); color: var(--putty-green);';
+    
+    const addBtn = document.createElement('button');
+    addBtn.textContent = '添加';
+    addBtn.style.cssText = 'padding: 5px 15px; background: #ff3030; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;';
+    addBtn.addEventListener('click', () => window.autoApproval.addBlacklist());
+    
+    inputDiv.appendChild(input);
+    inputDiv.appendChild(addBtn);
+    
+    const itemsDiv = document.createElement('div');
+    itemsDiv.id = 'blacklist-items';
+    itemsDiv.style.cssText = 'max-height: 150px; overflow-y: auto;';
+    
+    this.updateBlacklistItems(itemsDiv);
+    
+    container.appendChild(inputDiv);
+    container.appendChild(itemsDiv);
+  }
+  
+  // 更新白名单项
+  updateWhitelistItems(container) {
+    container.innerHTML = '';
+    this.config.whitelist.commands.forEach((cmd, i) => {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding: 5px; background: rgba(0, 255, 0, 0.1); margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;';
+      
+      const code = document.createElement('code');
+      code.style.cssText = 'color: var(--putty-green);';
+      code.textContent = cmd;
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = '删除';
+      removeBtn.style.cssText = 'background: #ff3030; color: #fff; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;';
+      removeBtn.addEventListener('click', () => window.autoApproval.removeWhitelist(i));
+      
+      item.appendChild(code);
+      item.appendChild(removeBtn);
+      container.appendChild(item);
+    });
+  }
+  
+  // 更新黑名单项
+  updateBlacklistItems(container) {
+    container.innerHTML = '';
+    this.config.blacklist.commands.forEach((cmd, i) => {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding: 5px; background: rgba(255, 48, 48, 0.1); margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;';
+      
+      const code = document.createElement('code');
+      code.style.cssText = 'color: #ff6b6b;';
+      code.textContent = cmd;
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = '删除';
+      removeBtn.style.cssText = 'background: #666; color: #fff; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;';
+      removeBtn.addEventListener('click', () => window.autoApproval.removeBlacklist(i));
+      
+      item.appendChild(code);
+      item.appendChild(removeBtn);
+      container.appendChild(item);
+    });
   }
 
   // 绑定设置事件
@@ -707,15 +815,9 @@ class AutoApprovalSystem {
   // 更新白名单显示
   updateWhitelistDisplay() {
     const container = document.getElementById('whitelist-items');
-    container.innerHTML = this.config.whitelist.commands.map((cmd, i) => `
-            <div style="padding: 5px; background: rgba(0, 255, 0, 0.1); margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <code style="color: var(--putty-green);">${cmd}</code>
-                <button onclick="window.autoApproval.removeWhitelist(${i})" 
-                        style="background: #ff3030; color: #fff; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;">
-                    删除
-                </button>
-            </div>
-        `).join('');
+    if (container) {
+      this.updateWhitelistItems(container);
+    }
   }
 
   // 添加黑名单
@@ -738,15 +840,9 @@ class AutoApprovalSystem {
   // 更新黑名单显示
   updateBlacklistDisplay() {
     const container = document.getElementById('blacklist-items');
-    container.innerHTML = this.config.blacklist.commands.map((cmd, i) => `
-            <div style="padding: 5px; background: rgba(255, 48, 48, 0.1); margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <code style="color: #ff6b6b;">${cmd}</code>
-                <button onclick="window.autoApproval.removeBlacklist(${i})" 
-                        style="background: #666; color: #fff; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;">
-                    删除
-                </button>
-            </div>
-        `).join('');
+    if (container) {
+      this.updateBlacklistItems(container);
+    }
   }
 
   // 保存设置

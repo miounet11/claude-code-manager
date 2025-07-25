@@ -21,13 +21,29 @@ async function init() {
   // 设置事件监听
   setupEventListeners();
   
+  // 设置错误处理
+  setupErrorHandling();
+  
   // 加载配置
   await loadConfigs();
+  
+  // 初始化用户引导系统
+  if (window.userGuide) {
+    window.userGuide.init();
+  }
+  
+  // 初始化快捷操作面板
+  if (window.quickActions) {
+    window.quickActions.init();
+  }
   
   // 终端初始化完成后，显示欢迎菜单
   // 使用延迟确保终端完全准备就绪
   setTimeout(() => {
     showWelcomeMenu();
+    
+    // 显示智能提示
+    showSmartTips();
   }, 300);
 }
 
@@ -94,9 +110,11 @@ async function setupTerminal() {
   });
 
   // 设置键盘快捷键监听
-  // 检查是否有 xterm 实例（XtermWrapper 和 SimpleXterm 都有）
+  // 注释掉这个全局快捷键处理器，避免与终端输入冲突
+  // 用户应该通过按钮或欢迎菜单来操作
+  /*
   if (terminal.xterm && terminal.xterm.onKey) {
-    terminal.xterm.onKey(({ key }) => {
+    terminal.xterm.onKey(({ key, domEvent }) => {
       // 只在欢迎界面显示时处理快捷键
       if (!isInWelcomeMenu && !session) {
         switch (key.toLowerCase()) {
@@ -116,6 +134,7 @@ async function setupTerminal() {
       }
     });
   }
+  */
   
   // 聚焦终端
   terminal.focus();
@@ -253,11 +272,11 @@ function showWelcomeMenu() {
     return;
   }
 
-  // 清空终端
-  terminal.clear();
-  
-  // 设置欢迎菜单模式
+  // 先设置欢迎菜单模式，这样终端的clear()方法能正确识别
   isInWelcomeMenu = true;
+  
+  // 清空终端（现在会被识别为欢迎菜单调用，自动保存重要内容）
+  terminal.clear();
   
   // 禁用终端输入（模拟模式和真实终端模式都适用）
   if (session) {
@@ -280,15 +299,14 @@ function showWelcomeMenu() {
       isInWelcomeMenu = false;
       
       if (terminal.isRealTerminal) {
-        // 真实终端模式：清屏并恢复输入
-        terminal.clear();
+        // 真实终端模式：不清屏，只恢复输入
         if (terminal.setInputEnabled) {
           terminal.setInputEnabled(true);
         }
       } else if (session) {
-        // 模拟模式：恢复会话
+        // 模拟模式：恢复会话但不清屏
         session.setInputEnabled(true);
-        session.reset();
+        // 不调用 session.reset() 以保留内容
         session.showPrompt();
       }
     };
@@ -311,12 +329,24 @@ function showWelcomeMenu() {
 /**
  * 启动 Claude
  */
+let isStartingClaude = false;
 async function startClaude() {
-  if (!currentConfig) {
-    terminal.writeln('\x1b[33m⚠️  请先选择一个配置\x1b[0m');
-    terminal.writeln('   使用左侧配置列表选择，或按 \x1b[33m[2]\x1b[0m 打开配置菜单');
+  // 防止重复调用
+  if (isStartingClaude) {
     return;
   }
+  
+  if (!currentConfig) {
+    // 防止短时间内重复显示提示
+    if (!startClaude.lastWarningTime || Date.now() - startClaude.lastWarningTime > 1000) {
+      terminal.writeln('\x1b[33m⚠️  请先选择一个配置\x1b[0m');
+      terminal.writeln('   使用左侧配置列表选择，或按 \x1b[33m[2]\x1b[0m 打开配置菜单');
+      startClaude.lastWarningTime = Date.now();
+    }
+    return;
+  }
+  
+  isStartingClaude = true;
 
   // 清空终端并显示启动画面
   terminal.clear();
@@ -332,6 +362,9 @@ async function startClaude() {
   terminal.writeln('');
   terminal.writeln('     \x1b[90m正在检查环境...\x1b[0m');
   
+  // 更新状态为启动中
+  updateStatusIndicator('starting');
+  
   try {
     const result = await window.electronAPI.startClaudeCode(currentConfig);
     if (result.success) {
@@ -342,6 +375,9 @@ async function startClaude() {
       terminal.writeln('     \x1b[90m请在新窗口中与 Claude 进行对话\x1b[0m');
       terminal.writeln('');
       terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+      
+      // 更新状态为运行中
+      updateStatusIndicator('running');
     } else {
       terminal.writeln('');
       terminal.writeln(`     \x1b[91m❌ 启动失败: ${result.message}\x1b[0m`);
@@ -352,12 +388,21 @@ async function startClaude() {
       terminal.writeln('     \x1b[90m3. 网络连接是否正常\x1b[0m');
       terminal.writeln('');
       terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+      
+      // 更新状态为错误
+      updateStatusIndicator('error', result.message);
     }
   } catch (error) {
     terminal.writeln('');
     terminal.writeln(`     \x1b[91m❌ 启动异常: ${error.message}\x1b[0m`);
     terminal.writeln('');
+    
+    // 更新状态为错误
+    updateStatusIndicator('error', error.message);
     terminal.writeln('     \x1b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+  } finally {
+    // 重置标志
+    isStartingClaude = false;
   }
 }
 
@@ -634,6 +679,392 @@ function updateFooterStatus() {
 }
 
 /**
+ * 设置错误处理
+ */
+function setupErrorHandling() {
+  // 监听来自主进程的错误信息
+  if (window.electronAPI && window.electronAPI.on) {
+    window.electronAPI.on('show-error', (errorInfo) => {
+      showUserFriendlyError(errorInfo);
+    });
+  }
+}
+
+/**
+ * 显示用户友好的错误信息
+ */
+function showUserFriendlyError(errorInfo) {
+  // 创建错误对话框
+  const errorDialog = document.createElement('div');
+  errorDialog.className = 'error-dialog';
+  // 创建错误内容
+  const errorContent = document.createElement('div');
+  errorContent.className = 'error-content';
+  
+  // 创建头部
+  const errorHeader = document.createElement('div');
+  errorHeader.className = 'error-header';
+  
+  const errorIcon = document.createElement('span');
+  errorIcon.className = 'error-icon';
+  errorIcon.textContent = '⚠️';
+  
+  const h3 = document.createElement('h3');
+  h3.textContent = errorInfo.title;
+  
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'error-close';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => errorDialog.remove());
+  
+  errorHeader.appendChild(errorIcon);
+  errorHeader.appendChild(h3);
+  errorHeader.appendChild(closeBtn);
+  
+  // 创建主体
+  const errorBody = document.createElement('div');
+  errorBody.className = 'error-body';
+  
+  const errorMessage = document.createElement('p');
+  errorMessage.className = 'error-message';
+  errorMessage.textContent = errorInfo.message;
+  errorBody.appendChild(errorMessage);
+  
+  if (errorInfo.solutions) {
+    const errorSolutions = document.createElement('div');
+    errorSolutions.className = 'error-solutions';
+    
+    const h4 = document.createElement('h4');
+    h4.textContent = '💡 解决方案：';
+    errorSolutions.appendChild(h4);
+    
+    const ul = document.createElement('ul');
+    errorInfo.solutions.forEach(solution => {
+      const li = document.createElement('li');
+      li.textContent = solution;
+      ul.appendChild(li);
+    });
+    errorSolutions.appendChild(ul);
+    errorBody.appendChild(errorSolutions);
+  }
+  
+  // 创建操作按钮
+  const errorActions = document.createElement('div');
+  errorActions.className = 'error-actions';
+  
+  const knowBtn = document.createElement('button');
+  knowBtn.className = 'btn-primary';
+  knowBtn.textContent = '我知道了';
+  knowBtn.addEventListener('click', () => errorDialog.remove());
+  errorActions.appendChild(knowBtn);
+  
+  if (errorInfo.type === 'CLI_NOT_FOUND') {
+    const guideBtn = document.createElement('button');
+    guideBtn.className = 'btn-secondary';
+    guideBtn.textContent = '安装指南';
+    guideBtn.addEventListener('click', () => showInstallGuide());
+    errorActions.appendChild(guideBtn);
+  }
+  
+  errorContent.appendChild(errorHeader);
+  errorContent.appendChild(errorBody);
+  errorContent.appendChild(errorActions);
+  errorDialog.appendChild(errorContent);
+  
+  // 添加样式
+  if (!document.querySelector('#error-dialog-styles')) {
+    const styles = document.createElement('style');
+    styles.id = 'error-dialog-styles';
+    styles.textContent = `
+      .error-dialog {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        backdrop-filter: blur(2px);
+      }
+      
+      .error-content {
+        background: #2d2d2d;
+        border-radius: 8px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        border: 1px solid #404040;
+      }
+      
+      .error-header {
+        display: flex;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #404040;
+      }
+      
+      .error-icon {
+        font-size: 24px;
+        margin-right: 12px;
+      }
+      
+      .error-header h3 {
+        margin: 0;
+        flex: 1;
+        color: #ff6b6b;
+        font-size: 16px;
+      }
+      
+      .error-close {
+        background: none;
+        border: none;
+        color: #888;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .error-close:hover {
+        background: #404040;
+        color: #fff;
+      }
+      
+      .error-body {
+        padding: 20px;
+      }
+      
+      .error-message {
+        margin: 0 0 16px 0;
+        color: #ddd;
+        line-height: 1.5;
+      }
+      
+      .error-solutions h4 {
+        margin: 0 0 8px 0;
+        color: #4CAF50;
+        font-size: 14px;
+      }
+      
+      .error-solutions ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      
+      .error-solutions li {
+        margin: 4px 0;
+        color: #ccc;
+        line-height: 1.4;
+      }
+      
+      .error-actions {
+        padding: 16px 20px;
+        border-top: 1px solid #404040;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      
+      .error-actions button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.2s;
+      }
+      
+      .btn-primary {
+        background: #007acc;
+        color: white;
+      }
+      
+      .btn-primary:hover {
+        background: #005a9e;
+      }
+      
+      .btn-secondary {
+        background: #404040;
+        color: #ddd;
+      }
+      
+      .btn-secondary:hover {
+        background: #505050;
+      }
+    `;
+    document.head.appendChild(styles);
+  }
+  
+  document.body.appendChild(errorDialog);
+}
+
+/**
+ * 显示安装指南
+ */
+function showInstallGuide() {
+  // 这里可以打开安装指南页面或显示详细安装步骤
+  if (terminal) {
+    terminal.writeln('\r\n\x1b[36m=== Claude CLI 安装指南 ===\x1b[0m');
+    terminal.writeln('\x1b[33m正在准备安装向导...\x1b[0m');
+    terminal.writeln('功能开发中，敬请期待！\r\n');
+  }
+}
+
+/**
+ * 更新状态指示器
+ */
+function updateStatusIndicator(status, message = '') {
+  const statusDot = document.querySelector('.status-dot');
+  const statusText = document.querySelector('.status-text');
+  
+  if (!statusDot || !statusText) return;
+  
+  // 清除所有状态类
+  statusDot.className = 'status-dot';
+  
+  // 添加新状态类和文本
+  switch (status) {
+    case 'idle':
+      statusDot.classList.add('idle');
+      statusText.textContent = '就绪';
+      break;
+    case 'starting':
+      statusDot.classList.add('starting');
+      statusText.textContent = '启动中...';
+      break;
+    case 'running':
+      statusDot.classList.add('running');
+      statusText.textContent = '运行中';
+      window.claudeStatus = 'running'; // 为终端命令使用
+      break;
+    case 'stopping':
+      statusDot.classList.add('stopping');
+      statusText.textContent = '停止中...';
+      break;
+    case 'error':
+      statusDot.classList.add('error');
+      statusText.textContent = message || '错误';
+      window.claudeStatus = 'error';
+      break;
+    case 'stopped':
+      statusDot.classList.add('idle');
+      statusText.textContent = '已停止';
+      window.claudeStatus = 'stopped';
+      break;
+    default:
+      statusDot.classList.add('idle');
+      statusText.textContent = message || '未知状态';
+  }
+  
+  // 同时更新页脚显示
+  updateFooterDisplay();
+}
+
+/**
+ * 更新页脚显示信息
+ */
+function updateFooterDisplay() {
+  const configPathElement = document.getElementById('config-path');
+  if (configPathElement && currentConfig) {
+    configPathElement.textContent = currentConfig.name || '未选择配置';
+  }
+  
+  const apiUrlElement = document.getElementById('api-url-display');
+  if (apiUrlElement && currentConfig) {
+    if (currentConfig.useNativeConfig) {
+      apiUrlElement.textContent = '官方 API';
+    } else {
+      apiUrlElement.textContent = currentConfig.apiUrl || '未配置';
+    }
+  }
+  
+  const modelElement = document.getElementById('model-display');
+  if (modelElement && currentConfig) {
+    modelElement.textContent = currentConfig.model || '默认模型';
+  }
+}
+
+/**
+ * 运行系统诊断
+ */
+async function runDiagnostics(quick = false) {
+  if (!terminal) return;
+  
+  updateStatusIndicator('starting', '诊断中...');
+  
+  terminal.writeln('\r\n\x1b[36m🔍 开始系统诊断...\x1b[0m');
+  terminal.writeln(`\x1b[90m模式: ${quick ? '快速检查' : '完整诊断'}\x1b[0m\r\n`);
+  
+  try {
+    const result = await window.electronAPI.runDiagnostics({ quick });
+    
+    if (result.success) {
+      // 诊断报告已通过 terminal-data 事件发送到终端
+      // 这里显示简化的状态信息
+      const { summary } = result;
+      
+      if (summary.passed === summary.total) {
+        updateStatusIndicator('running', '系统正常');
+        terminal.writeln('\x1b[32m✅ 诊断完成：系统配置完美！\x1b[0m\r\n');
+      } else if (summary.passed >= summary.total * 0.8) {
+        updateStatusIndicator('idle', '基本正常');
+        terminal.writeln('\x1b[33m⚠️  诊断完成：发现一些可优化的地方\x1b[0m\r\n');
+      } else {
+        updateStatusIndicator('error', '发现问题');
+        terminal.writeln('\x1b[31m❌ 诊断完成：发现多个需要修复的问题\x1b[0m\r\n');
+      }
+    } else {
+      updateStatusIndicator('error', '诊断失败');
+      terminal.writeln(`\x1b[31m❌ 诊断失败: ${result.message}\x1b[0m\r\n`);
+    }
+  } catch (error) {
+    updateStatusIndicator('error', '诊断异常');
+    terminal.writeln(`\x1b[31m❌ 诊断异常: ${error.message}\x1b[0m\r\n`);
+  }
+}
+
+// 全局暴露诊断函数，供终端命令使用
+window.runDiagnostics = runDiagnostics;
+
+/**
+ * 显示智能提示
+ */
+function showSmartTips() {
+  // 检查是否有配置
+  if (configs.length === 0 && window.userGuide) {
+    setTimeout(() => {
+      window.userGuide.showFeatureTip('#new-config-btn', 
+        '👋 欢迎！点击这里创建您的第一个配置');
+    }, 2000);
+  }
+  
+  // 检查环境状态
+  const envItems = document.querySelectorAll('[data-env]');
+  let hasError = false;
+  
+  envItems.forEach(item => {
+    if (item.classList.contains('status-error')) {
+      hasError = true;
+    }
+  });
+  
+  if (hasError && window.userGuide) {
+    setTimeout(() => {
+      window.userGuide.showFeatureTip('#check-env-btn', 
+        '⚠️ 发现环境问题，点击这里检查并修复');
+    }, 3000);
+  }
+}
+
+/**
  * 设置事件监听器
  */
 function setupEventListeners() {
@@ -709,7 +1140,12 @@ function setupEventListeners() {
   const clearBtn = document.getElementById('clear-terminal-btn');
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
-      terminal.clear();
+      // 使用手动清空方法，会保存历史并要求确认
+      if (terminal && terminal.manualClear) {
+        terminal.manualClear();
+      } else if (terminal) {
+        terminal.clear();
+      }
       if (!isInWelcomeMenu && session) {
         session.showPrompt();
       }
@@ -962,7 +1398,7 @@ async function importConfigs() {
     input.type = 'file';
     input.accept = '.json';
     
-    input.onchange = async (event) => {
+    input.addEventListener('change', async (event) => {
       const file = event.target.files[0];
       if (!file) return;
       
@@ -1004,7 +1440,7 @@ async function importConfigs() {
       } catch (error) {
         terminal.writeln(`\x1b[31m✗ 导入失败: ${error.message}\x1b[0m`);
       }
-    };
+    });
     
     input.click();
   } catch (error) {
@@ -1159,11 +1595,21 @@ function setupAboutEvents() {
       try {
         const result = await window.electronAPI.checkForUpdates();
         if (result.updateAvailable) {
-          updateContent.innerHTML = `
-            <p>发现新版本: ${result.version}</p>
-            <p>${result.releaseNotes}</p>
-            <button class="btn btn-primary" onclick="window.electronAPI.downloadUpdate()">下载更新</button>
-          `;
+          updateContent.innerHTML = '';
+          
+          const versionP = document.createElement('p');
+          versionP.textContent = `发现新版本: ${result.version}`;
+          updateContent.appendChild(versionP);
+          
+          const notesP = document.createElement('p');
+          notesP.textContent = result.releaseNotes;
+          updateContent.appendChild(notesP);
+          
+          const downloadBtn = document.createElement('button');
+          downloadBtn.className = 'btn btn-primary';
+          downloadBtn.textContent = '下载更新';
+          downloadBtn.addEventListener('click', () => window.electronAPI.downloadUpdate());
+          updateContent.appendChild(downloadBtn);
         } else {
           updateContent.textContent = '已是最新版本';
         }

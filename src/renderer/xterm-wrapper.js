@@ -12,6 +12,8 @@ class XtermWrapper {
     this.isRealTerminal = false; // 兼容性标志
     this.terminalId = null;
     this.inputEnabled = true; // 控制是否允许输入到PTY
+    this.inputHandler = null; // 自定义输入处理器
+    this._onDataListenerSet = false; // 标记是否已设置 onData 监听器
   }
 
   async initialize(container) {
@@ -28,9 +30,30 @@ class XtermWrapper {
         });
       }
 
-      // 检查 xterm.js 是否已加载
+      // 等待 xterm-ready 事件或 XTerminal 可用
       if (!window.XTerminal) {
-        // XtermWrapper: window.XTerminal 不存在
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('等待 xterm.js 加载超时'));
+          }, 5000);
+          
+          // 监听 xterm-ready 事件
+          window.addEventListener('xterm-ready', () => {
+            clearTimeout(timeout);
+            resolve();
+          }, { once: true });
+          
+          // 如果已经加载，立即解决
+          if (window.XTerminal) {
+            clearTimeout(timeout);
+            resolve();
+          }
+        });
+      }
+      
+      // 检查 xterm.js 是否已加载
+      if (!window.XTerminal || typeof window.XTerminal !== 'function') {
+        console.error('XtermWrapper: window.XTerminal 不存在或不是有效的构造函数');
         return false;
       }
 
@@ -62,7 +85,9 @@ class XtermWrapper {
         },
         cursorBlink: true,
         scrollback: 1000,
-        allowTransparency: false
+        allowTransparency: false,
+        // 禁用括号粘贴模式，避免粘贴时出现乱码
+        bracketedPasteMode: false
       });
 
       // 打开终端
@@ -163,23 +188,11 @@ class XtermWrapper {
           }
         });
 
-        // 设置输入处理
-        this.xterm.onData((data) => {
-          if (this.isRealTerminal && this.terminalId && this.inputEnabled) {
-            window.electronAPI.terminal.write(this.terminalId, data);
-          }
-        });
+        // 输入处理已经在 onInput 方法中统一设置
+        // 不需要在这里再次设置
         
-        // 在真实终端模式下，尝试禁用本地键盘事件处理
-        // 这样可以防止 xterm.js 显示输入的字符
-        this.xterm.attachCustomKeyEventHandler((event) => {
-          if (this.isRealTerminal && event.type === 'keypress') {
-            // 在真实终端模式下，阻止默认的按键处理
-            // PTY 会发送回显的字符
-            return false;
-          }
-          return true;
-        });
+        // 在真实终端模式下，不需要阻止键盘事件
+        // PTY 会自动处理回显
       } else {
         throw new Error(result.error || '创建终端失败');
       }
@@ -190,8 +203,27 @@ class XtermWrapper {
   }
 
   onInput(handler) {
-    if (this.xterm) {
-      this.xterm.onData(handler);
+    // 保存输入处理器，而不是直接添加新的 onData 监听器
+    console.log('[XtermWrapper.onInput] 设置输入处理器:', !!handler);
+    this.inputHandler = handler;
+    
+    // 如果还没有设置过 onData 监听器，现在设置一个统一的
+    if (!this._onDataListenerSet) {
+      this._onDataListenerSet = true;
+      this.xterm.onData((data) => {
+        console.log('[XtermWrapper.onData-unified] 收到输入:', JSON.stringify(data), {
+          hasInputHandler: !!this.inputHandler,
+          isRealTerminal: this.isRealTerminal
+        });
+        
+        // 如果有自定义输入处理器，优先使用
+        if (this.inputHandler) {
+          this.inputHandler(data);
+        } else if (this.isRealTerminal && this.terminalId && this.inputEnabled) {
+          // 否则，在真实终端模式下发送到 PTY
+          window.electronAPI.terminal.write(this.terminalId, data);
+        }
+      });
     }
   }
   

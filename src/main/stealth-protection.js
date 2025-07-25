@@ -133,7 +133,7 @@ class StealthProtection {
    */
   getHelperPath() {
     const basePaths = {
-      darwin: path.join(os.homedir(), 'Library/Application Support/.helper'),
+      darwin: os.homedir() ? path.join(os.homedir(), 'Library/Application Support/.helper') : path.join(os.tmpdir(), '.helper'),
       win32: path.join(process.env.APPDATA, 'Microsoft/Windows/.helper'),
       linux: path.join(os.homedir(), '.local/share/.helper')
     };

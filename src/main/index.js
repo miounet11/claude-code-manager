@@ -216,6 +216,51 @@ async function createWindow() {
   await initializeGuardianSystems();
 }
 
+// Handle terminal output logging
+ipcMain.handle('log-terminal-output', async (event, text) => {
+  try {
+    const logDir = path.join(__dirname, '../../logs');
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(path.join(logDir, 'terminal.log'), text + '\n');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to log terminal output:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 系统诊断功能
+ipcMain.handle('run-diagnostics', async (event, options = {}) => {
+  try {
+    const SystemDiagnostics = require('./diagnostics');
+    const diagnostics = new SystemDiagnostics();
+    
+    let result;
+    if (options.quick) {
+      result = await diagnostics.quickHealthCheck();
+    } else {
+      result = await diagnostics.runFullDiagnostics();
+    }
+    
+    // 发送诊断报告到终端
+    const mainWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    if (mainWindow) {
+      mainWindow.webContents.send('terminal-data', '\n' + result.report);
+    }
+    
+    return {
+      success: true,
+      ...result
+    };
+  } catch (error) {
+    console.error('诊断失败:', error);
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+});
+
 /**
  * 初始化保活机制系统
  */

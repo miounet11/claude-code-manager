@@ -1,6 +1,6 @@
 {
   "name": "miaoda",
-  "version": "2.0.9",
+  "version": "2.1.0",
   "description": "专业的 Claude Code 部署和管理工具",
   "main": "src/main/index.js",
   "scripts": {

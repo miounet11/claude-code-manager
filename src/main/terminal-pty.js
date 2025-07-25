@@ -152,12 +152,27 @@ class TerminalPTY {
    */
   closeTerminal(id) {
     const terminal = this.terminals.get(id);
-    if (terminal) {
-      if (terminal.pty) {
+    if (terminal && terminal.pty) {
+      // Remove event listeners to prevent leaks
+      terminal.pty.removeAllListeners('data');
+      terminal.pty.removeAllListeners('exit');
+      try {
+        // Attempt graceful termination with timeout
+        terminal.pty.kill('SIGTERM');
+        const timeout = setTimeout(() => {
+          console.warn(`终端 ${id} 未在5秒内终止，强制关闭`);
+          terminal.pty.kill('SIGKILL');
+        }, 5000);
+        terminal.pty.onExit(() => {
+          clearTimeout(timeout);
+          console.log(`终端 ${id} 已成功终止`);
+        });
+      } catch (error) {
+        console.error('关闭终端失败:', error);
         try {
-          terminal.pty.kill();
-        } catch (error) {
-          console.error('关闭终端进程失败:', error);
+          terminal.pty.kill('SIGKILL'); // Force kill as fallback
+        } catch (forceError) {
+          console.error('强制关闭终端失败:', forceError);
         }
       }
       this.terminals.delete(id);
@@ -168,9 +183,18 @@ class TerminalPTY {
    * 关闭所有终端
    */
   closeAllTerminals() {
+    const promises = [];
     for (const id of this.terminals.keys()) {
-      this.closeTerminal(id);
+      promises.push(
+        new Promise((resolve) => {
+          this.closeTerminal(id);
+          resolve();
+        })
+      );
     }
+    return Promise.all(promises).then(() => {
+      console.log('所有终端已关闭');
+    });
   }
 
   /**

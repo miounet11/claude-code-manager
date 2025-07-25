@@ -185,11 +185,70 @@ body {
   align-items: center;
 }
 
+.terminal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .terminal-header h2 {
   color: var(--text-bright);
   font-size: 16px;
   font-weight: normal;
   margin: 0;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background-color 0.3s ease;
+}
+
+.status-dot.idle {
+  background: #6b7280;
+}
+
+.status-dot.starting {
+  background: #f59e0b;
+  animation: pulse 1.5s infinite;
+}
+
+.status-dot.running {
+  background: #10b981;
+}
+
+.status-dot.error {
+  background: #ef4444;
+  animation: pulse 1.5s infinite;
+}
+
+.status-dot.stopping {
+  background: #f59e0b;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.status-text {
+  color: #d1d5db;
+  font-weight: 500;
 }
 
 .terminal-actions {
