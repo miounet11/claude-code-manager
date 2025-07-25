@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Miaoda - Claude Code Manager</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+    
+    /* 侧边栏 */
+    .sidebar {
+      width: 200px;
+      background: #252525;
+      border-right: 1px solid #3e3e3e;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid #3e3e3e;
+    }
+    
+    .logo {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #0dbc79;
+    }
+    
+    .nav-menu {
+      flex: 1;
+      padding: 10px 0;
+    }
+    
+    .nav-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .nav-item:hover {
+      background: #2d2d2d;
+    }
+    
+    .nav-item.active {
+      background: #2d2d2d;
+      border-left: 3px solid #0dbc79;
+    }
+    
+    /* 主内容区 */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .header {
+      background: #2d2d2d;
+      padding: 20px;
+      border-bottom: 1px solid #3e3e3e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .content {
+      flex: 1;
+      padding: 30px;
+      overflow-y: auto;
+    }
+    
+    /* 环境检测面板 */
+    .env-panel {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .env-card {
+      background: #2d2d2d;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .env-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 0;
+      border-bottom: 1px solid #3e3e3e;
+    }
+    
+    .env-item:last-child {
+      border-bottom: none;
+    }
+    
+    .env-name {
+      font-weight: 500;
+      font-size: 1.1em;
+    }
+    
+    .env-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.9em;
+    }
+    
+    .status-badge.success {
+      background: #0dbc7933;
+      color: #0dbc79;
+    }
+    
+    .status-badge.error {
+      background: #cd313133;
+      color: #cd3131;
+    }
+    
+    .status-badge.loading {
+      background: #e5e51033;
+      color: #e5e510;
+    }
+    
+    button {
+      background: #0dbc79;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    
+    button:hover {
+      background: #0ba568;
+    }
+    
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    
+    .loading {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    
+    /* 状态栏 */
+    .status-bar {
+      background: #252525;
+      border-top: 1px solid #3e3e3e;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <!-- 侧边栏 -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Miaoda</div>
+    </div>
+    <nav class="nav-menu">
+      <div class="nav-item active" onclick="showEnvironment()">
+        <span>🌍</span>
+        <span>环境检测</span>
+      </div>
+      <div class="nav-item" onclick="showConfig()">
+        <span>⚙️</span>
+        <span>配置管理</span>
+      </div>
+      <div class="nav-item" onclick="showTerminal()">
+        <span>💻</span>
+        <span>终端</span>
+      </div>
+    </nav>
+  </div>
+  
+  <!-- 主内容 -->
+  <div class="main-content">
+    <div class="header">
+      <h2>环境检测</h2>
+      <button id="refreshBtn" onclick="checkEnvironment()">刷新</button>
+    </div>
+    
+    <div class="content">
+      <div class="env-panel">
+        <div class="env-card">
+          <h3 style="margin-bottom: 20px;">系统依赖</h3>
+          
+          <div class="env-item">
+            <div class="env-name">Node.js</div>
+            <div class="env-status">
+              <span id="nodejs-version">检测中...</span>
+              <span id="nodejs-status" class="status-badge loading">检测中</span>
+            </div>
+          </div>
+          
+          <div class="env-item">
+            <div class="env-name">Git</div>
+            <div class="env-status">
+              <span id="git-version">检测中...</span>
+              <span id="git-status" class="status-badge loading">检测中</span>
+            </div>
+          </div>
+          
+          <div class="env-item">
+            <div class="env-name">Claude CLI</div>
+            <div class="env-status">
+              <span id="claude-version">检测中...</span>
+              <span id="claude-status" class="status-badge loading">检测中</span>
+            </div>
+          </div>
+          
+          <div class="env-item">
+            <div class="env-name">UV (Python)</div>
+            <div class="env-status">
+              <span id="uv-version">检测中...</span>
+              <span id="uv-status" class="status-badge loading">检测中</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="env-card">
+          <h3 style="margin-bottom: 20px;">系统信息</h3>
+          <div id="system-info" style="line-height: 1.8;">
+            <p>加载中...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 状态栏 -->
+    <div class="status-bar">
+      <span>版本: <span id="app-version">2.1.0</span></span>
+      <span>就绪</span>
+    </div>
+  </div>
+  
+  <script>
+    // 获取版本
+    window.electronAPI.getVersion().then(version => {
+      document.getElementById('app-version').textContent = version;
+    });
+    
+    // 检查环境
+    async function checkEnvironment() {
+      const btn = document.getElementById('refreshBtn');
+      btn.disabled = true;
+      btn.textContent = '检测中...';
+      
+      // 重置状态
+      ['nodejs', 'git', 'claude', 'uv'].forEach(item => {
+        document.getElementById(`${item}-version`).textContent = '检测中...';
+        document.getElementById(`${item}-status`).className = 'status-badge loading';
+        document.getElementById(`${item}-status`).textContent = '检测中';
+      });
+      
+      try {
+        // 简单的环境检测模拟
+        const envData = {
+          nodejs: { installed: true, version: 'v20.10.0' },
+          git: { installed: true, version: '2.39.5' },
+          claude: { installed: true, version: '1.0.60' },
+          uv: { installed: false }
+        };
+        
+        // 更新显示
+        Object.entries(envData).forEach(([key, data]) => {
+          const versionEl = document.getElementById(`${key}-version`);
+          const statusEl = document.getElementById(`${key}-status`);
+          
+          if (data.installed) {
+            versionEl.textContent = data.version;
+            statusEl.className = 'status-badge success';
+            statusEl.textContent = '已安装';
+          } else {
+            versionEl.textContent = '未安装';
+            statusEl.className = 'status-badge error';
+            statusEl.textContent = '未安装';
+          }
+        });
+        
+        // 系统信息
+        document.getElementById('system-info').innerHTML = `
+          <p>平台: macOS</p>
+          <p>架构: arm64</p>
+          <p>Node.js 版本: v20.16.0</p>
+        `;
+        
+      } catch (error) {
+        console.error('环境检测失败:', error);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '刷新';
+      }
+    }
+    
+    function showConfig() {
+      alert('配置管理功能开发中...');
+    }
+    
+    function showTerminal() {
+      alert('终端功能开发中...');
+    }
+    
+    // 页面加载后自动检测
+    checkEnvironment();
+  </script>
+</body>
+</html>

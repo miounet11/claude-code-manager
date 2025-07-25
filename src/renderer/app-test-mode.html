@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Miaoda - 测试模式</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+    
+    /* 测试模式标记 */
+    .test-mode-banner {
+      position: fixed;
+      top: 0;
+      right: 0;
+      background: #ff6b00;
+      color: white;
+      padding: 5px 20px;
+      font-size: 12px;
+      z-index: 9999;
+      transform: rotate(45deg);
+      transform-origin: right top;
+      margin-top: 30px;
+      margin-right: -50px;
+      width: 200px;
+      text-align: center;
+    }
+    
+    /* 调试面板 */
+    .debug-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 200px;
+      background: #252525;
+      border-top: 2px solid #ff6b00;
+      padding: 10px;
+      display: none;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      z-index: 9998;
+    }
+    
+    .debug-panel.active {
+      display: block;
+    }
+    
+    .debug-toggle {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: #ff6b00;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      z-index: 9999;
+      font-size: 12px;
+    }
+    
+    /* 测试控制面板 */
+    .test-controls {
+      position: fixed;
+      top: 60px;
+      right: 10px;
+      background: #2d2d2d;
+      border: 1px solid #ff6b00;
+      border-radius: 8px;
+      padding: 15px;
+      width: 250px;
+      z-index: 9997;
+    }
+    
+    .test-controls h4 {
+      color: #ff6b00;
+      margin-bottom: 10px;
+    }
+    
+    .test-control-item {
+      margin: 10px 0;
+    }
+    
+    .test-control-item label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    
+    .test-control-item input[type="checkbox"] {
+      cursor: pointer;
+    }
+    
+    .test-button {
+      background: #ff6b00;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      margin: 2px;
+    }
+    
+    .test-button:hover {
+      background: #e55a00;
+    }
+    
+    /* 主布局 */
+    .sidebar {
+      width: 200px;
+      background: #252525;
+      border-right: 1px solid #3e3e3e;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid #3e3e3e;
+    }
+    
+    .logo {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #0dbc79;
+    }
+    
+    .nav-menu {
+      flex: 1;
+      padding: 10px 0;
+    }
+    
+    .nav-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .nav-item:hover {
+      background: #2d2d2d;
+    }
+    
+    .nav-item.active {
+      background: #2d2d2d;
+      border-left: 3px solid #0dbc79;
+    }
+    
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .header {
+      background: #2d2d2d;
+      padding: 20px;
+      border-bottom: 1px solid #3e3e3e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .content {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .panel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: none;
+      overflow-y: auto;
+      padding: 30px;
+    }
+    
+    .panel.active {
+      display: block;
+    }
+    
+    .status-bar {
+      background: #252525;
+      border-top: 1px solid #3e3e3e;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9em;
+    }
+    
+    /* 测试样式 */
+    .test-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+      animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0.3; }
+    }
+    
+    .success { background: #0dbc79; }
+    .error { background: #cd3131; }
+    .warning { background: #ff6b00; }
+    
+    button {
+      background: #0dbc79;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background: #0ba568;
+    }
+    
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <!-- 测试模式标记 -->
+  <div class="test-mode-banner">测试模式</div>
+  
+  <!-- 测试控制面板 -->
+  <div class="test-controls">
+    <h4>🧪 测试控制</h4>
+    
+    <div class="test-control-item">
+      <label>
+        <input type="checkbox" id="test-auto-refresh" checked>
+        自动刷新环境 (5秒)
+      </label>
+    </div>
+    
+    <div class="test-control-item">
+      <label>
+        <input type="checkbox" id="test-mock-claude" checked>
+        模拟 Claude 响应
+      </label>
+    </div>
+    
+    <div class="test-control-item">
+      <label>
+        <input type="checkbox" id="test-show-logs" checked>
+        显示调试日志
+      </label>
+    </div>
+    
+    <div style="margin-top: 15px;">
+      <h5>快速测试</h5>
+      <button class="test-button" onclick="testEnvCheck()">测试环境检测</button>
+      <button class="test-button" onclick="testConfigSave()">测试配置保存</button>
+      <button class="test-button" onclick="testClaudeStart()">测试启动Claude</button>
+      <button class="test-button" onclick="simulateError()">模拟错误</button>
+      <button class="test-button" onclick="fillTestData()">填充测试数据</button>
+    </div>
+  </div>
+  
+  <!-- 侧边栏 -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Miaoda <span style="font-size: 0.6em; color: #ff6b00;">[TEST]</span></div>
+    </div>
+    <nav class="nav-menu">
+      <div class="nav-item active" onclick="showPanel('environment')">
+        <span>🌍</span>
+        <span>环境检测</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('config')">
+        <span>⚙️</span>
+        <span>配置管理</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('terminal')">
+        <span>💻</span>
+        <span>终端</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('test')">
+        <span>🧪</span>
+        <span>测试面板</span>
+      </div>
+    </nav>
+  </div>
+  
+  <!-- 主内容 -->
+  <div class="main-content">
+    <div class="header">
+      <h2 id="panel-title">环境检测</h2>
+      <div id="header-actions">
+        <button onclick="refreshEnvironment()">刷新</button>
+      </div>
+    </div>
+    
+    <div class="content">
+      <!-- 环境检测面板 -->
+      <div id="environment-panel" class="panel active">
+        <div style="background: #2d2d2d; padding: 20px; border-radius: 8px; max-width: 800px; margin: 0 auto;">
+          <h3>系统依赖 <span class="test-indicator warning"></span></h3>
+          <div id="env-list" style="margin-top: 20px;">
+            <div style="padding: 15px 0; border-bottom: 1px solid #3e3e3e;">
+              <span>Node.js</span>
+              <span id="nodejs-status" style="float: right;">检测中...</span>
+            </div>
+            <div style="padding: 15px 0; border-bottom: 1px solid #3e3e3e;">
+              <span>Git</span>
+              <span id="git-status" style="float: right;">检测中...</span>
+            </div>
+            <div style="padding: 15px 0; border-bottom: 1px solid #3e3e3e;">
+              <span>Claude CLI</span>
+              <span id="claude-status" style="float: right;">检测中...</span>
+            </div>
+            <div style="padding: 15px 0;">
+              <span>UV (Python)</span>
+              <span id="uv-status" style="float: right;">检测中...</span>
+            </div>
+          </div>
+          
+          <div style="margin-top: 20px; padding: 15px; background: #1e1e1e; border-radius: 4px;">
+            <h4>测试信息</h4>
+            <p>检测次数: <span id="check-count">0</span></p>
+            <p>最后检测: <span id="last-check">-</span></p>
+            <p>响应时间: <span id="response-time">-</span></p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 配置管理面板 -->
+      <div id="config-panel" class="panel">
+        <div style="display: flex; gap: 20px; max-width: 1200px; margin: 0 auto;">
+          <div style="width: 300px; background: #2d2d2d; padding: 20px; border-radius: 8px;">
+            <h3>配置列表</h3>
+            <button onclick="createNewConfig()" style="margin: 10px 0;">新建配置</button>
+            <div id="config-list-items"></div>
+          </div>
+          
+          <div style="flex: 1; background: #2d2d2d; padding: 20px; border-radius: 8px;">
+            <h3>编辑配置</h3>
+            <form id="config-form">
+              <input type="hidden" id="config-id">
+              <div style="margin: 15px 0;">
+                <label>配置名称</label>
+                <input type="text" id="config-name" style="width: 100%; padding: 8px; margin-top: 5px;">
+              </div>
+              <div style="margin: 15px 0;">
+                <label>API Key</label>
+                <input type="password" id="config-apikey" style="width: 100%; padding: 8px; margin-top: 5px;">
+              </div>
+              <div style="margin: 15px 0;">
+                <label>模型</label>
+                <select id="config-model" style="width: 100%; padding: 8px; margin-top: 5px;">
+                  <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                  <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+                  <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                </select>
+              </div>
+              <button type="button" onclick="saveConfig()">保存</button>
+              <button type="button" onclick="testConfig()" style="background: #ff6b00;">测试连接</button>
+              <button type="button" onclick="deleteConfig()" style="background: #cd3131;">删除</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 终端面板 -->
+      <div id="terminal-panel" class="panel">
+        <div style="max-width: 1000px; margin: 0 auto;">
+          <div style="background: #2d2d2d; padding: 20px; border-radius: 8px 8px 0 0;">
+            <span>Claude 终端</span>
+            <button id="claude-toggle" onclick="toggleClaude()" style="float: right;">启动 Claude</button>
+            <span id="claude-status-text" style="float: right; margin-right: 20px; color: #666;">未启动</span>
+          </div>
+          <div id="terminal-output" style="background: #000; padding: 20px; height: 400px; overflow-y: auto; font-family: monospace;">
+            <div style="color: #0dbc79;">╔════════════════════════════════════════════════════════════════╗</div>
+            <div style="color: #0dbc79;">║           Miaoda Claude Terminal [TEST MODE]                   ║</div>
+            <div style="color: #0dbc79;">╚════════════════════════════════════════════════════════════════╝</div>
+            <div style="margin-top: 10px; color: #ff6b00;">🧪 测试模式已启用 - 所有响应都是模拟的</div>
+          </div>
+          <div style="background: #2d2d2d; padding: 10px; border-radius: 0 0 8px 8px;">
+            <input type="text" id="terminal-input" placeholder="输入测试命令..." style="width: 100%; padding: 8px; background: #1e1e1e; border: 1px solid #3e3e3e; color: #d4d4d4;" disabled>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 测试面板 -->
+      <div id="test-panel" class="panel">
+        <div style="max-width: 1000px; margin: 0 auto;">
+          <div style="background: #2d2d2d; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h3>🧪 测试仪表板</h3>
+            
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px;">
+              <div style="background: #1e1e1e; padding: 15px; border-radius: 4px;">
+                <h4>环境测试</h4>
+                <p>状态: <span class="test-indicator success"></span> 正常</p>
+                <p>检测次数: <span id="test-env-count">0</span></p>
+                <button class="test-button" onclick="runEnvTest()">运行测试</button>
+              </div>
+              
+              <div style="background: #1e1e1e; padding: 15px; border-radius: 4px;">
+                <h4>配置测试</h4>
+                <p>状态: <span class="test-indicator warning"></span> 待测</p>
+                <p>配置数量: <span id="test-config-count">0</span></p>
+                <button class="test-button" onclick="runConfigTest()">运行测试</button>
+              </div>
+              
+              <div style="background: #1e1e1e; padding: 15px; border-radius: 4px;">
+                <h4>Claude 测试</h4>
+                <p>状态: <span class="test-indicator error"></span> 未启动</p>
+                <p>消息数: <span id="test-msg-count">0</span></p>
+                <button class="test-button" onclick="runClaudeTest()">运行测试</button>
+              </div>
+            </div>
+          </div>
+          
+          <div style="background: #2d2d2d; padding: 20px; border-radius: 8px;">
+            <h3>测试日志</h3>
+            <div id="test-logs" style="background: #1e1e1e; padding: 15px; border-radius: 4px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px;">
+              <div>[INFO] 测试模式已启动</div>
+              <div>[INFO] 等待测试命令...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 状态栏 -->
+    <div class="status-bar">
+      <span>版本: <span id="app-version">2.1.0</span> [测试模式]</span>
+      <span id="status-text">就绪</span>
+      <span>内存: <span id="memory-usage">-</span> MB</span>
+    </div>
+  </div>
+  
+  <!-- 调试面板 -->
+  <div class="debug-panel" id="debug-panel">
+    <div style="color: #ff6b00; font-weight: bold;">调试控制台</div>
+    <div id="debug-logs"></div>
+  </div>
+  
+  <!-- 调试开关 -->
+  <button class="debug-toggle" onclick="toggleDebug()">调试控制台</button>
+  
+  <script>
+    // 测试模式全局状态
+    const TEST_MODE = true;
+    let debugMode = false;
+    let autoRefreshInterval = null;
+    let checkCount = 0;
+    let messageCount = 0;
+    let testConfigs = [];
+    let currentConfig = null;
+    let claudeRunning = false;
+    
+    // 测试日志
+    function log(message, type = 'INFO') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = `[${timestamp}] [${type}] ${message}`;
+      
+      // 写入测试日志面板
+      const testLogs = document.getElementById('test-logs');
+      if (testLogs) {
+        const div = document.createElement('div');
+        div.textContent = logEntry;
+        div.style.color = type === 'ERROR' ? '#cd3131' : type === 'WARNING' ? '#ff6b00' : '#d4d4d4';
+        testLogs.appendChild(div);
+        testLogs.scrollTop = testLogs.scrollHeight;
+      }
+      
+      // 写入调试控制台
+      if (debugMode) {
+        const debugLogs = document.getElementById('debug-logs');
+        const div = document.createElement('div');
+        div.textContent = logEntry;
+        debugLogs.appendChild(div);
+        debugLogs.scrollTop = debugLogs.scrollHeight;
+      }
+      
+      console.log(logEntry);
+    }
+    
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      log('应用启动 - 测试模式');
+      initializeTestMode();
+    });
+    
+    function initializeTestMode() {
+      // 初始化版本
+      window.electronAPI.getVersion().then(version => {
+        document.getElementById('app-version').textContent = version;
+      }).catch(() => {
+        document.getElementById('app-version').textContent = '2.1.0';
+      });
+      
+      // 设置事件监听
+      setupEventListeners();
+      
+      // 加载测试数据
+      loadTestData();
+      
+      // 启动自动刷新
+      if (document.getElementById('test-auto-refresh').checked) {
+        startAutoRefresh();
+      }
+      
+      // 更新内存使用
+      setInterval(updateMemoryUsage, 2000);
+      
+      log('测试模式初始化完成');
+    }
+    
+    function setupEventListeners() {
+      // 终端输入
+      const terminalInput = document.getElementById('terminal-input');
+      terminalInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && claudeRunning) {
+          const command = e.target.value.trim();
+          if (command) {
+            sendTestCommand(command);
+            e.target.value = '';
+          }
+        }
+      });
+      
+      // Claude 输出监听
+      if (window.electronAPI.onClaudeOutput) {
+        window.electronAPI.onClaudeOutput((data) => {
+          addToTerminal(data.text, data.type);
+        });
+      }
+      
+      // 测试控制
+      document.getElementById('test-auto-refresh').addEventListener('change', (e) => {
+        if (e.target.checked) {
+          startAutoRefresh();
+        } else {
+          stopAutoRefresh();
+        }
+      });
+    }
+    
+    // 面板切换
+    function showPanel(panelName) {
+      log(`切换到面板: ${panelName}`);
+      
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      event.currentTarget.classList.add('active');
+      
+      document.querySelectorAll('.panel').forEach(panel => {
+        panel.classList.remove('active');
+      });
+      document.getElementById(`${panelName}-panel`).classList.add('active');
+      
+      const titles = {
+        environment: '环境检测',
+        config: '配置管理',
+        terminal: '终端',
+        test: '测试面板'
+      };
+      document.getElementById('panel-title').textContent = titles[panelName];
+      
+      const headerActions = document.getElementById('header-actions');
+      if (panelName === 'environment') {
+        headerActions.innerHTML = '<button onclick="refreshEnvironment()">刷新</button>';
+      } else {
+        headerActions.innerHTML = '';
+      }
+    }
+    
+    // 环境检测
+    async function refreshEnvironment() {
+      const startTime = Date.now();
+      checkCount++;
+      
+      log('开始环境检测...');
+      document.getElementById('check-count').textContent = checkCount;
+      
+      // 模拟环境检测
+      const mockData = {
+        nodejs: { installed: true, version: 'v20.10.0' },
+        git: { installed: true, version: '2.39.5' },
+        claude: { installed: Math.random() > 0.2, version: '1.0.60' },
+        uv: { installed: Math.random() > 0.5, version: '0.1.0' }
+      };
+      
+      // 如果连接了真实后端
+      try {
+        if (window.electronAPI.checkEnvironment) {
+          const realData = await window.electronAPI.checkEnvironment();
+          Object.assign(mockData, realData);
+        }
+      } catch (error) {
+        log('使用模拟数据: ' + error.message, 'WARNING');
+      }
+      
+      // 更新显示
+      Object.entries(mockData).forEach(([key, data]) => {
+        const statusEl = document.getElementById(`${key}-status`);
+        if (statusEl) {
+          if (data.installed) {
+            statusEl.innerHTML = `<span style="color: #0dbc79;">✅ ${data.version}</span>`;
+          } else {
+            statusEl.innerHTML = '<span style="color: #cd3131;">❌ 未安装</span>';
+          }
+        }
+      });
+      
+      const responseTime = Date.now() - startTime;
+      document.getElementById('last-check').textContent = new Date().toLocaleTimeString();
+      document.getElementById('response-time').textContent = `${responseTime}ms`;
+      
+      log(`环境检测完成，耗时: ${responseTime}ms`);
+    }
+    
+    // 配置管理
+    function loadTestData() {
+      testConfigs = [
+        { id: '1', name: '测试配置1', apiKey: 'sk-test-123...', model: 'claude-3-opus-20240229' },
+        { id: '2', name: '测试配置2', apiKey: 'sk-test-456...', model: 'claude-3-sonnet-20240229' },
+        { id: '3', name: '生产配置[勿删]', apiKey: 'sk-prod-789...', model: 'claude-3-opus-20240229' }
+      ];
+      
+      renderConfigList();
+      if (testConfigs.length > 0) {
+        selectConfig(testConfigs[0]);
+      }
+      
+      document.getElementById('test-config-count').textContent = testConfigs.length;
+    }
+    
+    function renderConfigList() {
+      const listEl = document.getElementById('config-list-items');
+      listEl.innerHTML = testConfigs.map(config => `
+        <div onclick="selectConfig('${config.id}')" style="padding: 10px; cursor: pointer; margin: 5px 0; background: ${currentConfig?.id === config.id ? '#3e3e3e' : '#1e1e1e'}; border-radius: 4px;">
+          <div>${config.name}</div>
+          <div style="font-size: 0.8em; color: #666;">${config.model}</div>
+        </div>
+      `).join('');
+    }
+    
+    function selectConfig(configOrId) {
+      const config = typeof configOrId === 'string' 
+        ? testConfigs.find(c => c.id === configOrId)
+        : configOrId;
+        
+      if (!config) return;
+      
+      currentConfig = config;
+      document.getElementById('config-id').value = config.id;
+      document.getElementById('config-name').value = config.name;
+      document.getElementById('config-apikey').value = config.apiKey || '';
+      document.getElementById('config-model').value = config.model;
+      renderConfigList();
+      
+      log(`选择配置: ${config.name}`);
+    }
+    
+    function createNewConfig() {
+      const newConfig = {
+        id: Date.now().toString(),
+        name: `测试配置${testConfigs.length + 1}`,
+        apiKey: 'sk-test-' + Math.random().toString(36).substr(2, 9),
+        model: 'claude-3-opus-20240229'
+      };
+      testConfigs.push(newConfig);
+      selectConfig(newConfig);
+      document.getElementById('test-config-count').textContent = testConfigs.length;
+      
+      log(`创建新配置: ${newConfig.name}`);
+    }
+    
+    async function saveConfig() {
+      if (!currentConfig) return;
+      
+      currentConfig.name = document.getElementById('config-name').value;
+      currentConfig.apiKey = document.getElementById('config-apikey').value;
+      currentConfig.model = document.getElementById('config-model').value;
+      
+      renderConfigList();
+      log(`保存配置: ${currentConfig.name}`, 'INFO');
+      alert('配置已保存（测试模式）');
+    }
+    
+    function testConfig() {
+      log('测试配置连接...', 'INFO');
+      setTimeout(() => {
+        const success = Math.random() > 0.3;
+        if (success) {
+          log('配置测试成功！', 'INFO');
+          alert('连接测试成功！（模拟）');
+        } else {
+          log('配置测试失败', 'ERROR');
+          alert('连接测试失败！（模拟）');
+        }
+      }, 1000);
+    }
+    
+    // 终端功能
+    async function toggleClaude() {
+      if (claudeRunning) {
+        stopClaude();
+      } else {
+        startClaude();
+      }
+    }
+    
+    function startClaude() {
+      if (!currentConfig) {
+        alert('请先选择一个配置！');
+        showPanel('config');
+        return;
+      }
+      
+      claudeRunning = true;
+      document.getElementById('claude-toggle').textContent = '停止 Claude';
+      document.getElementById('claude-status-text').textContent = '运行中';
+      document.getElementById('claude-status-text').style.color = '#0dbc79';
+      document.getElementById('terminal-input').disabled = false;
+      document.getElementById('status-text').textContent = 'Claude 运行中';
+      
+      addToTerminal('[系统] 正在启动 Claude（测试模式）...', 'system');
+      
+      setTimeout(() => {
+        addToTerminal('[系统] Claude 已启动', 'system');
+        addToTerminal('Claude: 你好！我是测试模式的 Claude，有什么可以帮助你的吗？', 'claude');
+      }, 1000);
+      
+      log('Claude 已启动（测试模式）');
+    }
+    
+    function stopClaude() {
+      claudeRunning = false;
+      document.getElementById('claude-toggle').textContent = '启动 Claude';
+      document.getElementById('claude-status-text').textContent = '未启动';
+      document.getElementById('claude-status-text').style.color = '#666';
+      document.getElementById('terminal-input').disabled = true;
+      document.getElementById('status-text').textContent = '就绪';
+      
+      addToTerminal('[系统] Claude 已停止', 'system');
+      log('Claude 已停止');
+    }
+    
+    function sendTestCommand(command) {
+      messageCount++;
+      document.getElementById('test-msg-count').textContent = messageCount;
+      
+      addToTerminal('> ' + command, 'user');
+      log(`发送命令: ${command}`);
+      
+      // 模拟响应
+      if (document.getElementById('test-mock-claude').checked) {
+        setTimeout(() => {
+          const responses = [
+            '这是一个测试响应。在实际使用中，这里会显示真实的 Claude 回复。',
+            '我理解你的问题。让我用测试数据来演示...',
+            '测试模式下，所有响应都是预设的。实际使用时会连接真实的 Claude API。',
+            `你刚才说的是："${command}"。这是第 ${messageCount} 条消息。`
+          ];
+          const response = responses[Math.floor(Math.random() * responses.length)];
+          addToTerminal('Claude: ' + response, 'claude');
+        }, 1000 + Math.random() * 1000);
+      }
+    }
+    
+    function addToTerminal(text, type = 'normal') {
+      const output = document.getElementById('terminal-output');
+      const line = document.createElement('div');
+      line.style.marginBottom = '5px';
+      
+      switch(type) {
+        case 'system':
+          line.style.color = '#e5e510';
+          break;
+        case 'claude':
+          line.style.color = '#0dbc79';
+          break;
+        case 'user':
+          line.style.color = '#d4d4d4';
+          break;
+        case 'error':
+          line.style.color = '#cd3131';
+          break;
+      }
+      
+      line.textContent = text;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+    
+    // 测试功能
+    function startAutoRefresh() {
+      log('启动自动刷新');
+      autoRefreshInterval = setInterval(() => {
+        if (document.querySelector('.panel.active').id === 'environment-panel') {
+          refreshEnvironment();
+        }
+      }, 5000);
+    }
+    
+    function stopAutoRefresh() {
+      log('停止自动刷新');
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+      }
+    }
+    
+    function toggleDebug() {
+      debugMode = !debugMode;
+      document.getElementById('debug-panel').classList.toggle('active');
+      log(debugMode ? '调试面板已开启' : '调试面板已关闭');
+    }
+    
+    function updateMemoryUsage() {
+      if (performance.memory) {
+        const used = Math.round(performance.memory.usedJSHeapSize / 1048576);
+        document.getElementById('memory-usage').textContent = used;
+      }
+    }
+    
+    // 测试快捷功能
+    function testEnvCheck() {
+      log('执行环境检测测试', 'INFO');
+      refreshEnvironment();
+    }
+    
+    function testConfigSave() {
+      log('执行配置保存测试', 'INFO');
+      createNewConfig();
+      setTimeout(saveConfig, 500);
+    }
+    
+    function testClaudeStart() {
+      log('执行 Claude 启动测试', 'INFO');
+      if (!claudeRunning) {
+        startClaude();
+      }
+      setTimeout(() => {
+        sendTestCommand('这是一条自动测试消息');
+      }, 2000);
+    }
+    
+    function simulateError() {
+      log('模拟错误状态', 'ERROR');
+      addToTerminal('[错误] 这是一个模拟的错误消息', 'error');
+      alert('错误：这是一个测试错误！');
+    }
+    
+    function fillTestData() {
+      log('填充测试数据', 'INFO');
+      
+      // 填充配置
+      document.getElementById('config-name').value = '自动填充配置';
+      document.getElementById('config-apikey').value = 'sk-ant-test-' + Date.now();
+      
+      // 添加测试日志
+      for (let i = 0; i < 5; i++) {
+        log(`测试日志条目 ${i + 1}`, i % 2 === 0 ? 'INFO' : 'WARNING');
+      }
+      
+      alert('测试数据已填充！');
+    }
+    
+    function runEnvTest() {
+      log('运行完整环境测试套件', 'INFO');
+      const tests = ['Node.js', 'Git', 'Claude', 'UV'];
+      tests.forEach((test, index) => {
+        setTimeout(() => {
+          log(`测试 ${test}...`, 'INFO');
+          refreshEnvironment();
+        }, index * 1000);
+      });
+    }
+    
+    function runConfigTest() {
+      log('运行配置测试套件', 'INFO');
+      createNewConfig();
+      setTimeout(() => {
+        saveConfig();
+        setTimeout(testConfig, 500);
+      }, 500);
+    }
+    
+    function runClaudeTest() {
+      log('运行 Claude 测试套件', 'INFO');
+      if (!claudeRunning) {
+        startClaude();
+      }
+      
+      const testMessages = [
+        '测试消息1：你好',
+        '测试消息2：请帮我写代码',
+        '测试消息3：解释一下量子计算'
+      ];
+      
+      testMessages.forEach((msg, index) => {
+        setTimeout(() => {
+          sendTestCommand(msg);
+        }, 2000 + index * 2000);
+      });
+    }
+    
+    // 键盘快捷键
+    document.addEventListener('keydown', (e) => {
+      // Ctrl/Cmd + D 切换调试
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        toggleDebug();
+      }
+      
+      // Ctrl/Cmd + T 运行测试
+      if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+        e.preventDefault();
+        testClaudeStart();
+      }
+      
+      // Ctrl/Cmd + R 刷新（仅在环境面板）
+      if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+        e.preventDefault();
+        if (document.querySelector('.panel.active').id === 'environment-panel') {
+          refreshEnvironment();
+        }
+      }
+    });
+    
+    // 页面加载完成后
+    log('测试模式准备就绪', 'INFO');
+    log('快捷键: Ctrl+D=调试, Ctrl+T=测试, Ctrl+R=刷新', 'INFO');
+  </script>
+</body>
+</html>

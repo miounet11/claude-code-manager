@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Miaoda Terminal</title>
+  <link rel="stylesheet" href="../../node_modules/xterm/css/xterm.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #0d1117;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #d4d4d4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    /* 头部 */
+    .terminal-header {
+      background: linear-gradient(to bottom, #1c2128, #161b22);
+      border-bottom: 1px solid #30363d;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    
+    .terminal-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3f4451;
+      transition: all 0.3s;
+    }
+    
+    .status-dot.active {
+      background: #0dbc79;
+      box-shadow: 0 0 8px rgba(13, 188, 121, 0.5);
+    }
+    
+    .terminal-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    button {
+      background: #238636;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    button:hover {
+      background: #2ea043;
+    }
+    
+    button.secondary {
+      background: #21262d;
+    }
+    
+    button.secondary:hover {
+      background: #30363d;
+    }
+    
+    /* 终端容器 */
+    #terminal-container {
+      flex: 1;
+      padding: 16px;
+      overflow: hidden;
+    }
+    
+    #terminal {
+      height: 100%;
+      background: #0d1117;
+      border-radius: 6px;
+      padding: 8px;
+    }
+    
+    /* 搜索框 */
+    .search-box {
+      position: absolute;
+      top: 60px;
+      right: 20px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 8px;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .search-box input {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #d4d4d4;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      width: 200px;
+    }
+    
+    /* 快捷键提示 */
+    .shortcuts {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 11px;
+      opacity: 0.8;
+      transition: opacity 0.3s;
+    }
+    
+    .shortcuts:hover {
+      opacity: 1;
+    }
+    
+    .shortcut-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      gap: 20px;
+    }
+    
+    .shortcut-key {
+      background: #21262d;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="terminal-header">
+    <div class="terminal-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">未连接</span>
+      <span id="terminal-info" style="color: #666; margin-left: 10px;"></span>
+    </div>
+    <div class="terminal-actions">
+      <button onclick="toggleConnection()" id="connect-btn">
+        <span>▶</span>
+        <span>连接</span>
+      </button>
+      <button class="secondary" onclick="clearTerminal()">
+        <span>🗑️</span>
+        <span>清空</span>
+      </button>
+      <button class="secondary" onclick="toggleSearch()">
+        <span>🔍</span>
+        <span>搜索</span>
+      </button>
+    </div>
+  </div>
+  
+  <div id="terminal-container">
+    <div id="terminal"></div>
+  </div>
+  
+  <div class="search-box" id="search-box">
+    <input type="text" id="search-input" placeholder="搜索..." onkeyup="handleSearch(event)">
+  </div>
+  
+  <div class="shortcuts">
+    <div class="shortcut-item">
+      <span>清屏</span>
+      <span class="shortcut-key">Ctrl+K</span>
+    </div>
+    <div class="shortcut-item">
+      <span>中断</span>
+      <span class="shortcut-key">Ctrl+C</span>
+    </div>
+    <div class="shortcut-item">
+      <span>搜索</span>
+      <span class="shortcut-key">Ctrl+F</span>
+    </div>
+  </div>
+  
+  <script>
+    const XtermTerminal = require('./xterm-terminal');
+    let terminal = null;
+    let isConnected = false;
+    
+    // 初始化终端
+    function initTerminal() {
+      const container = document.getElementById('terminal');
+      terminal = new XtermTerminal(container);
+      
+      // 显示欢迎信息
+      terminal.writeln('\x1b[1;32m╔════════════════════════════════════════════════════════════════╗\x1b[0m');
+      terminal.writeln('\x1b[1;32m║                 Miaoda Professional Terminal                   ║\x1b[0m');
+      terminal.writeln('\x1b[1;32m╚════════════════════════════════════════════════════════════════╝\x1b[0m');
+      terminal.writeln('');
+      terminal.writeln('欢迎使用 Miaoda 专业终端 - 基于 xterm.js 打造');
+      terminal.writeln('');
+      terminal.writeln('• 支持 ANSI 转义序列和颜色');
+      terminal.writeln('• 完整的快捷键支持');
+      terminal.writeln('• 命令历史记录');
+      terminal.writeln('• 链接识别和点击');
+      terminal.writeln('');
+      terminal.write('\x1b[32m❯\x1b[0m ');
+      
+      // 更新终端信息
+      updateTerminalInfo();
+      
+      // 设置命令处理
+      terminal.onCommand = (command) => {
+        if (isConnected) {
+          // 发送到 Claude
+          window.electronAPI.sendClaudeInput(command);
+        } else {
+          terminal.writeln('\x1b[31m错误: 请先连接到 Claude\x1b[0m');
+          terminal.write('\x1b[32m❯\x1b[0m ');
+        }
+      };
+      
+      // 设置中断处理
+      terminal.onInterrupt = () => {
+        if (isConnected) {
+          // 可以实现中断功能
+          terminal.writeln('\x1b[33m已发送中断信号\x1b[0m');
+        }
+        terminal.write('\x1b[32m❯\x1b[0m ');
+      };
+      
+      // 监听 Claude 输出
+      window.electronAPI.onClaudeOutput((data) => {
+        if (data.type === 'raw') {
+          terminal.write(data.text);
+        } else if (data.type === 'system') {
+          terminal.writeln(`\x1b[33m[系统] ${data.text}\x1b[0m`);
+        } else if (data.type === 'error') {
+          terminal.writeln(`\x1b[31m[错误] ${data.text}\x1b[0m`);
+        }
+      });
+      
+      // 监听快捷键
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+          e.preventDefault();
+          toggleSearch();
+        }
+      });
+    }
+    
+    // 更新终端信息
+    function updateTerminalInfo() {
+      if (terminal) {
+        const dims = terminal.getDimensions();
+        document.getElementById('terminal-info').textContent = `${dims.cols}×${dims.rows}`;
+      }
+    }
+    
+    // 切换连接
+    async function toggleConnection() {
+      if (isConnected) {
+        // 断开连接
+        await window.electronAPI.stopClaude();
+        isConnected = false;
+        document.getElementById('status-dot').classList.remove('active');
+        document.getElementById('status-text').textContent = '未连接';
+        document.getElementById('connect-btn').innerHTML = '<span>▶</span><span>连接</span>';
+      } else {
+        // 连接
+        const config = await window.electronAPI.getCurrentConfig();
+        if (!config) {
+          terminal.writeln('\x1b[31m错误: 请先配置 API Key\x1b[0m');
+          return;
+        }
+        
+        terminal.writeln(`\x1b[33m正在连接到 Claude...\x1b[0m`);
+        const result = await window.electronAPI.startClaude(config);
+        
+        if (result.success) {
+          isConnected = true;
+          document.getElementById('status-dot').classList.add('active');
+          document.getElementById('status-text').textContent = '已连接';
+          document.getElementById('connect-btn').innerHTML = '<span>⏸</span><span>断开</span>';
+        } else {
+          terminal.writeln(`\x1b[31m连接失败: ${result.error}\x1b[0m`);
+        }
+      }
+    }
+    
+    // 清空终端
+    function clearTerminal() {
+      if (terminal) {
+        terminal.clear();
+        terminal.write('\x1b[32m❯\x1b[0m ');
+      }
+    }
+    
+    // 切换搜索
+    function toggleSearch() {
+      const searchBox = document.getElementById('search-box');
+      if (searchBox.style.display === 'block') {
+        searchBox.style.display = 'none';
+      } else {
+        searchBox.style.display = 'block';
+        document.getElementById('search-input').focus();
+      }
+    }
+    
+    // 处理搜索
+    function handleSearch(event) {
+      if (event.key === 'Enter') {
+        const term = event.target.value;
+        if (term && terminal) {
+          terminal.search(term);
+        }
+      } else if (event.key === 'Escape') {
+        toggleSearch();
+      }
+    }
+    
+    // 窗口大小变化
+    window.addEventListener('resize', () => {
+      if (terminal) {
+        terminal.fit();
+        updateTerminalInfo();
+      }
+    });
+    
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      initTerminal();
+    });
+  </script>
+</body>
+</html>

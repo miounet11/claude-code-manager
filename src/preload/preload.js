@@ -2,173 +2,117 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 暴露 API 到渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
-  // 测试 IPC
-  testIPC: () => ipcRenderer.invoke('test-ipc'),
-  
-  // 显示确认对话框
-  showConfirmDialog: (options) => ipcRenderer.invoke('show-confirm-dialog', options),
-  
-  getConfigs: () => ipcRenderer.invoke('get-configs'),
-  
-  saveConfig: (config) => ipcRenderer.invoke('save-config', config),
-  
-  updateConfig: (config) => ipcRenderer.invoke('update-config', config),
-  
-  deleteConfig: (configId) => ipcRenderer.invoke('delete-config', configId),
-  
-  getConfig: (key) => ipcRenderer.invoke('get-config', key),
-  
-  setConfig: (key, value) => ipcRenderer.invoke('set-config', key, value),
-  
-  checkEnvironment: () => ipcRenderer.invoke('check-environment'),
-  
-  installDependency: (dependency) => ipcRenderer.invoke('install-dependency', dependency),
-  
-  // 批量安装缺失的依赖
-  installMissingDependencies: () => ipcRenderer.invoke('install-missing-dependencies'),
-  
-  // 安装进度监听
-  onInstallProgress: (callback) => {
-    const handler = (event, progress) => callback(event, progress);
-    ipcRenderer.on('install-progress', handler);
-    return handler;
-  },
-  
-  removeInstallProgress: (handler) => {
-    ipcRenderer.removeListener('install-progress', handler);
-  },
-  
-  // 一键修复
-  runOneClickFix: (options) => ipcRenderer.invoke('run-one-click-fix', options),
-  checkPort: (port) => ipcRenderer.invoke('check-port', port),
-  getProcessUsingPort: (port) => ipcRenderer.invoke('get-process-using-port', port),
-  
-  requestElevation: () => ipcRenderer.invoke('request-elevation'),
-  
-  startClaudeCode: (config) => ipcRenderer.invoke('start-claude-code', config),
-  
-  stopClaudeCode: () => ipcRenderer.invoke('stop-claude-code'),
-  
-  getClaudeStatus: () => ipcRenderer.invoke('get-claude-status'),
-  
-  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  
-  testApiConnection: (config) => ipcRenderer.invoke('test-api-connection', config),
-  
-  executeCommand: (command) => ipcRenderer.invoke('execute-command', command),
-  
-  // 调试环境
-  debugEnvironment: () => ipcRenderer.invoke('debug-environment'),
-  
-  onTerminalData: (callback) => {
-    ipcRenderer.on('terminal-data', (event, data) => callback(data));
-  },
-  
-  sendTerminalInput: (data) => {
-    ipcRenderer.send('terminal-input', data);
-  },
-  
-  onStatusUpdate: (callback) => {
-    ipcRenderer.on('status-update', (event, data) => callback(data));
-  },
-  
+  // 应用信息
+  appVersion: process.env.npm_package_version || '2.1.0',
   platform: process.platform,
+  getVersion: () => ipcRenderer.invoke('app:version'),
   
-  versions: {
-    node: process.versions.node,
-    chrome: process.versions.chrome,
-    electron: process.versions.electron,
-    app: '2.0.5' // remote API 已在新版本 Electron 中被弃用
+  // 窗口控制
+  minimize: () => ipcRenderer.send('window:minimize'),
+  minimizeWindow: () => ipcRenderer.send('window:minimize'),
+  maximizeWindow: () => ipcRenderer.send('window:maximize'),
+  closeWindow: () => ipcRenderer.send('window:close'),
+  quit: () => ipcRenderer.send('app:quit'),
+  
+  // 环境检测
+  checkEnvironment: () => ipcRenderer.invoke('env:check'),
+  startPeriodicEnvironmentCheck: (interval) => ipcRenderer.invoke('env:start-periodic-check', interval),
+  stopPeriodicEnvironmentCheck: () => ipcRenderer.invoke('env:stop-periodic-check'),
+  onEnvironmentUpdate: (callback) => {
+    ipcRenderer.on('env:status-update', (event, data) => callback(data));
   },
   
-  // 数据统计
-  trackPageView: (pageName) => {
-    ipcRenderer.send('track-page-view', pageName);
+  // 安装管理
+  installDependency: (dependency) => ipcRenderer.invoke('install:dependency', dependency),
+  installMultiple: (dependencies) => ipcRenderer.invoke('install:multiple', dependencies),
+  cancelInstall: () => ipcRenderer.invoke('install:cancel'),
+  onInstallProgress: (callback) => {
+    ipcRenderer.on('install:progress', (event, data) => callback(data));
   },
   
-  trackFeatureUse: (featureName) => {
-    ipcRenderer.send('track-feature-use', featureName);
+  // 系统终端
+  openSystemTerminal: (config) => ipcRenderer.invoke('terminal:open', config),
+  
+  // 配置管理
+  getAllConfigs: () => ipcRenderer.invoke('config:get-all'),
+  getCurrentConfig: () => ipcRenderer.invoke('config:get-current'),
+  saveConfig: (config) => ipcRenderer.invoke('config:save', config),
+  addConfig: (config) => ipcRenderer.invoke('config:add', config),
+  updateConfig: (id, updates) => ipcRenderer.invoke('config:update', id, updates),
+  deleteConfig: (id) => ipcRenderer.invoke('config:delete', id),
+  setCurrentConfig: (config) => ipcRenderer.invoke('config:set-current', config),
+  validateConfig: (config) => ipcRenderer.invoke('config:validate', config),
+  importConfig: (configData) => ipcRenderer.invoke('config:import', configData),
+  exportConfig: (id) => ipcRenderer.invoke('config:export', id),
+  duplicateConfig: (id) => ipcRenderer.invoke('config:duplicate', id),
+  onConfigChange: (callback) => {
+    ipcRenderer.on('config:current-changed', (event, config) => callback(config));
   },
   
-  // 外部链接
-  openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  
-  // 检查更新
-  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  
-  // 开机启动
-  setAutoLaunch: (enable) => ipcRenderer.invoke('set-auto-launch', enable),
-  getAutoLaunchStatus: () => ipcRenderer.invoke('get-auto-launch-status'),
-  
-  // 系统信息
-  isAppleSilicon: process.arch === 'arm64' && process.platform === 'darwin',
-  
-  // 保活机制相关 API
-  getGuardianStatus: () => ipcRenderer.invoke('get-guardian-status'),
-  setProtectionLevel: (level) => ipcRenderer.invoke('set-protection-level', level),
-  toggleGuardian: (enable) => ipcRenderer.invoke('toggle-guardian', enable),
-  executeElevated: (command, args) => ipcRenderer.invoke('execute-elevated', command, args),
-  toggleSystemTray: (show) => ipcRenderer.invoke('toggle-system-tray', show),
-  getAvailablePort: () => ipcRenderer.invoke('get-available-port'),
-  runCommand: (command) => ipcRenderer.invoke('run-command', command),
-  
-  // 保活机制事件监听
-  onGuardianStatusUpdate: (callback) => {
-    ipcRenderer.on('guardian-status-update', (event, status) => callback(status));
+  // Claude 管理
+  startClaude: (config) => ipcRenderer.invoke('claude:start', config),
+  stopClaude: () => ipcRenderer.invoke('claude:stop'),
+  restartClaude: () => ipcRenderer.invoke('claude:restart'),
+  getClaudeStatus: () => ipcRenderer.invoke('claude:status'),
+  sendClaudeInput: (data) => ipcRenderer.send('claude:input', data),
+  onClaudeOutput: (callback) => {
+    ipcRenderer.on('claude:output', (event, data) => callback(data));
   },
-  onProtectionLevelChanged: (callback) => {
-    ipcRenderer.on('protection-level-changed', (event, level) => callback(level));
+  onClaudeStarted: (callback) => {
+    ipcRenderer.on('claude:started', (event, data) => callback(data));
   },
-  onStartHiddenChanged: (callback) => {
-    ipcRenderer.on('start-hidden-changed', (event, enabled) => callback(enabled));
+  onClaudeStopped: (callback) => {
+    ipcRenderer.on('claude:stopped', (event, data) => callback(data));
   },
-  onShowAbout: (callback) => {
-    ipcRenderer.on('show-about', () => callback());
-  },
-  onConfirmQuit: (callback) => {
-    ipcRenderer.on('confirm-quit', () => callback());
+  onClaudeStatusChange: (callback) => {
+    const handlers = {
+      'claude:starting': (event, data) => callback({ type: 'starting', ...data }),
+      'claude:started': (event, data) => callback({ type: 'started', ...data }),
+      'claude:stopping': () => callback({ type: 'stopping' }),
+      'claude:exit': (event, data) => callback({ type: 'exit', ...data }),
+      'claude:error': (event, data) => callback({ type: 'error', ...data })
+    };
+    
+    Object.entries(handlers).forEach(([channel, handler]) => {
+      ipcRenderer.on(channel, handler);
+    });
   },
   
-  // 系统诊断 API
-  runDiagnostics: (options) => ipcRenderer.invoke('run-diagnostics', options),
+  // 通用功能
+  getSystemInfo: () => ipcRenderer.invoke('app:system-info'),
+  openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
+  showError: (title, message) => ipcRenderer.invoke('app:show-error', title, message),
+  showInfo: (title, message) => {
+    ipcRenderer.invoke('app:show-error', title, message); // 临时使用 error box
+  },
+  showConfirm: async (title, message) => {
+    // 简单实现
+    return confirm(`${title}\n\n${message}`);
+  },
   
-  // 真实终端 API
-  terminal: {
-    logTerminalOutput: (text) => ipcRenderer.invoke('log-terminal-output', text),
-    // 创建终端
-    create: (options) => ipcRenderer.invoke('terminal:create', options),
-    
-    // 写入数据
-    write: (id, data) => ipcRenderer.send('terminal:write', { id, data }),
-    
-    // 调整大小
-    resize: (id, cols, rows) => ipcRenderer.send('terminal:resize', { id, cols, rows }),
-    
-    // 关闭终端
-    close: (id) => ipcRenderer.send('terminal:close', { id }),
-    
-    // 获取终端信息
-    info: (id) => ipcRenderer.invoke('terminal:info', { id }),
-    
-    // 执行命令
-    execute: (id, command) => ipcRenderer.invoke('terminal:execute', { id, command }),
-    
-    // 获取所有终端
-    list: () => ipcRenderer.invoke('terminal:list'),
-    
-    // 监听终端输出
-    onOutput: (callback) => {
-      ipcRenderer.on('terminal:output', (event, { terminalId, data }) => {
-        callback(terminalId, data);
-      });
-    },
-    
-    // 监听终端退出
-    onExit: (callback) => {
-      ipcRenderer.on('terminal:exit', (event, { terminalId, data }) => {
-        callback(terminalId, data);
-      });
-    }
+  // 文件操作
+  selectFile: (options) => ipcRenderer.invoke('dialog:select-file', options),
+  saveFile: (options) => ipcRenderer.invoke('dialog:save-file', options),
+  
+  // 系统托盘事件
+  onTrayAction: (callback) => {
+    ipcRenderer.on('tray:start-claude', () => callback('start'));
+    ipcRenderer.on('tray:stop-claude', () => callback('stop'));
+  },
+  
+  // PTY 终端支持
+  createPtyProcess: (options) => ipcRenderer.invoke('pty:create', options),
+  writeToPty: (data) => ipcRenderer.send('pty:write', data),
+  resizePty: (cols, rows) => ipcRenderer.send('pty:resize', cols, rows),
+  killPty: () => ipcRenderer.invoke('pty:kill'),
+  
+  onPtyData: (callback) => {
+    ipcRenderer.on('pty:data', (event, data) => callback(data));
+  },
+  
+  onPtyExit: (callback) => {
+    ipcRenderer.on('pty:exit', (event, code) => callback(code));
   }
 });

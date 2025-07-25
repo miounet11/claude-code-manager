@@ -1,72 +1,108 @@
 # Miaoda - Claude Code Manager
 
-专业的 Claude Code 部署和管理工具，让您轻松运行和管理 Claude 命令行工具。
+<div align="center">
+  <img src="assets/logo.png" alt="Miaoda Logo" width="128">
+  
+  [![Version](https://img.shields.io/badge/version-3.0.1-blue.svg)](https://github.com/yourusername/miaoda/releases)
+  [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/yourusername/miaoda/releases)
+  [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+</div>
 
-## ✨ 特性
+## 🚀 介绍
 
-- 🚀 **一键启动** - 自动安装和管理 Claude CLI
-- 💻 **集成终端** - 内置终端，直观显示 Claude 运行状态
-- 🎯 **系统托盘** - 常驻系统托盘，随时访问
-- 🔧 **灵活配置** - 支持自定义端口和启动参数
-- 🌐 **跨平台** - 支持 macOS 和 Windows
+Miaoda 是一款专为 Claude Code (claude.ai/code) 设计的桌面管理工具，提供了完美的终端体验和便捷的配置管理功能。
+
+### ✨ 主要特性
+
+- **🖥️ VSCode 风格终端** - 使用 xterm.js 实现，完美复刻 VSCode 终端体验
+- **📑 多终端标签** - 支持多个独立终端会话，可拖拽排序
+- **🎨 主题定制** - 支持字体大小、样式、光标等自定义设置
+- **🔧 配置管理** - 支持多配置文件，轻松切换不同的 API 设置
+- **🆓 免费试用** - 内置免费试用功能，每日 100k token
+- **🌍 跨平台支持** - 支持 macOS、Windows、Linux
 
 ## 📦 安装
 
-### macOS
-1. 下载对应您系统的版本：
-   - Intel Mac: `Miaoda-x.x.x.dmg`
-   - Apple Silicon: `Miaoda-x.x.x-arm64.dmg`
-2. 双击 DMG 文件，将 Miaoda 拖到应用程序文件夹
-3. 首次运行时，系统可能提示安全警告，请在系统偏好设置中允许运行
+### 下载预编译版本
 
-### Windows
-1. 下载 `Miaoda-x.x.x-win.zip`
-2. 解压到任意目录
-3. 运行 `Miaoda.exe`
+从 [Releases](https://github.com/yourusername/miaoda/releases) 页面下载对应平台的安装包：
 
-## 🚀 使用
+- **macOS**: `Miaoda-3.0.1.dmg`
+- **Windows**: `Miaoda-3.0.1-Setup.exe`
+- **Linux**: `Miaoda-3.0.1.AppImage`
 
-1. **启动应用**：双击 Miaoda 图标
-2. **安装 Claude**：首次使用会自动安装 Claude CLI
-3. **开始使用**：点击"启动 Claude"按钮
-4. **访问 Claude**：浏览器会自动打开 Claude 界面
+### 从源码构建
 
-## ⚙️ 配置
-
-- **端口设置**：默认使用 7860 端口，可在设置中修改
-- **开机启动**：可设置应用随系统启动
-- **快捷键**：支持自定义全局快捷键
-
-## 🛠️ 开发
-
-### 环境要求
-- Node.js 18+
-- npm 或 yarn
-
-### 开发命令
 ```bash
+# 克隆仓库
+git clone https://github.com/yourusername/miaoda.git
+cd miaoda
+
 # 安装依赖
 npm install
 
-# 开发模式
+# 开发模式运行
 npm run dev
 
 # 构建应用
 npm run build
 
-# 构建各平台版本
+# 构建特定平台
 npm run dist-mac    # macOS
 npm run dist-win    # Windows
+npm run dist-linux  # Linux
 ```
 
-## 📄 许可证
+## 🎯 快速开始
 
-MIT License
+1. **启动应用** - 双击应用图标启动 Miaoda
+2. **环境检测** - 应用会自动检测 Claude CLI 和依赖环境
+3. **配置 API** - 在配置管理中设置你的 API Key 和 API URL
+4. **开始使用** - 点击终端标签，输入 `claude` 开始对话
+
+### 免费试用
+
+如果你还没有 API Key，可以使用内置的免费试用功能：
+- API URL: `http://www.miaoda.vip/`
+- 模型: `claude-3-7-sonnet-20250219`
+- 限制: 每日 100k token
+
+## ⌨️ 快捷键
+
+- `Ctrl/Cmd + T` - 新建终端
+- `Ctrl/Cmd + W` - 关闭当前终端
+- `Ctrl/Cmd + 1-9` - 快速切换终端
+- `Ctrl/Cmd + K` - 清空当前终端
+- `Ctrl/Cmd + C` - 复制选中文本
+- `Ctrl/Cmd + V` - 粘贴
+
+## 🛠️ 技术栈
+
+- **Electron** - 跨平台桌面应用框架
+- **xterm.js** - 终端渲染引擎（与 VSCode 相同）
+- **node-pty** - 提供真实的终端环境
+- **Vue.js** - UI 框架（部分组件）
+
+## 📝 更新日志
+
+查看 [CHANGELOG.md](CHANGELOG.md) 了解版本更新详情。
 
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
 
+## 📄 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件。
+
+## 🙏 致谢
+
+- [Claude](https://claude.ai) - AI 助手
+- [xterm.js](https://xtermjs.org/) - 终端组件
+- [Electron](https://www.electronjs.org/) - 应用框架
+
 ---
 
-Built with ❤️ by Miaoda Team
+<div align="center">
+  Made with ❤️ by Miaoda Team
+</div>

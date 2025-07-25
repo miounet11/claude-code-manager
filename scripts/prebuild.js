@@ -41,9 +41,8 @@ async function prebuild() {
     console.log('3. 检查关键文件:');
     const criticalFiles = [
       'src/main/index.js',
-      'src/main/process-guardian.js',
-      'src/main/process-protection.js',
-      'src/main/crash-recovery.js',
+      'src/preload/preload.js',
+      'src/renderer/app-full.html',
       'package.json'
     ];
     

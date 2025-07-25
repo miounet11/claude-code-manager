@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Terminal Test</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #cccccc;
+      font-family: Arial, sans-serif;
+    }
+    
+    #terminal {
+      height: 500px;
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px;
+    }
+    
+    .status {
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #161b22;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="status">
+    <h3>VSCode Terminal Test</h3>
+    <p id="status">Loading xterm.js...</p>
+  </div>
+  
+  <div id="terminal"></div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const status = document.getElementById('status');
+      
+      try {
+        // 创建终端
+        const terminal = new Terminal({
+          theme: {
+            background: '#1e1e1e',
+            foreground: '#cccccc'
+          },
+          fontSize: 14,
+          fontFamily: 'Consolas, "Courier New", monospace'
+        });
+        
+        // 打开终端
+        terminal.open(document.getElementById('terminal'));
+        
+        // 添加 fit 插件
+        const fitAddon = new FitAddon.FitAddon();
+        terminal.loadAddon(fitAddon);
+        fitAddon.fit();
+        
+        // 写入欢迎信息
+        terminal.writeln('🚀 Welcome to VSCode Terminal!');
+        terminal.writeln('');
+        terminal.writeln('Type commands below:');
+        terminal.write('$ ');
+        
+        // 处理输入
+        let currentLine = '';
+        terminal.onData(data => {
+          if (data === '\r') {
+            // Enter key
+            terminal.writeln('');
+            terminal.writeln(`You typed: ${currentLine}`);
+            currentLine = '';
+            terminal.write('$ ');
+          } else if (data === '\u007F') {
+            // Backspace
+            if (currentLine.length > 0) {
+              currentLine = currentLine.slice(0, -1);
+              terminal.write('\b \b');
+            }
+          } else {
+            currentLine += data;
+            terminal.write(data);
+          }
+        });
+        
+        // 窗口调整
+        window.addEventListener('resize', () => {
+          fitAddon.fit();
+        });
+        
+        status.textContent = 'Terminal loaded successfully!';
+        status.style.color = '#0dbc79';
+      } catch (error) {
+        status.textContent = 'Error: ' + error.message;
+        status.style.color = '#f14c4c';
+        console.error(error);
+      }
+    });
+  </script>
+</body>
+</html>

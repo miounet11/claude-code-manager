@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Miaoda - Claude Code Manager</title>
+  <link rel="stylesheet" href="styles/app.css">
+  <style>
+    /* 在 app.css 加载失败时的备用样式 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+    
+    .sidebar {
+      width: 200px;
+      background: #252525;
+      border-right: 1px solid #3e3e3e;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .panel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: none;
+      overflow-y: auto;
+      padding: 30px;
+    }
+    
+    .panel.active {
+      display: block;
+    }
+    
+    button {
+      background: #0dbc79;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background: #0ba568;
+    }
+    
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <!-- 侧边栏 -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Miaoda</div>
+    </div>
+    <nav class="nav-menu">
+      <div class="nav-item active" onclick="showPanel('environment')">
+        <span>🌍</span>
+        <span>环境检测</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('config')">
+        <span>⚙️</span>
+        <span>配置管理</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('terminal')">
+        <span>💻</span>
+        <span>终端</span>
+      </div>
+    </nav>
+  </div>
+  
+  <!-- 主内容 -->
+  <div class="main-content">
+    <div class="header">
+      <h2 id="panel-title">环境检测</h2>
+      <div id="header-actions">
+        <button onclick="refreshEnvironment()">刷新</button>
+      </div>
+    </div>
+    
+    <div class="content">
+      <!-- 环境检测面板 -->
+      <div id="environment-panel" class="panel active">
+        <div class="env-card">
+          <h3>系统依赖</h3>
+          <div id="env-list" style="margin-top: 20px;">
+            <div class="env-item">
+              <span>Node.js</span>
+              <span id="nodejs-status">检测中...</span>
+            </div>
+            <div class="env-item">
+              <span>Git</span>
+              <span id="git-status">检测中...</span>
+            </div>
+            <div class="env-item">
+              <span>Claude CLI</span>
+              <span id="claude-status">检测中...</span>
+            </div>
+            <div class="env-item">
+              <span>UV</span>
+              <span id="uv-status">检测中...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 配置管理面板 -->
+      <div id="config-panel" class="panel">
+        <div class="config-container">
+          <div class="config-list">
+            <h3>配置列表</h3>
+            <button onclick="createNewConfig()">新建配置</button>
+            <div id="config-list-items"></div>
+          </div>
+          
+          <div class="config-editor">
+            <h3>编辑配置</h3>
+            <form id="config-form">
+              <input type="hidden" id="config-id">
+              <div>
+                <label>配置名称</label>
+                <input type="text" id="config-name" placeholder="我的配置">
+              </div>
+              <div>
+                <label>API Key</label>
+                <input type="password" id="config-apikey" placeholder="sk-...">
+              </div>
+              <button type="button" onclick="saveConfig()">保存</button>
+              <button type="button" onclick="deleteConfig()">删除</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 终端面板 -->
+      <div id="terminal-panel" class="panel">
+        <div class="terminal-header">
+          <h3>Claude 终端</h3>
+          <button id="claude-toggle" onclick="toggleClaude()">启动 Claude</button>
+        </div>
+        <div id="terminal-output" style="background: #000; padding: 20px; margin-top: 20px; height: 400px; overflow-y: auto; font-family: monospace;">
+          <div>欢迎使用 Miaoda Claude 终端</div>
+        </div>
+        <div style="margin-top: 10px;">
+          <input type="text" id="terminal-input" placeholder="输入命令..." style="width: 100%; padding: 10px;" disabled>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 状态栏 -->
+    <div class="status-bar">
+      <span>版本: <span id="app-version">2.1.0</span></span>
+      <span id="status-text">就绪</span>
+    </div>
+  </div>
+  
+  <script>
+    // 全局状态
+    let currentPanel = 'environment';
+    let currentConfig = null;
+    let claudeRunning = false;
+    let configs = [];
+    
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      initializeApp();
+    });
+    
+    async function initializeApp() {
+      // 获取版本
+      try {
+        const version = await window.electronAPI.getVersion();
+        document.getElementById('app-version').textContent = version;
+      } catch (error) {
+        console.error('获取版本失败:', error);
+      }
+      
+      // 设置事件监听
+      setupEventListeners();
+      
+      // 加载初始数据
+      refreshEnvironment();
+      loadConfigs();
+    }
+    
+    function setupEventListeners() {
+      // 终端输入
+      const terminalInput = document.getElementById('terminal-input');
+      terminalInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && claudeRunning) {
+          const command = e.target.value.trim();
+          if (command) {
+            window.electronAPI.sendClaudeInput(command);
+            e.target.value = '';
+          }
+        }
+      });
+      
+      // Claude 输出监听
+      window.electronAPI.onClaudeOutput((data) => {
+        addToTerminal(data.text, data.type);
+      });
+      
+      // Claude 状态监听
+      window.electronAPI.onClaudeStarted(() => {
+        claudeRunning = true;
+        document.getElementById('claude-toggle').textContent = '停止 Claude';
+        document.getElementById('terminal-input').disabled = false;
+        document.getElementById('status-text').textContent = 'Claude 运行中';
+      });
+      
+      window.electronAPI.onClaudeStopped(() => {
+        claudeRunning = false;
+        document.getElementById('claude-toggle').textContent = '启动 Claude';
+        document.getElementById('terminal-input').disabled = true;
+        document.getElementById('status-text').textContent = '就绪';
+      });
+    }
+    
+    // 面板切换
+    function showPanel(panelName) {
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      event.currentTarget.classList.add('active');
+      
+      document.querySelectorAll('.panel').forEach(panel => {
+        panel.classList.remove('active');
+      });
+      document.getElementById(`${panelName}-panel`).classList.add('active');
+      
+      const titles = {
+        environment: '环境检测',
+        config: '配置管理',
+        terminal: '终端'
+      };
+      document.getElementById('panel-title').textContent = titles[panelName];
+      
+      const headerActions = document.getElementById('header-actions');
+      if (panelName === 'environment') {
+        headerActions.innerHTML = '<button onclick="refreshEnvironment()">刷新</button>';
+      } else {
+        headerActions.innerHTML = '';
+      }
+      
+      currentPanel = panelName;
+    }
+    
+    // 环境检测
+    async function refreshEnvironment() {
+      try {
+        const envData = await window.electronAPI.checkEnvironment();
+        
+        Object.entries(envData).forEach(([key, data]) => {
+          const statusEl = document.getElementById(`${key}-status`);
+          if (statusEl) {
+            if (data.installed) {
+              statusEl.textContent = `✅ ${data.version}`;
+              statusEl.style.color = '#0dbc79';
+            } else {
+              statusEl.textContent = '❌ 未安装';
+              statusEl.style.color = '#cd3131';
+            }
+          }
+        });
+      } catch (error) {
+        console.error('环境检测失败:', error);
+      }
+    }
+    
+    // 配置管理
+    async function loadConfigs() {
+      try {
+        configs = await window.electronAPI.getAllConfigs();
+        renderConfigList();
+        if (configs.length > 0) {
+          selectConfig(configs[0]);
+        }
+      } catch (error) {
+        console.error('加载配置失败:', error);
+      }
+    }
+    
+    function renderConfigList() {
+      const listEl = document.getElementById('config-list-items');
+      listEl.innerHTML = configs.map(config => `
+        <div onclick="selectConfig('${config.id}')" style="padding: 10px; cursor: pointer; ${currentConfig?.id === config.id ? 'background: #3e3e3e;' : ''}">
+          ${config.name}
+        </div>
+      `).join('');
+    }
+    
+    function selectConfig(configOrId) {
+      const config = typeof configOrId === 'string' 
+        ? configs.find(c => c.id === configOrId)
+        : configOrId;
+        
+      if (!config) return;
+      
+      currentConfig = config;
+      document.getElementById('config-id').value = config.id;
+      document.getElementById('config-name').value = config.name;
+      document.getElementById('config-apikey').value = config.apiKey || '';
+      renderConfigList();
+    }
+    
+    function createNewConfig() {
+      const newConfig = {
+        id: Date.now().toString(),
+        name: '新配置',
+        apiKey: ''
+      };
+      configs.push(newConfig);
+      selectConfig(newConfig);
+    }
+    
+    async function saveConfig() {
+      if (!currentConfig) return;
+      
+      currentConfig.name = document.getElementById('config-name').value;
+      currentConfig.apiKey = document.getElementById('config-apikey').value;
+      
+      try {
+        await window.electronAPI.saveConfig(currentConfig);
+        await window.electronAPI.setCurrentConfig(currentConfig);
+        renderConfigList();
+        alert('配置已保存！');
+      } catch (error) {
+        console.error('保存配置失败:', error);
+        alert('保存失败：' + error.message);
+      }
+    }
+    
+    async function deleteConfig() {
+      if (!currentConfig) return;
+      if (!confirm('确定要删除这个配置吗？')) return;
+      
+      try {
+        await window.electronAPI.deleteConfig(currentConfig.id);
+        configs = configs.filter(c => c.id !== currentConfig.id);
+        renderConfigList();
+        if (configs.length > 0) {
+          selectConfig(configs[0]);
+        } else {
+          currentConfig = null;
+          document.getElementById('config-form').reset();
+        }
+      } catch (error) {
+        console.error('删除配置失败:', error);
+        alert('删除失败：' + error.message);
+      }
+    }
+    
+    // 终端功能
+    async function toggleClaude() {
+      if (claudeRunning) {
+        try {
+          await window.electronAPI.stopClaude();
+        } catch (error) {
+          console.error('停止 Claude 失败:', error);
+        }
+      } else {
+        if (!currentConfig) {
+          alert('请先选择一个配置！');
+          showPanel('config');
+          return;
+        }
+        
+        try {
+          await window.electronAPI.startClaude(currentConfig);
+        } catch (error) {
+          console.error('启动 Claude 失败:', error);
+          alert('启动失败：' + error.message);
+        }
+      }
+    }
+    
+    function addToTerminal(text, type = 'normal') {
+      const output = document.getElementById('terminal-output');
+      const line = document.createElement('div');
+      
+      switch(type) {
+        case 'system':
+          line.style.color = '#e5e510';
+          break;
+        case 'claude':
+          line.style.color = '#0dbc79';
+          break;
+        case 'user':
+          line.style.color = '#d4d4d4';
+          break;
+        case 'error':
+          line.style.color = '#cd3131';
+          break;
+      }
+      
+      line.textContent = text;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+  </script>
+</body>
+</html>

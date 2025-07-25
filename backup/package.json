@@ -1,17 +1,25 @@
 {
   "name": "miaoda",
-  "version": "3.0.1",
-  "description": "专业的 Claude Code 部署和管理工具 - 支持环境安装、代理配置、系统终端集成",
+  "version": "2.1.0",
+  "description": "专业的 Claude Code 部署和管理工具",
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
-    "dev": "NODE_ENV=development electron . --dev",
-    "build": "npm run prebuild && electron-builder",
+    "dev": "node scripts/guardian-control.js dev && NODE_ENV=development electron . --dev",
+    "prod": "node scripts/guardian-control.js prod && NODE_ENV=production electron .",
     "prebuild": "node scripts/prebuild.js",
+    "build": "npm run prebuild && electron-builder",
+    "dist": "npm run prebuild && electron-builder --publish=never",
     "dist-mac": "npm run prebuild && electron-builder --mac --publish=never",
     "dist-win": "npm run prebuild && electron-builder --win --publish=never",
+    "dist-win-portable": "npm run prebuild && electron-builder --win portable --x64 --publish=never",
     "dist-linux": "npm run prebuild && electron-builder --linux --publish=never",
-    "lint": "eslint src/**/*.js"
+    "dist-all": "npm run prebuild && electron-builder -mwl --publish=never",
+    "guardian:dev": "node scripts/guardian-control.js dev",
+    "guardian:prod": "node scripts/guardian-control.js prod",
+    "guardian:status": "node scripts/guardian-control.js status",
+    "lint": "eslint src/**/*.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "claude",
