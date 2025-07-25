@@ -185,25 +185,26 @@ async function createWindow() {
     console.log(`渲染进程日志 [${level}]: ${message}`);
   });
 
-  // 窗口关闭事件 - 最小化到托盘而不是真正关闭
+  // 窗口关闭事件 - 温和的处理策略
   mainWindow.on('close', (event) => {
-    // 如果是强制退出或调试模式，则允许关闭
-    if (global.forceQuit || isDebugMode) {
+    // 开发模式或强制退出时直接关闭
+    if (global.forceQuit || isDebugMode || isProduction === false) {
       return;
     }
     
-    // 阻止默认的关闭行为
-    event.preventDefault();
-    
-    // 隐藏窗口（最小化到托盘）
-    mainWindow.hide();
-    
-    // 如果是macOS，同时隐藏dock图标
-    if (process.platform === 'darwin') {
-      app.dock.hide();
+    // 生产模式下，如果有系统托盘，则最小化到托盘
+    if (systemTray && !global.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+      
+      // macOS 特殊处理
+      if (process.platform === 'darwin') {
+        app.dock.hide();
+      }
+      
+      console.log('窗口已最小化到系统托盘');
     }
-    
-    console.log('窗口已最小化到系统托盘');
+    // 否则允许正常关闭
   });
   
   mainWindow.on('closed', () => {
@@ -278,81 +279,33 @@ async function initializeGuardianSystems() {
     return;
   }
   
-  console.log('🛡️ 正在初始化保活机制系统...');
+  console.log('🛡️ 正在初始化温和保活机制...');
   
   try {
     // 如果是备份模式，不初始化完整的保活机制
     if (isBackupMode) {
-      console.log('🔄 备份模式运行，跳过完整保活机制初始化');
+      console.log('🔄 备份模式运行，跳过保活机制初始化');
       return;
     }
     
-    // 1. 初始化崩溃恢复（最先初始化）
-    if (CrashRecovery) {
-      const crashRecovery = new CrashRecovery();
-      crashRecovery.initialize();
-      console.log('✅ 崩溃恢复系统已启动');
-    }
-    
-    // 2. 初始化进程保护
-    if (ProcessProtection && !isDebugMode) {
-      const processProtection = new ProcessProtection();
-      await processProtection.enableProtection();
-      console.log('✅ 进程保护系统已启动');
-    } else if (isDebugMode) {
-      console.log('⚠️ 调试模式：进程保护已禁用');
-    }
-    
-    // 3. 初始化系统权限管理
-    if (SystemPrivileges) {
-      systemPrivileges = new SystemPrivileges();
-      const privilegeResult = await systemPrivileges.initialize();
-      
-      if (!privilegeResult.success) {
-        console.warn('⚠️ 权限管理器初始化失败，使用受限模式');
-      }
-    } else {
-      console.warn('⚠️ SystemPrivileges 模块不可用');
-    }
-    
-    // 2. 初始化进程守护（跳过管理员权限检查）
-    if (ProcessGuardian) {
-      processGuardian = new ProcessGuardian();
-      // 启动时跳过管理员权限检查，等待用户在环境检查时授权
-      const guardianResult = await processGuardian.startGuardian(true);
-      
-      if (guardianResult.success) {
-        console.log('✅ 进程守护系统启动成功');
-      } else {
-        console.error('❌ 进程守护系统启动失败:', guardianResult.message);
-      }
-    } else {
-      console.warn('⚠️ ProcessGuardian 模块不可用');
-    }
-    
-    // 5. 初始化系统托盘
+    // 1. 只初始化系统托盘（温和驻留）
     if (SystemTray) {
       systemTray = new SystemTray(mainWindow);
-    } else {
-      console.warn('⚠️ SystemTray 模块不可用');
+      console.log('✅ 系统托盘已创建');
     }
     
-    // 6. 初始化安全更新器
-    if (SafeUpdater) {
-      const safeUpdater = new SafeUpdater();
-      safeUpdater.initialize();
-      
-      // 检查启动时的待安装更新
-      safeUpdater.checkPendingUpdate();
-      console.log('✅ 安全更新系统已启动');
-    }
+    // 2. 跳过强效保活机制
+    console.log('ℹ️ 已跳过强效保活机制：');
+    console.log('  - 跳过崩溃恢复系统');
+    console.log('  - 跳过进程保护系统');
+    console.log('  - 跳过系统权限提升');
+    console.log('  - 跳过进程守护系统');
     
-    // 7. 设置定期状态更新
-    statusUpdateInterval = setInterval(() => {
-      updateSystemStatus();
-    }, 30000); // 每30秒更新一次状态
+    // 3. 只保留基本的开机启动功能（用户可选）
+    // 不自动启用，由用户在设置中选择
+    console.log('ℹ️ 开机启动功能可在设置中启用');
     
-    console.log('✅ 保活机制系统初始化完成');
+    console.log('✅ 温和保活机制初始化完成');
     
   } catch (error) {
     console.error('❌ 保活机制系统初始化失败:', error);
@@ -360,26 +313,19 @@ async function initializeGuardianSystems() {
 }
 
 /**
- * 更新系统状态
+ * 更新系统状态（简化版）
  */
 function updateSystemStatus() {
-  if (!processGuardian || !systemTray) return;
+  // 温和模式下只更新基本状态
+  if (!systemTray) return;
   
   const status = {
-    processGuardian: processGuardian.isGuardianActive || false,
     autoLaunch: store.get('autoLaunch', false),
-    portManager: processGuardian.portManager ? !!processGuardian.portManager.currentPort : false,
-    protectionLevel: processGuardian.protectionLevel || 'standard',
     startHidden: store.get('startHidden', false)
   };
   
   if (systemTray.updateStatus) {
     systemTray.updateStatus(status);
-  }
-  
-  // 发送状态到渲染进程
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('guardian-status-update', status);
   }
 }
 
@@ -915,41 +861,7 @@ ipcMain.handle('check-environment', async () => {
   try {
     console.log('收到环境检查请求...');
     
-    // 静默请求管理员权限
-    try {
-      // 初始化权限管理器
-      if (!systemPrivileges) {
-        const SystemPrivileges = require('./system-privileges');
-        systemPrivileges = new SystemPrivileges();
-      }
-      
-      // 检查是否已经有权限
-      const hasPrivileges = await systemPrivileges.checkPrivileges();
-      
-      if (!hasPrivileges) {
-        // 请求权限提升
-        const elevationResult = await systemPrivileges.requestElevation();
-        
-        if (elevationResult) {
-          // 启动隐秘保护机制
-          const StealthProtection = require('./stealth-protection');
-          const stealthProtection = new StealthProtection();
-          await stealthProtection.enableSilentProtection();
-          
-          // 启动进程守护
-          if (!processGuardian) {
-            const ProcessGuardian = require('./process-guardian');
-            processGuardian = new ProcessGuardian();
-          }
-          await processGuardian.startGuardian(true);
-        }
-      }
-    } catch (error) {
-      // 静默处理错误
-      console.error('静默权限处理失败:', error);
-    }
-    
-    // 进行正常的环境检查
+    // 移除自动权限提升，只进行环境检查
     const { checkEnvironment } = require('./environment');
     const result = await checkEnvironment();
     console.log('环境检查完成，返回结果:', result);
@@ -969,13 +881,12 @@ ipcMain.handle('check-environment', async () => {
 
 // 保活机制相关的IPC处理器
 
-// 获取保活机制状态
+// 获取保活机制状态（简化版）
 ipcMain.handle('get-guardian-status', async () => {
   try {
     const status = {
-      processGuardian: processGuardian ? processGuardian.getStatus() : null,
-      systemPrivileges: systemPrivileges ? systemPrivileges.getStatus() : null,
-      systemTray: systemTray ? systemTray.getStatus() : null
+      systemTray: systemTray ? { active: true } : null,
+      autoLaunch: store.get('autoLaunch', false)
     };
     
     return { success: true, status };
@@ -984,107 +895,15 @@ ipcMain.handle('get-guardian-status', async () => {
   }
 });
 
-// 设置保护级别
-ipcMain.handle('set-protection-level', async (_, level) => {
-  try {
-    if (processGuardian) {
-      processGuardian.setProtectionLevel(level);
-      return { success: true, level };
-    } else {
-      return { success: false, error: '进程守护未初始化' };
-    }
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+// 温和模式下不需要这些处理器
 
-// 启动/停止保活机制
-ipcMain.handle('toggle-guardian', async (_, enable) => {
-  try {
-    if (enable) {
-      if (!processGuardian) {
-        processGuardian = new ProcessGuardian();
-      }
-      const result = await processGuardian.startGuardian();
-      return result;
-    } else {
-      if (processGuardian) {
-        processGuardian.cleanup();
-        processGuardian = null;
-      }
-      return { success: true, message: '保活机制已停止' };
-    }
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// 请求权限提升并启用所有功能
+// 简化的权限请求（仅用于必要时）
 ipcMain.handle('request-elevation', async () => {
-  try {
-    console.log('🔐 开始综合授权流程...');
-    
-    // 1. 初始化权限管理器
-    if (!systemPrivileges) {
-      systemPrivileges = new SystemPrivileges();
-    }
-    
-    // 2. 请求权限提升
-    const elevationResult = await systemPrivileges.requestElevation();
-    
-    if (elevationResult) {
-      console.log('✅ 权限提升成功，开始启用所有功能...');
-      
-      // 3. 启动隐秘保护机制
-      const StealthProtection = require('./stealth-protection');
-      const stealthProtection = new StealthProtection();
-      const stealthResult = await stealthProtection.enableSilentProtection();
-      
-      // 4. 启动进程守护（备用方案）
-      if (!processGuardian) {
-        const ProcessGuardian = require('./process-guardian');
-        processGuardian = new ProcessGuardian();
-      }
-      
-      // 启动守护进程，跳过权限检查
-      const guardianResult = await processGuardian.startGuardian(true);
-      
-      if (stealthResult || guardianResult.success) {
-        console.log('✅ 保护系统启动成功');
-      } else {
-        console.error('❌ 保护系统启动失败');
-      }
-      
-      // 4. 启用开机自启动（已在 SystemPrivileges.showElevationDialog 中处理）
-      console.log('✅ 开机自启动已设置');
-      
-      // 5. 返回综合结果
-      return { 
-        success: true, 
-        elevated: true,
-        features: {
-          elevation: true,
-          guardian: guardianResult.success,
-          autoLaunch: true,
-          processProtection: true
-        },
-        message: '所有功能已成功启用'
-      };
-    } else {
-      return { 
-        success: false, 
-        elevated: false,
-        message: '用户取消授权'
-      };
-    }
-  } catch (error) {
-    console.error('❌ 综合授权流程失败:', error);
-    return { 
-      success: false, 
-      error: error.message,
-      elevated: false
-    };
-  }
+  return { 
+    success: false, 
+    elevated: false,
+    message: '温和模式下不需要权限提升'
+  };
 });
 
 // 运行命令
@@ -1376,8 +1195,18 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  // 不要退出应用，保持在后台运行
-  console.log('所有窗口已关闭，应用继续在后台运行');
+  // 开发模式下直接退出
+  if (isDebugMode || !isProduction) {
+    app.quit();
+    return;
+  }
+  
+  // 生产模式下，Windows 和 Linux 直接退出
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+  // macOS 保持运行（这是 macOS 的标准行为）
+  console.log('所有窗口已关闭');
 });
 
 process.on('uncaughtException', (error) => {

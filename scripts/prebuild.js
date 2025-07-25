@@ -20,14 +20,13 @@ async function prebuild() {
     console.log('1. 检查当前环境状态:');
     const status = await controller.checkStatus();
     
-    // 2. 如果处于开发模式，警告用户
+    // 2. 只显示当前模式，不自动切换
     if (status.mode === 'development') {
-      console.log('\n⚠️  警告：当前处于开发模式！');
-      console.log('🔄 正在切换到生产模式以确保打包正确...\n');
-      
-      await controller.enableProductionMode();
+      console.log('\n⚠️  注意：当前处于开发模式');
+      console.log('ℹ️  将构建温和版本（无强效保活机制）\n');
     } else {
-      console.log('\n✅ 当前已处于生产模式，继续打包...\n');
+      console.log('\n✅ 当前处于生产模式');
+      console.log('ℹ️  将构建温和版本（无强效保活机制）\n');
     }
     
     // 3. 验证环境变量
