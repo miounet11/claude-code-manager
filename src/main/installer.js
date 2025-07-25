@@ -77,45 +77,94 @@ async function installClaudeCode() {
     // 先尝试使用 npm 安装
     console.log('尝试使用 npm 安装 Claude Code...');
     
+    // 设置更长的超时时间，并捕获所有输出
+    const npmInstallOptions = {
+      timeout: 120000, // 2分钟超时
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024 * 10 // 10MB缓冲区
+    };
+    
+    // 根据平台设置合适的环境
+    if (process.platform === 'win32') {
+      npmInstallOptions.shell = true;
+      npmInstallOptions.env = { ...process.env };
+    }
+    
     try {
-      await execPromise('npm install -g @anthropic-ai/claude-code', {
-        timeout: 60000,
-        encoding: 'utf8'
-      });
+      const { stdout, stderr } = await execPromise('npm install -g @anthropic-ai/claude-code', npmInstallOptions);
       
-      return {
-        success: true,
-        message: 'Claude Code 通过 npm 安装成功'
-      };
+      console.log('npm 安装输出:', stdout);
+      if (stderr) console.log('npm 警告:', stderr);
+      
+      // 验证安装是否成功
+      try {
+        await execPromise('claude --version', { timeout: 5000 });
+        return {
+          success: true,
+          message: 'Claude Code 安装成功！'
+        };
+      } catch (verifyError) {
+        // 可能需要刷新 PATH
+        return {
+          success: true,
+          message: 'Claude Code 已安装，请重启应用以刷新环境变量'
+        };
+      }
     } catch (npmError) {
-      console.log('npm 安装失败，尝试使用 UV...');
+      console.log('npm 安装失败:', npmError.message);
       
-      // 如果 npm 失败，尝试 UV
-      const { stderr } = await execPromise('uv tool install claude-code', {
-        timeout: 60000,
-        encoding: 'utf8'
-      });
-      
-      if (stderr && !stderr.includes('warning')) {
-        throw new Error(stderr);
+      // 如果是权限问题，提供更详细的指引
+      if (npmError.message.includes('EACCES') || npmError.message.includes('permission')) {
+        return {
+          success: false,
+          message: '权限不足，请使用管理员权限运行，或尝试：',
+          instructions: [
+            'macOS/Linux: sudo npm install -g @anthropic-ai/claude-code',
+            'Windows: 以管理员身份运行命令提示符'
+          ]
+        };
       }
       
+      // 尝试 UV 作为备选
+      try {
+        console.log('尝试使用 UV 安装...');
+        const { stdout: uvOut, stderr: uvErr } = await execPromise('uv tool install claude-code', {
+          timeout: 60000,
+          encoding: 'utf8'
+        });
+        
+        console.log('UV 安装输出:', uvOut);
+        
+        return {
+          success: true,
+          message: 'Claude Code 通过 UV 安装成功'
+        };
+      } catch (uvError) {
+        // UV 也失败了
+        console.log('UV 安装也失败:', uvError.message);
+      }
+      
+      // 提供详细的错误信息
       return {
-        success: true,
-        message: 'Claude Code 通过 UV 安装成功'
+        success: false,
+        message: `安装失败: ${npmError.message}`,
+        instructions: [
+          '请尝试手动安装：',
+          '1. 打开终端/命令提示符',
+          '2. 运行: npm install -g @anthropic-ai/claude-code',
+          '3. 如果失败，尝试: sudo npm install -g @anthropic-ai/claude-code',
+          '4. 安装成功后重启应用'
+        ]
       };
     }
   } catch (error) {
-    if (error.message.includes('uv: command not found') || error.message.includes('uv 不是')) {
-      return {
-        success: false,
-        message: 'Claude Code 安装失败。请使用以下命令手动安装: npm install -g @anthropic-ai/claude-code'
-      };
-    }
-    
     return {
       success: false,
-      message: `Claude Code 安装失败: ${error.message}。请手动安装: npm install -g @anthropic-ai/claude-code`
+      message: `安装过程出错: ${error.message}`,
+      instructions: [
+        '请手动安装 Claude Code：',
+        'npm install -g @anthropic-ai/claude-code'
+      ]
     };
   }
 }

@@ -109,6 +109,7 @@ class WelcomeMenu {
     this.terminal.writeln('');
     this.terminal.writeln('  \x1b[90m按 \x1b[32m[Enter]\x1b[90m 立即开始\x1b[0m');
     this.terminal.writeln('  \x1b[90m按 \x1b[32m[C]\x1b[90m 只检查环境\x1b[0m');
+    this.terminal.writeln('  \x1b[90m按 \x1b[32m[I]\x1b[90m 安装 Claude Code\x1b[0m');
     this.terminal.writeln('  \x1b[90m按 \x1b[32m[S]\x1b[90m 跳过并直接启动\x1b[0m');
     this.terminal.writeln('  \x1b[90m按 \x1b[31m[ESC]\x1b[90m 退出\x1b[0m');
     this.terminal.writeln('');
@@ -154,7 +155,7 @@ class WelcomeMenu {
       
       // 处理其他按键
       const key = data.toLowerCase();
-      if (key === 'c' || key === 's') {
+      if (key === 'c' || key === 's' || key === 'i') {
         console.log('[WelcomeMenu.dataHandler] 处理按键:', key.toUpperCase());
         this.isProcessingInput = true;
         // 手动显示按下的键（因为自动回显已关闭）
@@ -169,6 +170,8 @@ class WelcomeMenu {
             this.checkEnvironmentOnly();
           } else if (key === 's') {
             this.skipAndStart();
+          } else if (key === 'i') {
+            this.installClaudeCode();
           }
         }, 100);
       }
@@ -421,6 +424,58 @@ class WelcomeMenu {
     }
     
     this.terminal.writeln('');
+  }
+
+  /**
+   * 安装 Claude Code
+   */
+  async installClaudeCode() {
+    this.terminal.writeln('');
+    this.terminal.writeln('\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+    this.terminal.writeln('📦 \x1b[33m正在安装 Claude Code...\x1b[0m');
+    this.terminal.writeln('\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+    this.terminal.writeln('');
+    
+    try {
+      this.terminal.writeln('\x1b[90m执行命令: npm install -g @anthropic-ai/claude-code\x1b[0m');
+      this.terminal.writeln('\x1b[90m这可能需要几分钟时间，请耐心等待...\x1b[0m');
+      this.terminal.writeln('');
+      
+      const result = await window.electronAPI.installDependency('claude');
+      
+      if (result.success) {
+        this.terminal.writeln('\x1b[32m✅ ' + result.message + '\x1b[0m');
+        this.terminal.writeln('');
+        this.terminal.writeln('\x1b[33m⚠️  请重启应用程序以确保环境变量生效\x1b[0m');
+      } else {
+        this.terminal.writeln('\x1b[31m❌ ' + result.message + '\x1b[0m');
+        
+        if (result.instructions) {
+          this.terminal.writeln('');
+          this.terminal.writeln('\x1b[36m建议步骤：\x1b[0m');
+          for (const instruction of result.instructions) {
+            this.terminal.writeln(`  \x1b[90m${instruction}\x1b[0m`);
+          }
+        }
+      }
+    } catch (error) {
+      this.terminal.writeln(`\x1b[31m❌ 安装失败: ${error.message}\x1b[0m`);
+    }
+    
+    this.terminal.writeln('');
+    this.terminal.writeln('\x1b[90m按任意键返回菜单...\x1b[0m');
+    
+    // 等待按键后关闭
+    const tempHandler = () => {
+      if (this.terminal.onInput) {
+        this.terminal.onInput(null);
+      }
+      this.close();
+    };
+    
+    if (this.terminal.onInput) {
+      this.terminal.onInput(tempHandler);
+    }
   }
 
   /**

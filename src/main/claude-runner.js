@@ -62,22 +62,12 @@ async function startClaudeCode(config, mainWindow) {
     const util = require('util');
     const execPromise = util.promisify(exec);
     
-    try {
-      // Windows下更准确的命令检查
-      let checkCmd;
-      const checkOptions = { timeout: 5000, windowsHide: true };
-      
-      if (process.platform === 'win32') {
-        checkCmd = 'where claude.exe';
-        checkOptions.shell = true;
-        checkOptions.env = { ...process.env };
-      } else {
-        checkCmd = 'which claude';
-      }
-      
-      await execPromise(checkCmd, checkOptions);
-    } catch (checkError) {
-      console.log('Claude检查失败:', checkError.message);
+    // 使用与 environment.js 相同的检测逻辑
+    const { checkCommand } = require('./environment');
+    const claudeCheck = await checkCommand('claude', '--version');
+    
+    if (!claudeCheck.installed) {
+      console.log('Claude检查失败: 未安装');
       
       // 发送用户友好的错误信息
       const errorInfo = {
@@ -102,19 +92,22 @@ async function startClaudeCode(config, mainWindow) {
         ];
       }
       
-      // 发送格式化的错误信息
-      mainWindow.webContents.send('show-error', errorInfo);
-      
-      // 同时发送到终端（带颜色）
-      mainWindow.webContents.send('terminal-data', `\n\x1b[31m❌ ${errorInfo.title}\x1b[0m\n`);
-      mainWindow.webContents.send('terminal-data', `\x1b[33m${errorInfo.message}\x1b[0m\n\n`);
-      mainWindow.webContents.send('terminal-data', '\x1b[36m💡 解决方案:\x1b[0m\n');
+      // 构建完整的错误信息，一次性发送
+      let errorMessage = `\n\x1b[31m❌ ${errorInfo.title}\x1b[0m\n`;
+      errorMessage += `\x1b[33m${errorInfo.message}\x1b[0m\n\n`;
+      errorMessage += '\x1b[36m💡 解决方案:\x1b[0m\n';
       
       errorInfo.solutions.forEach(solution => {
-        mainWindow.webContents.send('terminal-data', `  \x1b[32m${solution}\x1b[0m\n`);
+        errorMessage += `  \x1b[32m${solution}\x1b[0m\n`;
       });
       
-      mainWindow.webContents.send('terminal-data', '\n');
+      errorMessage += '\n';
+      
+      // 一次性发送所有内容，避免格式混乱
+      mainWindow.webContents.send('terminal-data', errorMessage);
+      
+      // 发送错误对话框（如果需要）
+      // mainWindow.webContents.send('show-error', errorInfo);
       
       return {
         success: false,
@@ -134,9 +127,11 @@ async function startClaudeCode(config, mainWindow) {
     
     // 如果不是空配置，才设置环境变量
     if (!isEmptyConfig) {
-      // 如果是官方配置，不设置 API URL，使用 Claude Code 默认值
+      // 设置 API URL（第三方服务）
       if (!config.useNativeConfig && config.apiUrl) {
-        env.ANTHROPIC_BASE_URL = normalizeApiUrl(config.apiUrl);
+        const apiUrl = normalizeApiUrl(config.apiUrl);
+        env.ANTHROPIC_BASE_URL = apiUrl;
+        console.log('设置 API URL:', apiUrl);
       }
       
       // API Key 设置
@@ -144,9 +139,12 @@ async function startClaudeCode(config, mainWindow) {
         // 如果是官方配置，使用官方的环境变量名
         if (config.useNativeConfig) {
           env.ANTHROPIC_API_KEY = config.apiKey;
+          console.log('使用官方 API Key');
         } else {
-          // 第三方服务可能需要 AUTH_TOKEN
+          // 第三方服务需要使用 AUTH_TOKEN 和 API_KEY
           env.ANTHROPIC_AUTH_TOKEN = config.apiKey;
+          env.ANTHROPIC_API_KEY = config.apiKey; // 某些服务可能需要这个
+          console.log('使用第三方服务 API Key');
         }
       }
     }

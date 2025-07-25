@@ -53,8 +53,22 @@ async function checkCommand(command, versionFlag = '--version') {
   } else {
     // macOS/Linux 检测策略
     checkStrategies.push(command);
-    // 对于通过 npm 安装的工具，检查全局和本地路径
-    if (command === 'claude' || command === 'uv') {
+    
+    // Claude 特定路径
+    if (command === 'claude') {
+      checkStrategies.push(
+        `/usr/local/bin/${command}`,
+        `${process.env.HOME}/.npm-global/bin/${command}`,
+        `${process.env.HOME}/.npm/bin/${command}`,
+        `/usr/local/lib/node_modules/.bin/${command}`,
+        `/opt/homebrew/bin/${command}`,
+        `/usr/bin/${command}`,
+        `${process.env.HOME}/.local/bin/${command}`,
+        // npm 全局安装的常见位置
+        `/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/${command}`,
+        `/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/${command}`
+      );
+    } else if (command === 'uv') {
       checkStrategies.push(
         `/usr/local/bin/${command}`,
         `${process.env.HOME}/.npm-global/bin/${command}`,
