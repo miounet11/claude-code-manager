@@ -252,9 +252,14 @@ class EnvironmentService {
       paths.push(
         `/usr/local/bin/${command}`,
         `/usr/bin/${command}`,
+        `/bin/${command}`,
         `/opt/homebrew/bin/${command}`,
         `${process.env.HOME}/.npm-global/bin/${command}`,
-        `${process.env.HOME}/.local/bin/${command}`
+        `${process.env.HOME}/.local/bin/${command}`,
+        `${process.env.HOME}/.nvm/current/bin/${command}`,
+        `${process.env.HOME}/.cargo/bin/${command}`,
+        `/Applications/Claude.app/Contents/Resources/bin/${command}`,
+        `/usr/local/opt/${command}/bin/${command}`
       );
     }
 
@@ -269,7 +274,8 @@ class EnvironmentService {
       const options = {
         shell: true,
         timeout: 5000,
-        windowsHide: true
+        windowsHide: true,
+        env: { ...process.env, PATH: `/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${process.env.PATH}` }
       };
 
       const child = spawn(command, args, options);

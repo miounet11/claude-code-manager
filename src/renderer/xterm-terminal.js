@@ -225,6 +225,10 @@ class XTerminal {
     if (navigator.platform.includes('Win')) {
       return 'cmd.exe';
     }
+    // macOS 默认使用 zsh
+    if (navigator.platform.includes('Mac')) {
+      return '/bin/zsh';
+    }
     return '/bin/bash';
   }
 

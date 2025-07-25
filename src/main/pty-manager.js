@@ -209,8 +209,20 @@ class PtyManager {
       // Windows
       return process.env.COMSPEC || 'cmd.exe';
     } else if (process.platform === 'darwin') {
-      // macOS
-      return process.env.SHELL || '/bin/zsh';
+      // macOS - 优先使用用户的默认 shell
+      // 检查 SHELL 环境变量，通常是用户的默认 shell
+      if (process.env.SHELL) {
+        return process.env.SHELL;
+      }
+      // 如果没有 SHELL 环境变量，检查 macOS 版本
+      // macOS Catalina (10.15) 及以后默认使用 zsh
+      const os = require('os');
+      const release = os.release();
+      const majorVersion = parseInt(release.split('.')[0]);
+      if (majorVersion >= 19) { // Catalina 是 19.x
+        return '/bin/zsh';
+      }
+      return '/bin/bash';
     } else {
       // Linux
       return process.env.SHELL || '/bin/bash';
