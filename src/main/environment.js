@@ -9,102 +9,134 @@ async function checkCommand(command, versionFlag = '--version') {
   
   // Windows 平台特殊处理
   const isWindows = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
   let cmdToRun = command;
   
-  // Windows下更智能的命令检测
+  // 尝试多种检测方式
+  const checkStrategies = [];
+  
   if (isWindows) {
-    // 首先尝试原命令
-    cmdToRun = command;
-    // 如果命令没有扩展名，尝试添加.exe
-    if (!command.includes('.') && !command.includes('\\') && !command.includes('/')) {
-      // 对于特定命令的特殊处理
-      if (command === 'claude') {
-        cmdToRun = 'claude.exe';
-      } else if (command === 'uv') {
-        cmdToRun = 'uv.exe';
-      } else {
-        cmdToRun = `${command}.exe`;
-      }
+    // Windows 检测策略
+    if (command === 'claude') {
+      checkStrategies.push('claude.exe', 'claude', 'claude.cmd', 'claude.bat');
+      // 添加常见的 npm 全局安装路径
+      checkStrategies.push(
+        `${process.env.APPDATA}\\npm\\claude.cmd`,
+        `${process.env.APPDATA}\\npm\\claude.exe`,
+        `${process.env.ProgramFiles}\\nodejs\\claude.cmd`
+      );
+    } else if (command === 'uv') {
+      checkStrategies.push('uv.exe', 'uv', 'uv.cmd', 'uv.bat');
+      // UV 可能安装在用户目录
+      checkStrategies.push(
+        `${process.env.USERPROFILE}\\.cargo\\bin\\uv.exe`,
+        `${process.env.LOCALAPPDATA}\\uv\\bin\\uv.exe`
+      );
+    } else if (command === 'node') {
+      checkStrategies.push('node.exe', 'node');
+      // Node.js 常见安装路径
+      checkStrategies.push(
+        `${process.env.ProgramFiles}\\nodejs\\node.exe`,
+        `${process.env.ProgramFiles(x86)}\\nodejs\\node.exe`
+      );
+    } else if (command === 'git') {
+      checkStrategies.push('git.exe', 'git');
+      // Git 常见安装路径
+      checkStrategies.push(
+        `${process.env.ProgramFiles}\\Git\\bin\\git.exe`,
+        `${process.env.ProgramFiles(x86)}\\Git\\bin\\git.exe`,
+        `${process.env.ProgramFiles}\\Git\\cmd\\git.exe`
+      );
+    } else {
+      checkStrategies.push(`${command}.exe`, command);
+    }
+  } else {
+    // macOS/Linux 检测策略
+    checkStrategies.push(command);
+    // 对于通过 npm 安装的工具，检查全局和本地路径
+    if (command === 'claude' || command === 'uv') {
+      checkStrategies.push(
+        `/usr/local/bin/${command}`,
+        `${process.env.HOME}/.npm-global/bin/${command}`,
+        `${process.env.HOME}/.npm/bin/${command}`,
+        `${process.env.HOME}/.yarn/bin/${command}`,
+        `/opt/homebrew/bin/${command}`,
+        `/usr/bin/${command}`,
+        `${process.env.HOME}/.local/bin/${command}`,
+        `${process.env.HOME}/.cargo/bin/${command}`
+      );
     }
   }
   
-  try {
-    // Windows下使用更合适的选项
-    const execOptions = {
-      timeout: 10000, // 增加超时时间到10秒
-      killSignal: 'SIGTERM',
-      encoding: 'utf8',
-      windowsHide: true // Windows下隐藏窗口
-    };
-    
-    // Windows下强制使用shell
-    if (isWindows) {
-      execOptions.shell = true;
-      execOptions.env = { ...process.env, LANG: 'en_US.UTF-8' }; // 设置环境变量避免编码问题
+  // 尝试多种策略检测
+  for (const strategy of checkStrategies) {
+    try {
+      // Windows下使用更合适的选项
+      const execOptions = {
+        timeout: 5000, // 减少超时时间，更快尝试下一个策略
+        killSignal: 'SIGTERM',
+        encoding: 'utf8',
+        windowsHide: true, // Windows下隐藏窗口
+        maxBuffer: 1024 * 1024 // 1MB 缓冲区
+      };
+      
+      // Windows下强制使用shell
+      if (isWindows) {
+        execOptions.shell = true;
+        execOptions.env = { ...process.env, LANG: 'en_US.UTF-8' }; // 设置环境变量避免编码问题
+      }
+      
+      console.log(`尝试执行: ${strategy} ${versionFlag}`);
+      // 只有在路径包含空格时才使用引号
+      const commandToRun = strategy.includes(' ') ? `"${strategy}" ${versionFlag}` : `${strategy} ${versionFlag}`;
+      const { stdout, stderr } = await execPromise(commandToRun, execOptions);
+      
+      const output = stdout || stderr || '';
+      
+      // 过滤掉错误信息，只保留版本信息
+      if (output && !output.toLowerCase().includes('not found') && !output.toLowerCase().includes('not recognized')) {
+        console.log(`${command} 检查成功 (使用 ${strategy}):`, output.trim());
+        
+        return {
+          installed: true,
+          version: output.trim().split('\n')[0] || '已安装'
+        };
+      }
+    } catch (error) {
+      console.log(`策略 ${strategy} 失败:`, error.code || error.message);
+      // 继续尝试下一个策略
     }
+  }
+  
+  // 所有策略都失败了，使用 which/where 命令最后检测
+  try {
+    const findCmd = isWindows ? 'where' : 'which';
+    const { stdout } = await execPromise(`${findCmd} ${command}`, {
+      timeout: 3000,
+      encoding: 'utf8',
+      windowsHide: true,
+      shell: isWindows
+    });
     
-    console.log(`执行命令: ${cmdToRun} ${versionFlag}`);
-    const { stdout, stderr } = await execPromise(`${cmdToRun} ${versionFlag}`, execOptions);
-    
-    const output = stdout || stderr || '';
-    console.log(`${command} 检查成功:`, output.trim());
-    
-    return {
-      installed: true,
-      version: output.trim().split('\n')[0] || '已安装'
-    };
-  } catch (error) {
-    console.log(`${command} 检查失败:`, error.message);
-    
-    // 如果是超时错误，返回特定的错误信息
-    if (error.killed || error.signal === 'SIGTERM' || error.code === 'ETIMEDOUT') {
-      console.log(`${command} 检查超时`);
+    if (stdout && stdout.trim()) {
+      console.log(`通过 ${findCmd} 找到 ${command}: ${stdout.trim()}`);
+      // 找到了命令，但无法获取版本，仍然返回已安装
       return {
-        installed: false,
-        version: null,
-        error: '检查超时，可能需要管理员权限'
+        installed: true,
+        version: '已安装（版本未知）'
       };
     }
-    
-    // Windows 特殊错误处理
-    if (isWindows) {
-      if (error.message.includes('is not recognized') ||
-          error.message.includes('not found') ||
-          error.code === 'ENOENT') {
-        return {
-          installed: false,
-          version: null,
-          error: '未安装'
-        };
-      }
-      
-      // 处理权限问题
-      if (error.message.includes('Access is denied') ||
-          error.message.includes('权限不足') ||
-          error.code === 'EACCES') {
-        return {
-          installed: false,
-          version: null,
-          error: '权限不足，请以管理员身份运行'
-        };
-      }
-      
-      // 处理编码问题
-      if (error.message.includes('�') || error.message.includes('?')) {
-        return {
-          installed: false,
-          version: null,
-          error: '未安装'
-        };
-      }
-    }
-    
-    return {
-      installed: false,
-      version: null,
-      error: error.code || error.message || '检查失败'
-    };
+  } catch (findError) {
+    console.log(`${findCmd} ${command} 也失败了:`, findError.message);
   }
+  
+  // 所有方法都失败了，返回未安装
+  console.log(`${command} 所有检测方法都失败，判定为未安装`);
+  return {
+    installed: false,
+    version: null,
+    error: '未安装'
+  };
 }
 
 async function checkEnvironment() {

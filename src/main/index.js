@@ -498,6 +498,24 @@ ipcMain.handle('install-claude-code', async () => {
   return await installClaudeCode();
 });
 
+// 一键修复功能
+ipcMain.handle('run-one-click-fix', async (_, options) => {
+  const { oneClickFix } = require('./one-click-fix');
+  return await oneClickFix(options);
+});
+
+// 检查端口
+ipcMain.handle('check-port', async (_, port) => {
+  const { isPortInUse } = require('./one-click-fix');
+  return await isPortInUse(port);
+});
+
+// 获取占用端口的进程
+ipcMain.handle('get-process-using-port', async (_, port) => {
+  const { getProcessUsingPort } = require('./one-click-fix');
+  return await getProcessUsingPort(port);
+});
+
 // 保存配置
 ipcMain.handle('save-config', async (_, config) => {
   try {

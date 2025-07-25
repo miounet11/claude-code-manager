@@ -51,6 +51,7 @@
   "build": {
     "appId": "com.miaoda.app",
     "productName": "Miaoda",
+    "afterPack": "./scripts/afterPack.js",
     "publish": [
       {
         "provider": "github",
@@ -69,6 +70,8 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "assets/icon.icns",
+      "identity": null,
+      "type": "distribution",
       "target": [
         {
           "target": "dmg",
@@ -103,24 +106,32 @@
     "win": {
       "target": [
         {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
           "target": "zip",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
+          "arch": ["x64"]
         }
       ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator",
       "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "installerHeaderIcon": "assets/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Miaoda"
+      "shortcutName": "Miaoda",
+      "language": "2052",
+      "installerLanguages": ["zh_CN", "en_US"],
+      "warningsAsErrors": false
     },
     "linux": {
       "target": [

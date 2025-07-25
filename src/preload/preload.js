@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   installDependency: (dependency) => ipcRenderer.invoke('install-dependency', dependency),
   
+  // 一键修复
+  runOneClickFix: (options) => ipcRenderer.invoke('run-one-click-fix', options),
+  checkPort: (port) => ipcRenderer.invoke('check-port', port),
+  getProcessUsingPort: (port) => ipcRenderer.invoke('get-process-using-port', port),
+  
   requestElevation: () => ipcRenderer.invoke('request-elevation'),
   
   startClaudeCode: (config) => ipcRenderer.invoke('start-claude-code', config),
