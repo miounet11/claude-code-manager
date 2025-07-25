@@ -6,14 +6,16 @@ const os = require('os');
 // 尝试加载 node-pty
 let pty = null;
 let isPtyAvailable = false;
+let WindowsTerminal = null;
 
 try {
   pty = require('node-pty');
   isPtyAvailable = true;
-  // node-pty 加载成功
+  console.log('node-pty 加载成功');
 } catch (error) {
-  console.error('node-pty 加载失败:', error.message);
-  // 真实终端功能将不可用
+  console.warn('node-pty 加载失败，使用备用方案:', error.message);
+  // 加载 Windows 备用方案
+  WindowsTerminal = require('./terminal-windows');
 }
 
 /**
@@ -24,6 +26,14 @@ class TerminalPTY {
   constructor() {
     this.terminals = new Map();
     this.defaultShell = this.getDefaultShell();
+    this.fallbackTerminal = null;
+    
+    // 如果 node-pty 不可用，使用备用方案
+    if (!isPtyAvailable && WindowsTerminal) {
+      this.fallbackTerminal = new WindowsTerminal();
+      console.log('使用 Windows 终端备用方案');
+    }
+    
     this.setupIPC();
   }
 
@@ -67,10 +77,15 @@ class TerminalPTY {
    * 创建终端
    */
   createTerminal(id, options = {}) {
+    // 如果 node-pty 不可用，尝试使用备用方案
     if (!isPtyAvailable) {
+      if (this.fallbackTerminal) {
+        console.log('使用备用方案创建终端');
+        return this.fallbackTerminal.createTerminal(id, options);
+      }
       return {
         success: false,
-        error: 'node-pty 不可用，无法创建真实终端'
+        error: 'node-pty 不可用，且没有可用的备用方案'
       };
     }
 
@@ -131,6 +146,11 @@ class TerminalPTY {
    * 写入数据到终端
    */
   writeToTerminal(id, data) {
+    // 如果使用备用方案
+    if (!isPtyAvailable && this.fallbackTerminal) {
+      return this.fallbackTerminal.writeToTerminal(id, data);
+    }
+    
     const terminal = this.terminals.get(id);
     if (terminal && terminal.pty) {
       terminal.pty.write(data);
@@ -141,6 +161,11 @@ class TerminalPTY {
    * 调整终端大小
    */
   resizeTerminal(id, cols, rows) {
+    // 如果使用备用方案
+    if (!isPtyAvailable && this.fallbackTerminal) {
+      return this.fallbackTerminal.resizeTerminal(id, cols, rows);
+    }
+    
     const terminal = this.terminals.get(id);
     if (terminal && terminal.pty) {
       terminal.pty.resize(cols, rows);
@@ -151,6 +176,11 @@ class TerminalPTY {
    * 关闭终端
    */
   closeTerminal(id) {
+    // 如果使用备用方案
+    if (!isPtyAvailable && this.fallbackTerminal) {
+      return this.fallbackTerminal.closeTerminal(id);
+    }
+    
     const terminal = this.terminals.get(id);
     if (terminal && terminal.pty) {
       // Remove event listeners to prevent leaks
@@ -183,6 +213,11 @@ class TerminalPTY {
    * 关闭所有终端
    */
   closeAllTerminals() {
+    // 如果使用备用方案
+    if (!isPtyAvailable && this.fallbackTerminal) {
+      return this.fallbackTerminal.closeAllTerminals();
+    }
+    
     const promises = [];
     for (const id of this.terminals.keys()) {
       promises.push(
