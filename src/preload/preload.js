@@ -25,6 +25,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   installDependency: (dependency) => ipcRenderer.invoke('install-dependency', dependency),
   
+  // 批量安装缺失的依赖
+  installMissingDependencies: () => ipcRenderer.invoke('install-missing-dependencies'),
+  
+  // 安装进度监听
+  onInstallProgress: (callback) => {
+    const handler = (event, progress) => callback(event, progress);
+    ipcRenderer.on('install-progress', handler);
+    return handler;
+  },
+  
+  removeInstallProgress: (handler) => {
+    ipcRenderer.removeListener('install-progress', handler);
+  },
+  
   // 一键修复
   runOneClickFix: (options) => ipcRenderer.invoke('run-one-click-fix', options),
   checkPort: (port) => ipcRenderer.invoke('check-port', port),
@@ -43,6 +57,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testApiConnection: (config) => ipcRenderer.invoke('test-api-connection', config),
   
   executeCommand: (command) => ipcRenderer.invoke('execute-command', command),
+  
+  // 调试环境
+  debugEnvironment: () => ipcRenderer.invoke('debug-environment'),
   
   onTerminalData: (callback) => {
     ipcRenderer.on('terminal-data', (event, data) => callback(data));

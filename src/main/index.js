@@ -482,20 +482,46 @@ ipcMain.handle('get-environment', async () => {
 
 // 安装依赖
 ipcMain.handle('install-dependency', async (_, dependency) => {
-  const { installDependency } = require('./installer');
+  // 使用新的安装系统 v2
+  const { installDependency } = require('./installer-v2');
   return await installDependency(dependency);
 });
 
-// 安装 uv
+// 安装 uv - 使用新的环境管理器
 ipcMain.handle('install-uv', async () => {
-  const { installUV } = require('./installer');
-  return await installUV();
+  console.log('收到安装 UV 请求...');
+  const environmentManager = require('./environment-manager');
+  return await environmentManager.install('uv');
 });
 
-// 安装 Claude Code
+// 安装 Claude Code - 使用新的环境管理器
 ipcMain.handle('install-claude-code', async () => {
-  const { installClaudeCode } = require('./installer');
-  return await installClaudeCode();
+  console.log('收到安装 Claude Code 请求...');
+  const environmentManager = require('./environment-manager');
+  return await environmentManager.install('claude');
+});
+
+// 批量安装缺失的依赖
+ipcMain.handle('install-missing-dependencies', async (event) => {
+  console.log('收到批量安装依赖请求...');
+  const environmentManager = require('./environment-manager');
+  
+  // 创建进度回调
+  const progressCallback = (progress) => {
+    // 向渲染进程发送进度更新
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('install-progress', progress);
+    }
+  };
+  
+  return await environmentManager.installMissing(progressCallback);
+});
+
+// 调试环境
+ipcMain.handle('debug-environment', async () => {
+  console.log('收到调试环境请求...');
+  const environmentManager = require('./environment-manager');
+  return await environmentManager.debug();
 });
 
 // 一键修复功能
@@ -874,16 +900,16 @@ ipcMain.handle('check-for-updates', async () => {
   }
 });
 
-// 环境检查 - 修复缺失的IPC处理器
+// 环境检查 - 使用新的环境管理器
 ipcMain.handle('check-environment', async () => {
   try {
     console.log('收到环境检查请求...');
     
-    // 移除自动权限提升，只进行环境检查
-    const { checkEnvironment } = require('./environment');
-    const result = await checkEnvironment();
-    console.log('环境检查完成，返回结果:', result);
+    // 使用新的环境管理器
+    const environmentManager = require('./environment-manager');
+    const result = await environmentManager.checkAll();
     
+    console.log('环境检查完成，返回结果:', result);
     return result;
   } catch (error) {
     console.error('环境检查失败:', error);

@@ -221,6 +221,38 @@ async function checkEnvironment() {
 }
 
 async function checkNodejs() {
+  // 尝试直接执行常见路径
+  const nodePaths = [
+    'node',
+    '/usr/local/bin/node',
+    '/opt/homebrew/bin/node',
+    '/usr/bin/node',
+    `${process.env.HOME}/.nvm/versions/node/*/bin/node` // NVM
+  ];
+  
+  for (const nodePath of nodePaths) {
+    try {
+      const { stdout } = await execPromise(`${nodePath} -v`, {
+        timeout: 2000,
+        encoding: 'utf8',
+        shell: true
+      });
+      
+      if (stdout && stdout.startsWith('v')) {
+        const version = stdout.trim().replace('v', '');
+        const major = parseInt(version.split('.')[0]);
+        return {
+          installed: true,
+          version: stdout.trim(),
+          compatible: major >= 16
+        };
+      }
+    } catch (e) {
+      // 继续尝试下一个路径
+    }
+  }
+  
+  // 如果都失败了，使用原来的方法
   const result = await checkCommand('node', '-v');
   if (result.installed) {
     const version = result.version.replace('v', '');
@@ -243,6 +275,39 @@ async function checkUV() {
 }
 
 async function checkClaudeCode() {
+  // 尝试直接执行常见路径
+  const claudePaths = [
+    'claude',
+    '/usr/local/bin/claude',
+    '/opt/homebrew/bin/claude',
+    `${process.env.HOME}/.npm-global/bin/claude`,
+    `${process.env.HOME}/.npm/bin/claude`,
+    '/usr/local/lib/node_modules/.bin/claude',
+    '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude'
+  ];
+  
+  for (const claudePath of claudePaths) {
+    try {
+      const { stdout, stderr } = await execPromise(`${claudePath} --version`, {
+        timeout: 2000,
+        encoding: 'utf8',
+        shell: true
+      });
+      
+      const output = stdout || stderr || '';
+      if (output && !output.toLowerCase().includes('not found')) {
+        console.log(`[Environment] 找到 Claude: ${claudePath}`);
+        return {
+          installed: true,
+          version: output.trim().split('\n')[0] || '已安装'
+        };
+      }
+    } catch (e) {
+      // 继续尝试下一个路径
+    }
+  }
+  
+  // 如果都失败了，使用原来的方法
   return await checkCommand('claude', '--version');
 }
 

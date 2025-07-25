@@ -109,8 +109,9 @@ class WelcomeMenu {
     this.terminal.writeln('');
     this.terminal.writeln('  \x1b[90m按 \x1b[32m[Enter]\x1b[90m 立即开始\x1b[0m');
     this.terminal.writeln('  \x1b[90m按 \x1b[32m[C]\x1b[90m 只检查环境\x1b[0m');
-    this.terminal.writeln('  \x1b[90m按 \x1b[32m[I]\x1b[90m 安装 Claude Code\x1b[0m');
+    this.terminal.writeln('  \x1b[90m按 \x1b[32m[I]\x1b[90m 一键安装缺失依赖\x1b[0m');
     this.terminal.writeln('  \x1b[90m按 \x1b[32m[S]\x1b[90m 跳过并直接启动\x1b[0m');
+    this.terminal.writeln('  \x1b[90m按 \x1b[32m[D]\x1b[90m 调试环境检测\x1b[0m');
     this.terminal.writeln('  \x1b[90m按 \x1b[31m[ESC]\x1b[90m 退出\x1b[0m');
     this.terminal.writeln('');
   }
@@ -155,7 +156,7 @@ class WelcomeMenu {
       
       // 处理其他按键
       const key = data.toLowerCase();
-      if (key === 'c' || key === 's' || key === 'i') {
+      if (key === 'c' || key === 's' || key === 'i' || key === 'd') {
         console.log('[WelcomeMenu.dataHandler] 处理按键:', key.toUpperCase());
         this.isProcessingInput = true;
         // 手动显示按下的键（因为自动回显已关闭）
@@ -172,6 +173,8 @@ class WelcomeMenu {
             this.skipAndStart();
           } else if (key === 'i') {
             this.installClaudeCode();
+          } else if (key === 'd') {
+            this.debugEnvironment();
           }
         }, 100);
       }
@@ -427,35 +430,105 @@ class WelcomeMenu {
   }
 
   /**
-   * 安装 Claude Code
+   * 一键安装缺失依赖
    */
   async installClaudeCode() {
     this.terminal.writeln('');
     this.terminal.writeln('\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
-    this.terminal.writeln('📦 \x1b[33m正在安装 Claude Code...\x1b[0m');
+    this.terminal.writeln('📦 \x1b[33m一键安装缺失依赖...\x1b[0m');
     this.terminal.writeln('\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
     this.terminal.writeln('');
     
     try {
-      this.terminal.writeln('\x1b[90m执行命令: npm install -g @anthropic-ai/claude-code\x1b[0m');
-      this.terminal.writeln('\x1b[90m这可能需要几分钟时间，请耐心等待...\x1b[0m');
-      this.terminal.writeln('');
+      // 先检查环境
+      this.terminal.writeln('\x1b[90m正在检查环境...\x1b[0m');
+      const envCheck = await window.electronAPI.checkEnvironment();
       
-      const result = await window.electronAPI.installDependency('claude');
+      // 找出缺失的依赖
+      const missing = [];
+      const components = [
+        { key: 'nodejs', name: 'Node.js' },
+        { key: 'git', name: 'Git' },
+        { key: 'uv', name: 'UV' },
+        { key: 'claude', name: 'Claude Code' }
+      ];
       
-      if (result.success) {
-        this.terminal.writeln('\x1b[32m✅ ' + result.message + '\x1b[0m');
-        this.terminal.writeln('');
-        this.terminal.writeln('\x1b[33m⚠️  请重启应用程序以确保环境变量生效\x1b[0m');
+      for (const comp of components) {
+        if (!envCheck[comp.key]?.installed) {
+          missing.push(comp);
+        }
+      }
+      
+      if (missing.length === 0) {
+        this.terminal.writeln('\x1b[32m✅ 所有依赖都已安装！\x1b[0m');
       } else {
-        this.terminal.writeln('\x1b[31m❌ ' + result.message + '\x1b[0m');
+        this.terminal.writeln(`\x1b[33m发现 ${missing.length} 个缺失的依赖:\x1b[0m`);
+        for (const dep of missing) {
+          this.terminal.writeln(`  • ${dep.name}`);
+        }
+        this.terminal.writeln('');
         
-        if (result.instructions) {
-          this.terminal.writeln('');
-          this.terminal.writeln('\x1b[36m建议步骤：\x1b[0m');
-          for (const instruction of result.instructions) {
-            this.terminal.writeln(`  \x1b[90m${instruction}\x1b[0m`);
+        // 监听安装进度
+        const progressHandler = (event, progress) => {
+          if (progress.status === 'installing') {
+            this.terminal.writeln(`\x1b[90m正在安装 ${progress.current}...\x1b[0m`);
+          } else if (progress.status === 'success') {
+            this.terminal.writeln(`\x1b[32m✅ ${progress.current}: ${progress.message}\x1b[0m`);
+          } else if (progress.status === 'failed') {
+            this.terminal.writeln(`\x1b[31m❌ ${progress.current}: ${progress.message}\x1b[0m`);
+            
+            // 显示安装说明
+            if (progress.result?.details?.instructions) {
+              this.terminal.writeln('\x1b[36m  手动安装说明:\x1b[0m');
+              for (const instruction of progress.result.details.instructions) {
+                this.terminal.writeln(`    \x1b[90m${instruction}\x1b[0m`);
+              }
+              this.terminal.writeln('');
+            }
           }
+        };
+        
+        // 注册进度监听器
+        if (window.electronAPI.onInstallProgress) {
+          window.electronAPI.onInstallProgress(progressHandler);
+        }
+        
+        // 开始批量安装
+        this.terminal.writeln('\x1b[36m开始安装...\x1b[0m');
+        this.terminal.writeln('');
+        
+        const results = await window.electronAPI.installMissingDependencies();
+        
+        // 移除进度监听器
+        if (window.electronAPI.removeInstallProgress) {
+          window.electronAPI.removeInstallProgress(progressHandler);
+        }
+        
+        // 显示总结
+        this.terminal.writeln('');
+        this.terminal.writeln('\x1b[36m安装总结:\x1b[0m');
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const [dep, result] of Object.entries(results)) {
+          if (result.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        }
+        
+        if (successCount > 0) {
+          this.terminal.writeln(`  \x1b[32m✅ 成功安装 ${successCount} 个依赖\x1b[0m`);
+        }
+        if (failCount > 0) {
+          this.terminal.writeln(`  \x1b[31m❌ ${failCount} 个依赖需要手动安装\x1b[0m`);
+        }
+        
+        if (successCount > 0) {
+          this.terminal.writeln('');
+          this.terminal.writeln('\x1b[33m⚠️  请重启应用程序以确保环境变量生效\x1b[0m');
         }
       }
     } catch (error) {
@@ -464,6 +537,141 @@ class WelcomeMenu {
     
     this.terminal.writeln('');
     this.terminal.writeln('\x1b[90m按任意键返回菜单...\x1b[0m');
+    
+    // 等待按键后关闭
+    const tempHandler = () => {
+      if (this.terminal.onInput) {
+        this.terminal.onInput(null);
+      }
+      this.close();
+    };
+    
+    if (this.terminal.onInput) {
+      this.terminal.onInput(tempHandler);
+    }
+  }
+
+  /**
+   * 调试环境检测
+   */
+  async debugEnvironment() {
+    this.terminal.writeln('');
+    this.terminal.writeln('\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+    this.terminal.writeln('🔍 \x1b[33m调试环境检测\x1b[0m');
+    this.terminal.writeln('\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+    this.terminal.writeln('');
+    
+    try {
+      // 使用新的调试 API
+      if (window.electronAPI.debugEnvironment) {
+        this.terminal.writeln('\x1b[90m正在收集系统信息...\x1b[0m');
+        const debugInfo = await window.electronAPI.debugEnvironment();
+        
+        // 显示系统信息
+        this.terminal.writeln('\x1b[36m系统信息:\x1b[0m');
+        this.terminal.writeln(`  平台: ${debugInfo.system.platform}`);
+        this.terminal.writeln(`  架构: ${debugInfo.system.arch}`);
+        this.terminal.writeln(`  Node 版本: ${debugInfo.system.nodeVersion}`);
+        this.terminal.writeln('');
+        
+        // 显示 PATH
+        this.terminal.writeln('\x1b[36mPATH 环境变量:\x1b[0m');
+        if (debugInfo.system.env.PATH) {
+          const paths = debugInfo.system.env.PATH.split(process.platform === 'win32' ? ';' : ':');
+          paths.forEach(p => {
+            this.terminal.writeln(`  \x1b[90m${p}\x1b[0m`);
+          });
+        }
+        this.terminal.writeln('');
+        
+        // 显示 Shell PATH（如果不同）
+        if (debugInfo.system.shellPath && debugInfo.system.shellPath !== debugInfo.system.env.PATH) {
+          this.terminal.writeln('\x1b[36mShell PATH:\x1b[0m');
+          const shellPaths = debugInfo.system.shellPath.split(':');
+          shellPaths.forEach(p => {
+            this.terminal.writeln(`  \x1b[90m${p}\x1b[0m`);
+          });
+          this.terminal.writeln('');
+        }
+        
+        // 显示环境检查结果
+        this.terminal.writeln('\x1b[36m环境检查结果:\x1b[0m');
+        for (const [key, value] of Object.entries(debugInfo.environment)) {
+          if (value.installed) {
+            this.terminal.writeln(`  \x1b[32m✓\x1b[0m ${key}: ${value.version}${value.path ? ` (${value.path})` : ''}`);
+          } else {
+            this.terminal.writeln(`  \x1b[31m✗\x1b[0m ${key}: ${value.error || '未安装'}`);
+          }
+        }
+        this.terminal.writeln('');
+        
+        // 显示总结
+        this.terminal.writeln('\x1b[36m总结:\x1b[0m');
+        if (debugInfo.summary.ready) {
+          this.terminal.writeln(`  \x1b[32m✓\x1b[0m ${debugInfo.summary.message}`);
+        } else {
+          this.terminal.writeln(`  \x1b[33m⚠\x1b[0m ${debugInfo.summary.message}`);
+          if (debugInfo.summary.missing.length > 0) {
+            this.terminal.writeln(`  缺失: ${debugInfo.summary.missing.join(', ')}`);
+          }
+        }
+      } else {
+        // 降级到旧的调试方法
+        this.terminal.writeln('\x1b[90mPATH 环境变量:\x1b[0m');
+        const pathResult = await window.electronAPI.executeCommand('echo $PATH');
+        if (pathResult.success) {
+          const paths = pathResult.stdout.split(':');
+          paths.forEach(p => {
+            this.terminal.writeln(`  \x1b[90m${p}\x1b[0m`);
+          });
+        }
+        this.terminal.writeln('');
+        
+        // 测试直接执行命令
+        const commands = [
+          { cmd: 'node', args: '--version', name: 'Node.js' },
+          { cmd: 'npm', args: '--version', name: 'npm' },
+          { cmd: 'claude', args: '--version', name: 'Claude Code' },
+          { cmd: 'uv', args: '--version', name: 'UV' },
+          { cmd: 'which node', args: '', name: 'which node' },
+          { cmd: 'which claude', args: '', name: 'which claude' },
+          { cmd: '/usr/local/bin/node', args: '--version', name: '/usr/local/bin/node' },
+          { cmd: '/opt/homebrew/bin/node', args: '--version', name: '/opt/homebrew/bin/node' }
+        ];
+        
+        this.terminal.writeln('\x1b[90m直接命令测试:\x1b[0m');
+        for (const test of commands) {
+          const fullCmd = test.args ? `${test.cmd} ${test.args}` : test.cmd;
+          const result = await window.electronAPI.executeCommand(fullCmd);
+          
+          if (result.success && result.stdout) {
+            this.terminal.writeln(`  \x1b[32m✓\x1b[0m ${test.name}: ${result.stdout.trim()}`);
+          } else {
+            this.terminal.writeln(`  \x1b[31m✗\x1b[0m ${test.name}: ${result.error || '无输出'}`);
+          }
+        }
+        
+        this.terminal.writeln('');
+        
+        // 调用后端环境检测
+        this.terminal.writeln('\x1b[90m后端环境检测结果:\x1b[0m');
+        const envResult = await window.electronAPI.checkEnvironment();
+        
+        for (const [key, value] of Object.entries(envResult)) {
+          if (value.installed) {
+            this.terminal.writeln(`  \x1b[32m✓\x1b[0m ${key}: ${value.version}`);
+          } else {
+            this.terminal.writeln(`  \x1b[31m✗\x1b[0m ${key}: ${value.error || '未安装'}`);
+          }
+        }
+      }
+      
+    } catch (error) {
+      this.terminal.writeln(`\x1b[31m调试失败: ${error.message}\x1b[0m`);
+    }
+    
+    this.terminal.writeln('');
+    this.terminal.writeln('\x1b[90m按任意键返回...\x1b[0m');
     
     // 等待按键后关闭
     const tempHandler = () => {
