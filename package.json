@@ -1,16 +1,14 @@
 {
   "name": "miaoda",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "专业的 Claude Code 部署和管理工具 - 支持环境安装、代理配置、系统终端集成",
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
     "dev": "NODE_ENV=development electron . --dev",
-    "build": "npm run prebuild && electron-builder",
+    "build": "npm run prebuild && electron-builder --mac --publish=never",
     "prebuild": "node scripts/prebuild.js",
-    "dist-mac": "npm run prebuild && electron-builder --mac --publish=never",
-    "dist-win": "npm run prebuild && electron-builder --win --publish=never",
-    "dist-linux": "npm run prebuild && electron-builder --linux --publish=never",
+    "dist": "npm run prebuild && electron-builder --mac --publish=never",
     "lint": "eslint src/**/*.js"
   },
   "keywords": [
@@ -95,51 +93,6 @@
           "path": "/Applications"
         }
       ]
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "assets/icon.ico",
-      "requestedExecutionLevel": "requireAdministrator",
-      "signAndEditExecutable": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": true,
-      "allowElevation": true,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico",
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Miaoda",
-      "language": "2052",
-      "installerLanguages": [
-        "zh_CN",
-        "en_US"
-      ],
-      "warningsAsErrors": false
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "icon": "assets/icon.png",
-      "category": "Development"
     }
   }
 }

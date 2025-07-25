@@ -22,6 +22,11 @@
     "array-bracket-spacing": ["error", "never"]
   },
   "globals": {
-    "electron": "readonly"
+    "electron": "readonly",
+    "Terminal": "readonly",
+    "FitAddon": "readonly",
+    "XTerminal": "readonly",
+    "SearchAddon": "readonly",
+    "WebLinksAddon": "readonly"
   }
 }

@@ -207,8 +207,7 @@ class EnvironmentService {
    * 查找可执行文件
    */
   async findExecutable(command) {
-    const isWindows = process.platform === 'win32';
-    const whereCmd = isWindows ? 'where' : 'which';
+    const whereCmd = 'which';
     
     try {
       const result = await this.executeCommand(whereCmd, [command]);
@@ -216,7 +215,7 @@ class EnvironmentService {
         return result.stdout.trim().split('\n')[0];
       }
     } catch {
-      // which/where 命令失败，尝试常见路径
+      // which 命令失败，尝试常见路径
     }
 
     // 检查常见路径
@@ -237,45 +236,113 @@ class EnvironmentService {
    * 获取常见路径
    */
   getCommonPaths(command) {
-    const paths = [];
-    const platform = process.platform;
+    // macOS 专用路径
+    const paths = [
+      `/usr/local/bin/${command}`,
+      `/usr/bin/${command}`,
+      `/bin/${command}`,
+      `/opt/homebrew/bin/${command}`,
+      `${process.env.HOME}/.npm-global/bin/${command}`,
+      `${process.env.HOME}/.local/bin/${command}`,
+      `${process.env.HOME}/.nvm/current/bin/${command}`,
+      `${process.env.HOME}/.cargo/bin/${command}`,
+      `/Applications/Claude.app/Contents/Resources/bin/${command}`,
+      `/usr/local/opt/${command}/bin/${command}`
+    ];
 
-    if (platform === 'win32') {
-      paths.push(
-        `${command}.exe`,
-        `${command}.cmd`,
-        `${command}.bat`,
-        `${process.env.APPDATA}\\npm\\${command}.cmd`,
-        `${process.env.APPDATA}\\npm\\${command}.exe`
-      );
-    } else {
-      paths.push(
-        `/usr/local/bin/${command}`,
-        `/usr/bin/${command}`,
-        `/bin/${command}`,
-        `/opt/homebrew/bin/${command}`,
-        `${process.env.HOME}/.npm-global/bin/${command}`,
-        `${process.env.HOME}/.local/bin/${command}`,
-        `${process.env.HOME}/.nvm/current/bin/${command}`,
-        `${process.env.HOME}/.cargo/bin/${command}`,
-        `/Applications/Claude.app/Contents/Resources/bin/${command}`,
-        `/usr/local/opt/${command}/bin/${command}`
-      );
+    // 添加当前 PATH 中的所有路径
+    if (process.env.PATH) {
+      const pathDirs = process.env.PATH.split(':');
+      for (const dir of pathDirs) {
+        if (dir && dir.trim()) {
+          paths.push(`${dir.trim()}/${command}`);
+        }
+      }
     }
 
     return paths;
   }
 
   /**
+   * 获取用户完整的环境变量
+   */
+  async getUserEnvironment() {
+    try {
+      // 使用用户的默认 shell 来获取完整环境变量
+      const shell = process.env.SHELL || '/bin/zsh';
+      const { spawn } = require('child_process');
+      
+      return new Promise((resolve) => {
+        const child = spawn(shell, ['-l', '-c', 'env'], {
+          timeout: 3000,
+          windowsHide: true
+        });
+        
+        let stdout = '';
+        let stderr = '';
+        
+        child.stdout.on('data', (data) => {
+          stdout += data.toString();
+        });
+        
+        child.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+        
+        child.on('close', (code) => {
+          if (code === 0 && stdout) {
+            // 解析环境变量
+            const env = { ...process.env };
+            const lines = stdout.trim().split('\n');
+            
+            for (const line of lines) {
+              const equalIndex = line.indexOf('=');
+              if (equalIndex > 0) {
+                const key = line.substring(0, equalIndex);
+                const value = line.substring(equalIndex + 1);
+                env[key] = value;
+              }
+            }
+            
+            resolve(env);
+          } else {
+            // 如果获取失败，使用默认环境变量
+            resolve(process.env);
+          }
+        });
+        
+        child.on('error', () => {
+          resolve(process.env);
+        });
+        
+        // 超时处理
+        const timeout = setTimeout(() => {
+          child.kill();
+          resolve(process.env);
+        }, 3000);
+        
+        // 清理定时器
+        child.on('close', () => clearTimeout(timeout));
+        child.on('error', () => clearTimeout(timeout));
+      });
+    } catch (error) {
+      return process.env;
+    }
+  }
+
+  /**
    * 执行命令
    */
   executeCommand(command, args = []) {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
+      // 获取用户完整的环境变量
+      const userEnv = await this.getUserEnvironment();
+      
       const options = {
         shell: true,
         timeout: 5000,
         windowsHide: true,
-        env: { ...process.env, PATH: `/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${process.env.PATH}` }
+        env: userEnv
       };
 
       const child = spawn(command, args, options);
@@ -310,9 +377,13 @@ class EnvironmentService {
       });
 
       // 超时处理
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         child.kill();
       }, options.timeout);
+      
+      // 确保定时器被清理
+      child.on('close', () => clearTimeout(timeout));
+      child.on('error', () => clearTimeout(timeout));
     });
   }
 
@@ -350,5 +421,9 @@ class EnvironmentService {
   }
 }
 
-// 导出单例
-module.exports = new EnvironmentService();
+// 创建单例实例
+const environmentService = new EnvironmentService();
+
+// 导出单例和一些有用的方法
+module.exports = environmentService;
+module.exports.executeCommand = environmentService.executeCommand.bind(environmentService);

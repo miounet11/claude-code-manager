@@ -938,7 +938,7 @@
       if (panelName === 'terminal' && !terminalTabs) {
         const container = document.getElementById('terminal-container');
         if (container) {
-          terminalTabs = new TerminalTabs(container);
+          terminalTabs = new window.TerminalTabs(container);
           window.terminalTabs = terminalTabs; // 暴露给全局使用
         }
       }

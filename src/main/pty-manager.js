@@ -59,7 +59,7 @@ class PtyManager {
       });
 
       // 处理退出
-      this.ptyProcess.onExit(({ exitCode, signal }) => {
+      this.ptyProcess.onExit(({ exitCode }) => {
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send('pty:exit', exitCode);
         }
@@ -91,15 +91,9 @@ class PtyManager {
       const env = { ...process.env, ...(options.env || {}) };
       const cwd = options.cwd || os.homedir();
 
-      // Windows 特殊处理
-      let command, args;
-      if (process.platform === 'win32') {
-        command = 'cmd.exe';
-        args = ['/k']; // 保持窗口打开
-      } else {
-        command = shell;
-        args = [];
-      }
+      // macOS 专用
+      const command = shell;
+      const args = [];
 
       this.ptyProcess = spawn(command, args, {
         cwd: cwd,
@@ -202,31 +196,23 @@ class PtyManager {
   }
 
   /**
-   * 获取默认 Shell
+   * 获取默认 Shell（macOS 专用）
    */
   getDefaultShell() {
-    if (process.platform === 'win32') {
-      // Windows
-      return process.env.COMSPEC || 'cmd.exe';
-    } else if (process.platform === 'darwin') {
-      // macOS - 优先使用用户的默认 shell
-      // 检查 SHELL 环境变量，通常是用户的默认 shell
-      if (process.env.SHELL) {
-        return process.env.SHELL;
-      }
-      // 如果没有 SHELL 环境变量，检查 macOS 版本
-      // macOS Catalina (10.15) 及以后默认使用 zsh
-      const os = require('os');
-      const release = os.release();
-      const majorVersion = parseInt(release.split('.')[0]);
-      if (majorVersion >= 19) { // Catalina 是 19.x
-        return '/bin/zsh';
-      }
-      return '/bin/bash';
-    } else {
-      // Linux
-      return process.env.SHELL || '/bin/bash';
+    // macOS - 优先使用用户的默认 shell
+    // 检查 SHELL 环境变量，通常是用户的默认 shell
+    if (process.env.SHELL) {
+      return process.env.SHELL;
     }
+    // 如果没有 SHELL 环境变量，检查 macOS 版本
+    // macOS Catalina (10.15) 及以后默认使用 zsh
+    const os = require('os');
+    const release = os.release();
+    const majorVersion = parseInt(release.split('.')[0]);
+    if (majorVersion >= 19) { // Catalina 是 19.x
+      return '/bin/zsh';
+    }
+    return '/bin/bash';
   }
 
   /**

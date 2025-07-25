@@ -14,52 +14,57 @@ class IPCControllerSimple {
     this.terminalManager = new TerminalManager();
     this.configs = [];
     this.currentConfig = null;
+    this.handlers = new Map(); // 存储所有注册的处理器
+    this.listeners = new Map(); // 存储所有注册的监听器
   }
 
   initialize(mainWindow) {
     this.mainWindow = mainWindow;
     
+    // 清除之前的处理器（安全方式）
+    this.cleanup();
+    
     // 基本处理器
-    ipcMain.handle('app:version', () => {
+    this.registerHandler('app:version', () => {
       return require('electron').app.getVersion();
     });
 
     // 窗口控制
-    ipcMain.on('window:minimize', () => {
+    this.registerListener('window:minimize', () => {
       if (this.mainWindow) {
         this.mainWindow.minimize();
       }
     });
 
-    ipcMain.on('window:close', () => {
+    this.registerListener('window:close', () => {
       if (this.mainWindow) {
         this.mainWindow.close();
       }
     });
 
     // 环境检测
-    ipcMain.handle('env:check', async () => {
+    this.registerHandler('env:check', async () => {
       return this.checkEnvironment();
     });
 
     // 配置管理
-    ipcMain.handle('config:get-all', async () => {
+    this.registerHandler('config:get-all', async () => {
       return this.getConfigs();
     });
 
-    ipcMain.handle('config:get-current', async () => {
+    this.registerHandler('config:get-current', async () => {
       return this.currentConfig;
     });
 
-    ipcMain.handle('config:save', async (event, config) => {
+    this.registerHandler('config:save', async (event, config) => {
       return this.saveConfig(config);
     });
 
-    ipcMain.handle('config:delete', async (event, id) => {
+    this.registerHandler('config:delete', async (event, id) => {
       return this.deleteConfig(id);
     });
 
-    ipcMain.handle('config:set-current', async (event, config) => {
+    this.registerHandler('config:set-current', async (event, config) => {
       this.currentConfig = config;
       
       // 保存当前配置ID
@@ -71,27 +76,47 @@ class IPCControllerSimple {
     });
 
     // Claude 管理
-    ipcMain.handle('claude:start', async (event, config) => {
+    this.registerHandler('claude:start', async (event, config) => {
       return this.startClaude(config);
     });
 
-    ipcMain.handle('claude:stop', async () => {
+    this.registerHandler('claude:stop', async () => {
       return this.stopClaude();
     });
 
-    ipcMain.on('claude:input', (event, data) => {
+    this.registerListener('claude:input', (event, data) => {
       this.sendToClaudeProcess(data);
     });
 
     // 环境安装
-    ipcMain.handle('install:dependency', async (event, dependency) => {
+    this.registerHandler('install:dependency', async (event, dependency) => {
       return this.installDependency(dependency);
     });
 
     // 打开系统终端
-    ipcMain.handle('terminal:open', async (event, config) => {
+    this.registerHandler('terminal:open', async (event, config) => {
       return this.openSystemTerminal(config);
     });
+  }
+
+  registerHandler(channel, handler) {
+    // 移除旧的处理器（如果存在）
+    if (this.handlers.has(channel)) {
+      ipcMain.removeHandler(channel);
+    }
+    // 注册新处理器
+    ipcMain.handle(channel, handler);
+    this.handlers.set(channel, handler);
+  }
+
+  registerListener(channel, listener) {
+    // 移除旧的监听器（如果存在）
+    if (this.listeners.has(channel)) {
+      ipcMain.removeListener(channel, this.listeners.get(channel));
+    }
+    // 注册新监听器
+    ipcMain.on(channel, listener);
+    this.listeners.set(channel, listener);
   }
 
   sendToRenderer(channel, data) {
@@ -104,51 +129,56 @@ class IPCControllerSimple {
     if (this.terminalManager.isRunning()) {
       this.stopClaude();
     }
-    ipcMain.removeAllListeners();
+    
+    // 安全地移除所有处理器
+    this.handlers.forEach((handler, channel) => {
+      ipcMain.removeHandler(channel);
+    });
+    this.handlers.clear();
+    
+    // 安全地移除所有监听器
+    this.listeners.forEach((listener, channel) => {
+      ipcMain.removeListener(channel, listener);
+    });
+    this.listeners.clear();
   }
 
   // 环境检测实现
   async checkEnvironment() {
-    const { spawn } = require('child_process');
-    const util = require('util');
-    const execPromise = util.promisify(require('child_process').exec);
+    console.log('[IPC] 开始环境检测...');
     
-    const result = {
-      nodejs: { installed: false },
-      git: { installed: false },
-      claude: { installed: false },
-      uv: { installed: false }
-    };
-
     try {
-      // 检测 Node.js
-      try {
-        const { stdout } = await execPromise('node --version');
-        result.nodejs = { installed: true, version: stdout.trim() };
-      } catch (e) {}
-
-      // 检测 Git
-      try {
-        const { stdout } = await execPromise('git --version');
-        result.git = { installed: true, version: stdout.trim().replace('git version ', '') };
-      } catch (e) {}
-
-      // 检测 Claude
-      try {
-        const { stdout } = await execPromise('claude --version');
-        result.claude = { installed: true, version: stdout.trim() };
-      } catch (e) {}
-
-      // 检测 UV
-      try {
-        const { stdout } = await execPromise('uv --version');
-        result.uv = { installed: true, version: stdout.trim() };
-      } catch (e) {}
+      const environmentService = require('../services/environment-service');
+      console.log('[IPC] 环境服务已加载');
+      
+      const result = await environmentService.checkAll();
+      console.log('[IPC] 环境检测原始结果:', JSON.stringify(result, null, 2));
+      
+      // 转换格式以匹配前端期望的格式
+      const formattedResult = {
+        nodejs: result.dependencies.nodejs || { installed: false },
+        git: result.dependencies.git || { installed: false },
+        claude: result.dependencies.claude || { installed: false },
+        uv: result.dependencies.uv || { installed: false }
+      };
+      
+      console.log('[IPC] 格式化后的结果:', JSON.stringify(formattedResult, null, 2));
+      return formattedResult;
     } catch (error) {
-      console.error('环境检测错误:', error);
+      console.error('[IPC] 环境检测错误:', error);
+      console.error('[IPC] 错误堆栈:', error.stack);
+      
+      // 返回默认结果
+      const defaultResult = {
+        nodejs: { installed: false },
+        git: { installed: false },
+        claude: { installed: false },
+        uv: { installed: false }
+      };
+      
+      console.log('[IPC] 返回默认结果:', JSON.stringify(defaultResult, null, 2));
+      return defaultResult;
     }
-
-    return result;
   }
 
   // 配置管理实现

@@ -15,6 +15,7 @@ class ClaudeService extends EventEmitter {
     this.isRunning = false;
     this.startTime = null;
     this.port = null;
+    this.killTimeout = null;
   }
 
   /**
@@ -144,10 +145,11 @@ class ClaudeService extends EventEmitter {
     this.process.kill('SIGTERM');
     
     // 如果 5 秒后还没退出，强制关闭
-    setTimeout(() => {
+    this.killTimeout = setTimeout(() => {
       if (this.process && !this.process.killed) {
         this.process.kill('SIGKILL');
       }
+      this.killTimeout = null;
     }, 5000);
 
     return { success: true, message: '正在停止 Claude' };
@@ -296,10 +298,26 @@ class ClaudeService extends EventEmitter {
    * 清理资源
    */
   cleanup() {
+    // 清理定时器
+    if (this.killTimeout) {
+      clearTimeout(this.killTimeout);
+      this.killTimeout = null;
+    }
+    
+    // 移除进程事件监听器
+    if (this.process) {
+      this.process.stdout.removeAllListeners();
+      this.process.stderr.removeAllListeners();
+      this.process.removeAllListeners();
+    }
+    
     this.isRunning = false;
     this.process = null;
     this.startTime = null;
     this.port = null;
+    
+    // 移除所有事件监听器
+    this.removeAllListeners();
   }
 }
 

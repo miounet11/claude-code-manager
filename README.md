@@ -4,13 +4,13 @@
   <img src="assets/logo.png" alt="Miaoda Logo" width="128">
   
   [![Version](https://img.shields.io/badge/version-3.0.1-blue.svg)](https://github.com/yourusername/miaoda/releases)
-  [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/yourusername/miaoda/releases)
+  [![Platform](https://img.shields.io/badge/platform-macOS-blue.svg)](https://github.com/yourusername/miaoda/releases)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 </div>
 
 ## 🚀 介绍
 
-Miaoda 是一款专为 Claude Code (claude.ai/code) 设计的桌面管理工具，提供了完美的终端体验和便捷的配置管理功能。
+Miaoda 是一款专为 Claude Code (claude.ai/code) 设计的 macOS 桌面管理工具，提供了完美的终端体验和便捷的配置管理功能。
 
 ### ✨ 主要特性
 
@@ -19,17 +19,16 @@ Miaoda 是一款专为 Claude Code (claude.ai/code) 设计的桌面管理工具�
 - **🎨 主题定制** - 支持字体大小、样式、光标等自定义设置
 - **🔧 配置管理** - 支持多配置文件，轻松切换不同的 API 设置
 - **🆓 免费试用** - 内置免费试用功能，每日 100k token
-- **🌍 跨平台支持** - 支持 macOS、Windows、Linux
+- **🍎 macOS 专用版** - 专为 macOS 平台深度优化
 
 ## 📦 安装
 
 ### 下载预编译版本
 
-从 [Releases](https://github.com/yourusername/miaoda/releases) 页面下载对应平台的安装包：
+从 [Releases](https://github.com/yourusername/miaoda/releases) 页面下载 macOS 安装包：
 
-- **macOS**: `Miaoda-3.0.1.dmg`
-- **Windows**: `Miaoda-3.0.1-Setup.exe`
-- **Linux**: `Miaoda-3.0.1.AppImage`
+- **macOS (Intel)**: `Miaoda-3.0.1-x64.dmg`
+- **macOS (Apple Silicon)**: `Miaoda-3.0.1-arm64.dmg`
 
 ### 从源码构建
 
@@ -47,10 +46,9 @@ npm run dev
 # 构建应用
 npm run build
 
-# 构建特定平台
-npm run dist-mac    # macOS
-npm run dist-win    # Windows
-npm run dist-linux  # Linux
+# 构建 macOS 版本
+npm run build       # 构建所有架构
+npm run dist        # 构建所有架构
 ```
 
 ## 🎯 快速开始

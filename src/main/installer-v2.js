@@ -1,9 +1,6 @@
 'use strict';
 
-const { executeCommand } = require('./environment-v2');
-const { dialog } = require('electron');
-const path = require('path');
-const fs = require('fs').promises;
+const { executeCommand } = require('./services/environment-service');
 
 // 调试模式
 let DEBUG_MODE = true;
@@ -284,20 +281,20 @@ async function installDependency(dependency) {
   debug(`安装依赖: ${dependency}`);
   
   switch (dependency) {
-    case 'nodejs':
-      return await installNodejs();
+  case 'nodejs':
+    return await installNodejs();
       
-    case 'git':
-      return await installGit();
+  case 'git':
+    return await installGit();
       
-    case 'uv':
-      return await installUV();
+  case 'uv':
+    return await installUV();
       
-    case 'claude':
-      return await installClaudeCode();
+  case 'claude':
+    return await installClaudeCode();
       
-    default:
-      return new InstallResult(false, `未知的依赖: ${dependency}`);
+  default:
+    return new InstallResult(false, `未知的依赖: ${dependency}`);
   }
 }
 

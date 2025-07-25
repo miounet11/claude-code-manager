@@ -102,17 +102,50 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('tray:stop-claude', () => callback('stop'));
   },
   
-  // PTY 终端支持
+  // PTY 终端支持（兼容旧版本和新的会话管理）
   createPtyProcess: (options) => ipcRenderer.invoke('pty:create', options),
-  writeToPty: (data) => ipcRenderer.send('pty:write', data),
-  resizePty: (cols, rows) => ipcRenderer.send('pty:resize', cols, rows),
-  killPty: () => ipcRenderer.invoke('pty:kill'),
+  writeToPty: (data, sessionId) => {
+    // 兼容旧版本：如果没有 sessionId，使用第一个参数作为 sessionId
+    if (typeof data === 'string' && !sessionId) {
+      // 旧版本调用，data 是实际数据，sessionId 是 undefined
+      // 需要从全局状态获取 sessionId
+      ipcRenderer.send('pty:write', window.__currentPtySessionId || 'default', data);
+    } else {
+      // 新版本调用
+      ipcRenderer.send('pty:write', sessionId || data, sessionId ? data : '');
+    }
+  },
+  resizePty: (cols, rows, sessionId) => {
+    // 兼容处理
+    if (typeof cols === 'number' && typeof rows === 'number' && !sessionId) {
+      ipcRenderer.send('pty:resize', window.__currentPtySessionId || 'default', cols, rows);
+    } else {
+      ipcRenderer.send('pty:resize', sessionId || cols, cols, rows);
+    }
+  },
+  killPty: (sessionId) => {
+    return ipcRenderer.invoke('pty:kill', sessionId || window.__currentPtySessionId || 'default');
+  },
   
   onPtyData: (callback) => {
-    ipcRenderer.on('pty:data', (event, data) => callback(data));
+    ipcRenderer.on('pty:data', (event, sessionId, data) => {
+      // 兼容旧版本：如果只有一个参数，那么 sessionId 实际上是 data
+      if (data === undefined) {
+        callback(sessionId);
+      } else {
+        callback(data, sessionId);
+      }
+    });
   },
   
   onPtyExit: (callback) => {
-    ipcRenderer.on('pty:exit', (event, code) => callback(code));
+    ipcRenderer.on('pty:exit', (event, sessionId, code) => {
+      // 兼容旧版本
+      if (code === undefined) {
+        callback(sessionId);
+      } else {
+        callback(code, sessionId);
+      }
+    });
   }
 });

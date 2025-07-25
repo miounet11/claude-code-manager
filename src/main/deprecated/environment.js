@@ -57,14 +57,14 @@ async function checkCommand(command, versionFlag = '--version') {
       // Node.js 常见安装路径
       checkStrategies.push(
         `${process.env.ProgramFiles}\\nodejs\\node.exe`,
-        `${process.env.ProgramFiles(x86)}\\nodejs\\node.exe`
+        `${process.env['ProgramFiles(x86)']}\\nodejs\\node.exe`
       );
     } else if (command === 'git') {
       checkStrategies.push('git.exe', 'git');
       // Git 常见安装路径
       checkStrategies.push(
         `${process.env.ProgramFiles}\\Git\\bin\\git.exe`,
-        `${process.env.ProgramFiles(x86)}\\Git\\bin\\git.exe`,
+        `${process.env['ProgramFiles(x86)']}\\Git\\bin\\git.exe`,
         `${process.env.ProgramFiles}\\Git\\cmd\\git.exe`
       );
     } else {

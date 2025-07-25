@@ -1,17 +1,18 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, Tray, ipcMain } = require('electron');
 const path = require('path');
 // const Store = require('electron-store'); // 暂时禁用
 
 // 服务
 const ipcController = require('./services/ipc-controller-simple');
-const PtyManager = require('./pty-manager');
+const PtySessionManager = require('./pty-session-manager');
+const errorHandler = require('./error-handler');
 
 // 全局变量
 let mainWindow = null;
 let tray = null;
-let ptyManager = null;
+let ptySessionManager = null;
 // const store = new Store(); // 暂时禁用
 
 // 防止多实例
@@ -60,9 +61,12 @@ function createWindow() {
 
   // 初始化 IPC 控制器
   ipcController.initialize(mainWindow);
+  
+  // 初始化错误处理器
+  errorHandler.initialize(mainWindow);
 
   // 窗口关闭处理
-  mainWindow.on('close', (event) => {
+  mainWindow.on('close', () => {
     // 允许直接关闭窗口
     // 不阻止关闭事件
   });
@@ -132,26 +136,35 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   
-  // 初始化 PTY 管理器
-  ptyManager = new PtyManager();
-  ptyManager.initialize(mainWindow);
+  // 初始化多会话 PTY 管理器
+  ptySessionManager = new PtySessionManager();
+  ptySessionManager.initialize(mainWindow);
   
   // 注册 PTY 相关的 IPC 处理器
   ipcMain.handle('pty:create', async (event, options) => {
-    return await ptyManager.createPtyProcess(options);
+    return await ptySessionManager.createSession(options);
   });
   
-  ipcMain.on('pty:write', (event, data) => {
-    ptyManager.write(data);
+  ipcMain.on('pty:write', (event, sessionId, data) => {
+    ptySessionManager.write(sessionId, data);
   });
   
-  ipcMain.on('pty:resize', (event, cols, rows) => {
-    ptyManager.resize(cols, rows);
+  ipcMain.on('pty:resize', (event, sessionId, cols, rows) => {
+    ptySessionManager.resize(sessionId, cols, rows);
   });
   
-  ipcMain.handle('pty:kill', async () => {
-    ptyManager.kill();
+  ipcMain.handle('pty:kill', async (event, sessionId) => {
+    const result = ptySessionManager.kill(sessionId);
+    return { success: result };
+  });
+  
+  ipcMain.handle('pty:kill-all', async () => {
+    ptySessionManager.killAll();
     return { success: true };
+  });
+  
+  ipcMain.handle('pty:get-sessions', async () => {
+    return ptySessionManager.getAllSessions();
   });
   
   // macOS 特殊处理
@@ -179,6 +192,9 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   // 清理资源
   ipcController.cleanup();
+  if (ptySessionManager) {
+    ptySessionManager.cleanup();
+  }
 });
 
 /**
@@ -194,13 +210,14 @@ app.on('open-url', (event, url) => {
 });
 
 /**
- * 错误处理
+ * 错误处理 - 由全局错误处理器统一管理
  */
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  dialog.showErrorBox('意外错误', error.message);
+// 错误处理器已经注册了全局错误处理
+// 可以添加额外的错误处理 IPC
+ipcMain.handle('error:report', async () => {
+  return await errorHandler.createErrorReport();
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+ipcMain.handle('error:get-recent', async (event, count) => {
+  return await errorHandler.getRecentErrors(count);
 });

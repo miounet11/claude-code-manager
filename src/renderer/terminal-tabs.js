@@ -3,6 +3,9 @@
  * 支持像 VSCode 一样的多终端标签
  */
 
+// 在浏览器环境中，XTerminal 应该已经被加载
+// 如果使用模块系统，需要确保 XTerminal 已经定义
+
 class TerminalTabs {
   constructor(container) {
     this.container = container;
@@ -22,24 +25,24 @@ class TerminalTabs {
         <div class="terminal-tabs-header">
           <div class="terminal-tabs-list" id="terminal-tabs-list"></div>
           <div class="terminal-tabs-actions">
-            <button class="terminal-tab-action" title="新建终端 (Ctrl+T)" onclick="terminalTabs.createNewTerminal()">
+            <button class="terminal-tab-action" title="新建终端 (Ctrl+T)" onclick="window.terminalTabs.createNewTerminal()">
               <svg width="16" height="16" viewBox="0 0 16 16">
                 <path fill="currentColor" d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
             </button>
-            <button class="terminal-tab-action" title="分割终端" onclick="terminalTabs.splitTerminal()">
+            <button class="terminal-tab-action" title="分割终端" onclick="window.terminalTabs.splitTerminal()">
               <svg width="16" height="16" viewBox="0 0 16 16">
                 <rect x="2" y="2" width="5" height="12" fill="none" stroke="currentColor" stroke-width="1"/>
                 <rect x="9" y="2" width="5" height="12" fill="none" stroke="currentColor" stroke-width="1"/>
               </svg>
             </button>
-            <button class="terminal-tab-action" title="清空当前终端 (Ctrl+K)" onclick="terminalTabs.clearActiveTerminal()">
+            <button class="terminal-tab-action" title="清空当前终端 (Ctrl+K)" onclick="window.terminalTabs.clearActiveTerminal()">
               <svg width="16" height="16" viewBox="0 0 16 16">
                 <path fill="currentColor" d="M3 3h10v1H3zM4 5h8v8H4z" opacity="0.5"/>
                 <path fill="currentColor" d="M6 7h4v1H6zM6 9h4v1H6z"/>
               </svg>
             </button>
-            <button class="terminal-tab-action" title="终端设置" onclick="terminalTabs.showSettings()">
+            <button class="terminal-tab-action" title="终端设置" onclick="window.terminalTabs.showSettings()">
               <svg width="16" height="16" viewBox="0 0 16 16">
                 <path fill="currentColor" d="M8 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM8 10a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
                 <path fill="currentColor" d="M8 1a.5.5 0 0 1 .5.5v1.05a5.5 5.5 0 0 1 1.5.46l.74-.74a.5.5 0 0 1 .71.71l-.74.74c.23.47.4.97.46 1.5H12.5a.5.5 0 0 1 0 1h-1.33a5.5 5.5 0 0 1-.46 1.5l.74.74a.5.5 0 0 1-.71.71l-.74-.74a5.5 5.5 0 0 1-1.5.46V12.5a.5.5 0 0 1-1 0v-1.33a5.5 5.5 0 0 1-1.5-.46l-.74.74a.5.5 0 0 1-.71-.71l.74-.74a5.5 5.5 0 0 1-.46-1.5H1.5a.5.5 0 0 1 0-1h1.33c.06-.53.23-1.03.46-1.5l-.74-.74a.5.5 0 0 1 .71-.71l.74.74a5.5 5.5 0 0 1 1.5-.46V1.5A.5.5 0 0 1 8 1z"/>
@@ -246,8 +249,8 @@ class TerminalTabs {
     tab.id = `tab-${terminalId}`;
     tab.draggable = true;
     tab.innerHTML = `
-      <span class="terminal-tab-title" contenteditable="false" ondblclick="terminalTabs.renameTerminal('${terminalId}')">${terminalName}</span>
-      <span class="terminal-tab-close" onclick="event.stopPropagation(); terminalTabs.closeTerminal('${terminalId}')">
+      <span class="terminal-tab-title" contenteditable="false" ondblclick="window.terminalTabs.renameTerminal('${terminalId}')">${terminalName}</span>
+      <span class="terminal-tab-close" onclick="event.stopPropagation(); window.terminalTabs.closeTerminal('${terminalId}')">
         <svg width="14" height="14" viewBox="0 0 14 14">
           <path fill="currentColor" d="M7.71 6.29l3.15-3.15a1 1 0 0 0-1.42-1.41L6.29 4.88 3.14 1.73a1 1 0 0 0-1.41 1.42l3.15 3.14-3.15 3.15a1 1 0 0 0 1.41 1.42l3.15-3.15 3.15 3.15a1 1 0 0 0 1.42-1.41z"/>
         </svg>
@@ -273,7 +276,7 @@ class TerminalTabs {
     contentEl.appendChild(pane);
     
     // 创建终端实例
-    const terminal = new XTerminal(pane);
+    const terminal = new window.XTerminal(pane);
     await terminal.initialize();
     this.terminals.set(terminalId, terminal);
     
@@ -622,7 +625,7 @@ class TerminalTabs {
       </div>
       
       <div style="text-align: right;">
-        <button onclick="terminalTabs.applySettings()" style="
+        <button onclick="window.terminalTabs.applySettings()" style="
           background: #007acc;
           border: none;
           color: white;

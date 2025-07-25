@@ -1,10 +1,8 @@
 'use strict';
 
-const { exec, spawn } = require('child_process');
+const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
-const fs = require('fs').promises;
-const path = require('path');
 const net = require('net');
 
 /**

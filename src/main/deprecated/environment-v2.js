@@ -46,8 +46,8 @@ function executeCommand(command, args = [], options = {}) {
     if (process.platform === 'darwin') {
       // 使用登录 shell 来获取完整的环境变量
       // 正确处理参数引用，避免空格问题
-      const quotedArgs = args.map(arg => `'${arg.replace(/'/g, "'\"'\"'")}'`).join(' ');
-      const quotedCommand = `'${command.replace(/'/g, "'\"'\"'")}'`;
+      const quotedArgs = args.map(arg => `'${arg.replace(/'/g, '\'"\'"\'')}'`).join(' ');
+      const quotedCommand = `'${command.replace(/'/g, '\'"\'"\'')}'`;
       const shellCommand = `/bin/bash -l -c "${quotedCommand} ${quotedArgs}"`;
       
       const child = spawn('/bin/bash', ['-c', shellCommand], {

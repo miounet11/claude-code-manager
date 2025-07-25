@@ -9,6 +9,7 @@ class XTerminal {
     this.terminal = null;
     this.fitAddon = null;
     this.ptyProcess = null;
+    this.sessionId = null;
     this.isInitialized = false;
     this.currentPath = '~';
     this.createUI();
@@ -143,24 +144,35 @@ class XTerminal {
       });
 
       if (result.success) {
+        this.sessionId = result.sessionId;
+        // 保存到全局以支持兼容模式
+        window.__currentPtySessionId = this.sessionId;
         // 处理输入
         this.terminal.onData((data) => {
-          window.electronAPI.writeToPty(data);
+          window.electronAPI.writeToPty(data, this.sessionId);
         });
 
         // 处理输出
-        window.electronAPI.onPtyData((data) => {
-          this.terminal.write(data);
+        window.electronAPI.onPtyData((data, sessionId) => {
+          // 只处理属于这个会话的数据
+          if (!sessionId || sessionId === this.sessionId) {
+            this.terminal.write(data);
+          }
         });
 
         // 处理退出
-        window.electronAPI.onPtyExit((code) => {
-          this.terminal.writeln(`\r\n\x1b[31m进程已退出 (代码: ${code})\x1b[0m`);
+        window.electronAPI.onPtyExit((code, sessionId) => {
+          // 只处理属于这个会话的退出事件
+          if (!sessionId || sessionId === this.sessionId) {
+            this.terminal.writeln(`\r\n\x1b[31m进程已退出 (代码: ${code})\x1b[0m`);
+            this.ptyProcess = null;
+            this.sessionId = null;
+          }
         });
 
         // 处理大小调整
         this.terminal.onResize(({ cols, rows }) => {
-          window.electronAPI.resizePty(cols, rows);
+          window.electronAPI.resizePty(cols, rows, this.sessionId);
           // 更新状态栏显示
           const sizeEl = document.getElementById(`terminal-size-${this.container.id}`);
           if (sizeEl) {
@@ -171,9 +183,11 @@ class XTerminal {
         // 如果有 Claude 配置，自动运行
         if (config && config.apiKey) {
           setTimeout(() => {
-            window.electronAPI.writeToPty('claude\r');
+            window.electronAPI.writeToPty('claude\r', this.sessionId);
           }, 500);
         }
+        
+        this.ptyProcess = true; // 标记 PTY 已创建
       } else {
         this.terminal.writeln('\x1b[31m初始化终端失败: ' + result.error + '\x1b[0m');
       }
@@ -219,17 +233,11 @@ class XTerminal {
   }
 
   /**
-   * 获取系统 Shell
+   * 获取系统 Shell（macOS 专用）
    */
   getShell() {
-    if (navigator.platform.includes('Win')) {
-      return 'cmd.exe';
-    }
     // macOS 默认使用 zsh
-    if (navigator.platform.includes('Mac')) {
-      return '/bin/zsh';
-    }
-    return '/bin/bash';
+    return '/bin/zsh';
   }
 
   /**
@@ -298,7 +306,14 @@ class XTerminal {
     if (this.terminal) {
       this.terminal.dispose();
     }
-    window.electronAPI.killPty();
+    if (this.sessionId) {
+      window.electronAPI.killPty(this.sessionId);
+      this.sessionId = null;
+    }
+    // 清理全局引用
+    if (window.__currentPtySessionId === this.sessionId) {
+      window.__currentPtySessionId = null;
+    }
   }
 }
 

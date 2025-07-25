@@ -7,6 +7,7 @@ class StatusBar {
   constructor() {
     this.container = null;
     this.messageTimeout = null;
+    this.timeInterval = null;
   }
 
   /**
@@ -180,7 +181,7 @@ class StatusBar {
     timeEl.textContent = this.getCurrentTime();
     
     // 每分钟更新
-    setInterval(() => {
+    this.timeInterval = setInterval(() => {
       timeEl.textContent = this.getCurrentTime();
     }, 60000);
   }
@@ -192,6 +193,10 @@ class StatusBar {
     if (this.messageTimeout) {
       clearTimeout(this.messageTimeout);
       this.messageTimeout = null;
+    }
+    if (this.timeInterval) {
+      clearInterval(this.timeInterval);
+      this.timeInterval = null;
     }
   }
 }

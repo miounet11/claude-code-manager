@@ -1,7 +1,6 @@
 'use strict';
 
 const { spawn } = require('child_process');
-const { ipcMain } = require('electron');
 const os = require('os');
 
 /**
