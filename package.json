@@ -1,6 +1,6 @@
 {
   "name": "miaoda",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "专业的 Claude Code 部署和管理工具 - 支持环境安装、代理配置、系统终端集成",
   "main": "src/main/index.js",
   "scripts": {

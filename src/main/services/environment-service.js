@@ -47,6 +47,8 @@ class EnvironmentService {
     }
 
     this.isChecking = true;
+    console.log('====== 开始环境检测 ======');
+    console.log('当前 PATH:', process.env.PATH);
 
     try {
       const result = {
@@ -64,8 +66,14 @@ class EnvironmentService {
       // 生成摘要
       result.summary = this.generateSummary(result.dependencies);
       
+      console.log('====== 环境检测完成 ======');
+      console.log('检测结果:', JSON.stringify(result, null, 2));
+      
       this.lastCheckResult = result;
       return result;
+    } catch (error) {
+      console.error('环境检测出错:', error);
+      throw error;
     } finally {
       this.isChecking = false;
     }
@@ -162,23 +170,42 @@ class EnvironmentService {
    * 检查单个命令
    */
   async checkCommand(command, versionArg = '--version') {
+    console.log(`检查命令: ${command}`);
+    
     try {
       // 先检查命令是否存在
       const wherePath = await this.findExecutable(command);
       
       if (!wherePath) {
+        console.log(`未找到命令 ${command} 的可执行文件`);
+        
+        // 对于特定命令提供更详细的错误信息
+        let errorMessage = '未找到可执行文件';
+        if (command === 'claude') {
+          errorMessage = '未安装 Claude CLI。请访问 claude.ai/code 安装';
+        } else if (command === 'node') {
+          errorMessage = '未安装 Node.js。请访问 nodejs.org 安装';
+        } else if (command === 'git') {
+          errorMessage = '未安装 Git。请通过 Homebrew 或访问 git-scm.com 安装';
+        } else if (command === 'uv') {
+          errorMessage = '未安装 UV。这是可选依赖，用于 Python 包管理';
+        }
+        
         return {
           installed: false,
           command: command,
-          error: '未找到可执行文件'
+          error: errorMessage
         };
       }
+
+      console.log(`找到 ${command} 位于: ${wherePath}`);
 
       // 获取版本信息
       const versionResult = await this.executeCommand(command, [versionArg]);
       
       if (versionResult.success) {
         const version = (versionResult.stdout || versionResult.stderr || '').trim().split('\n')[0];
+        console.log(`${command} 版本: ${version}`);
         return {
           installed: true,
           command: command,
@@ -188,6 +215,7 @@ class EnvironmentService {
       }
 
       // 某些工具可能不支持版本参数，但仍然已安装
+      console.log(`${command} 已安装但无法获取版本信息`);
       return {
         installed: true,
         command: command,
@@ -195,6 +223,7 @@ class EnvironmentService {
         path: wherePath
       };
     } catch (error) {
+      console.error(`检查命令 ${command} 时出错:`, error);
       return {
         installed: false,
         command: command,
@@ -207,28 +236,57 @@ class EnvironmentService {
    * 查找可执行文件
    */
   async findExecutable(command) {
-    const whereCmd = 'which';
-    
+    // 首先尝试直接执行命令来检查它是否存在
     try {
-      const result = await this.executeCommand(whereCmd, [command]);
-      if (result.success && result.stdout) {
-        return result.stdout.trim().split('\n')[0];
+      const { execSync } = require('child_process');
+      const userEnv = await this.getUserEnvironment();
+      
+      // 使用 command -v 代替 which，更加可靠
+      try {
+        const result = execSync(`command -v ${command}`, {
+          encoding: 'utf8',
+          env: userEnv,
+          shell: '/bin/sh'
+        }).trim();
+        
+        if (result) {
+          console.log(`通过 command -v 找到 ${command}: ${result}`);
+          return result;
+        }
+      } catch (e) {
+        // command -v 失败，尝试 which
+        try {
+          const result = execSync(`which ${command}`, {
+            encoding: 'utf8',
+            env: userEnv
+          }).trim();
+          
+          if (result) {
+            console.log(`通过 which 找到 ${command}: ${result}`);
+            return result;
+          }
+        } catch (e2) {
+          // which 也失败了
+        }
       }
-    } catch {
-      // which 命令失败，尝试常见路径
+    } catch (error) {
+      console.log(`查找 ${command} 时出错:`, error.message);
     }
 
     // 检查常见路径
+    console.log(`在常见路径中查找 ${command}...`);
     const paths = this.getCommonPaths(command);
     for (const p of paths) {
       try {
-        await fs.access(p);
+        await fs.access(p, fs.constants.X_OK);
+        console.log(`在路径中找到 ${command}: ${p}`);
         return p;
       } catch {
         // 继续下一个
       }
     }
 
+    console.log(`无法找到 ${command}`);
     return null;
   }
 
@@ -268,64 +326,46 @@ class EnvironmentService {
    */
   async getUserEnvironment() {
     try {
-      // 使用用户的默认 shell 来获取完整环境变量
-      const shell = process.env.SHELL || '/bin/zsh';
-      const { spawn } = require('child_process');
+      // 在 macOS 的 Electron 应用中，需要特别处理 PATH
+      const env = { ...process.env };
       
-      return new Promise((resolve) => {
-        const child = spawn(shell, ['-l', '-c', 'env'], {
-          timeout: 3000,
-          windowsHide: true
-        });
-        
-        let stdout = '';
-        let stderr = '';
-        
-        child.stdout.on('data', (data) => {
-          stdout += data.toString();
-        });
-        
-        child.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-        
-        child.on('close', (code) => {
-          if (code === 0 && stdout) {
-            // 解析环境变量
-            const env = { ...process.env };
-            const lines = stdout.trim().split('\n');
-            
-            for (const line of lines) {
-              const equalIndex = line.indexOf('=');
-              if (equalIndex > 0) {
-                const key = line.substring(0, equalIndex);
-                const value = line.substring(equalIndex + 1);
-                env[key] = value;
-              }
-            }
-            
-            resolve(env);
-          } else {
-            // 如果获取失败，使用默认环境变量
-            resolve(process.env);
+      // 首先尝试通过 path_helper 获取系统 PATH
+      if (process.platform === 'darwin') {
+        try {
+          const { execSync } = require('child_process');
+          const systemPath = execSync('/usr/libexec/path_helper -s', { encoding: 'utf8' });
+          const pathMatch = systemPath.match(/PATH="([^"]+)"/);
+          if (pathMatch && pathMatch[1]) {
+            env.PATH = pathMatch[1];
           }
-        });
-        
-        child.on('error', () => {
-          resolve(process.env);
-        });
-        
-        // 超时处理
-        const timeout = setTimeout(() => {
-          child.kill();
-          resolve(process.env);
-        }, 3000);
-        
-        // 清理定时器
-        child.on('close', () => clearTimeout(timeout));
-        child.on('error', () => clearTimeout(timeout));
-      });
+        } catch (e) {
+          console.log('获取系统 PATH 失败，使用备用方案');
+        }
+      }
+      
+      // 添加常见的路径
+      const additionalPaths = [
+        '/usr/local/bin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin',
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        `${process.env.HOME}/.npm-global/bin`,
+        `${process.env.HOME}/.local/bin`,
+        `${process.env.HOME}/.cargo/bin`,
+        '/Applications/Claude.app/Contents/Resources/bin'
+      ];
+      
+      // 合并 PATH
+      const currentPaths = (env.PATH || '').split(':').filter(p => p);
+      const allPaths = [...new Set([...currentPaths, ...additionalPaths])];
+      env.PATH = allPaths.join(':');
+      
+      return env;
     } catch (error) {
+      console.error('获取用户环境变量失败:', error);
       return process.env;
     }
   }
@@ -335,55 +375,98 @@ class EnvironmentService {
    */
   executeCommand(command, args = []) {
     return new Promise(async (resolve) => {
-      // 获取用户完整的环境变量
-      const userEnv = await this.getUserEnvironment();
-      
-      const options = {
-        shell: true,
-        timeout: 5000,
-        windowsHide: true,
-        env: userEnv
-      };
+      try {
+        // 获取用户完整的环境变量
+        const userEnv = await this.getUserEnvironment();
+        
+        // 对于简单的版本检查，尝试使用 execSync 更可靠
+        if (args.length === 1 && (args[0] === '--version' || args[0] === '-v')) {
+          try {
+            const { execSync } = require('child_process');
+            const result = execSync(`${command} ${args[0]}`, {
+              encoding: 'utf8',
+              env: userEnv,
+              timeout: 5000
+            });
+            
+            return resolve({
+              success: true,
+              code: 0,
+              stdout: result.trim(),
+              stderr: ''
+            });
+          } catch (syncError) {
+            // 如果 execSync 失败，继续使用 spawn
+            console.log(`execSync 失败 (${command}):`, syncError.message);
+          }
+        }
+        
+        const options = {
+          shell: true,
+          timeout: 5000,
+          windowsHide: true,
+          env: userEnv
+        };
 
-      const child = spawn(command, args, options);
-      
-      let stdout = '';
-      let stderr = '';
-      
-      child.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-      
-      child.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-      
-      child.on('error', (error) => {
+        const child = spawn(command, args, options);
+        
+        let stdout = '';
+        let stderr = '';
+        
+        if (child.stdout) {
+          child.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+        }
+        
+        if (child.stderr) {
+          child.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+        }
+        
+        child.on('error', (error) => {
+          console.error(`命令执行错误 (${command}):`, error);
+          resolve({
+            success: false,
+            error: error.message,
+            stdout,
+            stderr
+          });
+        });
+        
+        child.on('close', (code) => {
+          resolve({
+            success: code === 0,
+            code,
+            stdout: stdout.trim(),
+            stderr: stderr.trim()
+          });
+        });
+
+        // 超时处理
+        const timeout = setTimeout(() => {
+          child.kill();
+          resolve({
+            success: false,
+            error: 'Command timeout',
+            stdout,
+            stderr
+          });
+        }, options.timeout);
+        
+        // 确保定时器被清理
+        child.on('close', () => clearTimeout(timeout));
+        child.on('error', () => clearTimeout(timeout));
+      } catch (error) {
+        console.error(`executeCommand 错误 (${command}):`, error);
         resolve({
           success: false,
           error: error.message,
-          stdout,
-          stderr
+          stdout: '',
+          stderr: ''
         });
-      });
-      
-      child.on('close', (code) => {
-        resolve({
-          success: code === 0,
-          code,
-          stdout: stdout.trim(),
-          stderr: stderr.trim()
-        });
-      });
-
-      // 超时处理
-      const timeout = setTimeout(() => {
-        child.kill();
-      }, options.timeout);
-      
-      // 确保定时器被清理
-      child.on('close', () => clearTimeout(timeout));
-      child.on('error', () => clearTimeout(timeout));
+      }
     });
   }
 
