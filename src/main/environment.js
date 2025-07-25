@@ -5,7 +5,27 @@ const util = require('util');
 const execPromise = util.promisify(exec);
 
 async function checkCommand(command, versionFlag = '--version') {
-  console.log(`正在检查: ${command} ${versionFlag}`);
+  console.log(`[Environment] 正在检查: ${command} ${versionFlag}`);
+  console.log(`[Environment] Original PATH: ${process.env.PATH}`);
+  console.log(`[Environment] Platform: ${process.platform}`);
+  
+  // 修复 macOS 上的 PATH 问题
+  if (process.platform === 'darwin' && !process.env.PATH.includes('/usr/local/bin')) {
+    const pathAdditions = [
+      '/usr/local/bin',
+      '/opt/homebrew/bin',
+      '/usr/bin',
+      '/bin',
+      '/usr/sbin',
+      '/sbin',
+      `${process.env.HOME}/.npm-global/bin`
+    ];
+    
+    const currentPath = process.env.PATH || '';
+    const newPath = [...pathAdditions, ...currentPath.split(':')].filter(Boolean).join(':');
+    process.env.PATH = newPath;
+    console.log(`[Environment] Fixed PATH: ${process.env.PATH}`);
+  }
   
   // Windows 平台特殊处理
   const isWindows = process.platform === 'win32';
@@ -82,6 +102,8 @@ async function checkCommand(command, versionFlag = '--version') {
     }
   }
   
+  console.log(`[Environment] 尝试 ${checkStrategies.length} 个策略检测 ${command}`);
+  
   // 尝试多种策略检测
   for (const strategy of checkStrategies) {
     try {
@@ -91,49 +113,69 @@ async function checkCommand(command, versionFlag = '--version') {
         killSignal: 'SIGTERM',
         encoding: 'utf8',
         windowsHide: true, // Windows下隐藏窗口
-        maxBuffer: 1024 * 1024 // 1MB 缓冲区
+        maxBuffer: 1024 * 1024, // 1MB 缓冲区
+        env: { ...process.env } // 确保传递完整的环境变量
       };
       
-      // Windows下强制使用shell
-      if (isWindows) {
+      // 在 macOS 和 Windows 下都使用 shell，确保环境变量正确加载
+      if (isWindows || isMac) {
         execOptions.shell = true;
-        execOptions.env = { ...process.env, LANG: 'en_US.UTF-8' }; // 设置环境变量避免编码问题
+        execOptions.env.LANG = 'en_US.UTF-8'; // 设置环境变量避免编码问题
       }
       
-      console.log(`尝试执行: ${strategy} ${versionFlag}`);
+      console.log(`[Environment] 尝试执行: ${strategy} ${versionFlag}`);
+      
       // 只有在路径包含空格时才使用引号
       const commandToRun = strategy.includes(' ') ? `"${strategy}" ${versionFlag}` : `${strategy} ${versionFlag}`;
+      console.log(`[Environment] 完整命令: ${commandToRun}`);
+      
       const { stdout, stderr } = await execPromise(commandToRun, execOptions);
       
       const output = stdout || stderr || '';
+      console.log(`[Environment] 命令输出: stdout="${stdout}", stderr="${stderr}"`);
       
       // 过滤掉错误信息，只保留版本信息
       if (output && !output.toLowerCase().includes('not found') && !output.toLowerCase().includes('not recognized')) {
-        console.log(`${command} 检查成功 (使用 ${strategy}):`, output.trim());
+        console.log(`[Environment] ${command} 检查成功 (使用 ${strategy}):`, output.trim());
         
         return {
           installed: true,
           version: output.trim().split('\n')[0] || '已安装'
         };
+      } else {
+        console.log(`[Environment] 输出包含错误信息，继续下一个策略`);
       }
     } catch (error) {
-      console.log(`策略 ${strategy} 失败:`, error.code || error.message);
+      console.log(`[Environment] 策略 ${strategy} 失败:`, {
+        code: error.code,
+        message: error.message,
+        cmd: error.cmd,
+        killed: error.killed,
+        signal: error.signal
+      });
       // 继续尝试下一个策略
     }
   }
   
   // 所有策略都失败了，使用 which/where 命令最后检测
+  console.log(`[Environment] 所有策略都失败，尝试使用 which/where 命令`);
   try {
     const findCmd = isWindows ? 'where' : 'which';
-    const { stdout } = await execPromise(`${findCmd} ${command}`, {
+    const findOptions = {
       timeout: 3000,
       encoding: 'utf8',
       windowsHide: true,
-      shell: isWindows
-    });
+      shell: true, // 所有平台都使用 shell
+      env: { ...process.env }
+    };
+    
+    console.log(`[Environment] 执行: ${findCmd} ${command}`);
+    const { stdout, stderr } = await execPromise(`${findCmd} ${command}`, findOptions);
+    
+    console.log(`[Environment] ${findCmd} 输出: stdout="${stdout}", stderr="${stderr}"`);
     
     if (stdout && stdout.trim()) {
-      console.log(`通过 ${findCmd} 找到 ${command}: ${stdout.trim()}`);
+      console.log(`[Environment] 通过 ${findCmd} 找到 ${command}: ${stdout.trim()}`);
       // 找到了命令，但无法获取版本，仍然返回已安装
       return {
         installed: true,
@@ -141,7 +183,10 @@ async function checkCommand(command, versionFlag = '--version') {
       };
     }
   } catch (findError) {
-    console.log(`${findCmd} ${command} 也失败了:`, findError.message);
+    console.log(`[Environment] ${isWindows ? 'where' : 'which'} ${command} 也失败了:`, {
+      code: findError.code,
+      message: findError.message
+    });
   }
   
   // 所有方法都失败了，返回未安装
@@ -254,6 +299,7 @@ async function checkAdminPrivileges() {
 }
 
 module.exports = {
+  checkCommand,
   checkEnvironment,
   checkNodejs,
   checkGit,
