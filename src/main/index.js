@@ -954,54 +954,7 @@ ipcMain.handle('run-command', async (event, command, options = {}) => {
   }
 });
 
-// 检查端口
-ipcMain.handle('check-port', async (event, port) => {
-  const net = require('net');
-  
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    
-    server.once('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        // 端口被占用，尝试获取进程信息
-        const { exec } = require('child_process');
-        const platform = process.platform;
-        
-        let cmd;
-        if (platform === 'win32') {
-          cmd = `netstat -ano | findstr :${port}`;
-        } else if (platform === 'darwin') {
-          cmd = `lsof -i :${port}`;
-        } else {
-          cmd = `lsof -i :${port}`;
-        }
-        
-        exec(cmd, (error, stdout) => {
-          let processInfo = null;
-          if (!error && stdout) {
-            // 简单解析进程信息
-            const lines = stdout.split('\n').filter(l => l.trim());
-            if (lines.length > 0) {
-              processInfo = { pid: 'unknown', name: 'unknown process' };
-              // 这里可以添加更详细的解析逻辑
-            }
-          }
-          
-          resolve({ available: false, process: processInfo });
-        });
-      } else {
-        resolve({ available: false, error: err.message });
-      }
-    });
-    
-    server.once('listening', () => {
-      server.close();
-      resolve({ available: true });
-    });
-    
-    server.listen(port);
-  });
-});
+// 注意：check-port 已经在上面通过 one-click-fix 模块注册了
 
 // 终止端口占用进程
 ipcMain.handle('kill-port', async (event, port) => {
