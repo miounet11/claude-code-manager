@@ -1,0 +1,246 @@
+name: Build Windows Standalone Version
+
+on:
+  push:
+    branches:
+      - feature/windows-support
+    paths:
+      - 'src-windows/**'
+      - 'package-windows.json'
+      - 'electron-builder-windows.json'
+      - '.github/workflows/build-windows-standalone.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+      build_32bit:
+        description: 'Build 32-bit version'
+        type: boolean
+        default: true
+      build_msi:
+        description: 'Build MSI installer'
+        type: boolean
+        default: true
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            build: true
+          - arch: ia32
+            build: ${{ github.event.inputs.build_32bit != 'false' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Cache Electron
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.electron
+          ~/.cache/electron
+          ~/.cache/electron-builder
+        key: ${{ runner.os }}-electron-${{ matrix.arch }}-${{ hashFiles('package-windows.json') }}
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        npm install -g electron-builder
+    
+    - name: Prepare Windows build
+      run: |
+        # 备份原始 package.json
+        Copy-Item package.json package.original.json -Force -ErrorAction SilentlyContinue
+        
+        # 使用 Windows 版本的 package.json
+        Copy-Item package-windows.json package.json -Force
+        
+        # 更新版本号
+        if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+          $package = Get-Content package.json | ConvertFrom-Json
+          $package.version = "${{ github.event.inputs.version }}"
+          $package | ConvertTo-Json -Depth 10 | Set-Content package.json
+        }
+        
+        # 确保 Windows 图标存在
+        if (!(Test-Path "assets/icon.ico")) {
+          Write-Warning "Windows icon not found, build may fail"
+        }
+      shell: powershell
+    
+    - name: Build Windows ${{ matrix.arch }}
+      if: matrix.build
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CSC_IDENTITY_AUTO_DISCOVERY: false
+      run: |
+        # 设置架构
+        $env:npm_config_arch="${{ matrix.arch }}"
+        $env:npm_config_target_arch="${{ matrix.arch }}"
+        
+        # 构建参数
+        $targets = @("nsis", "zip")
+        if ("${{ github.event.inputs.build_msi }}" -ne "false" -and "${{ matrix.arch }}" -eq "x64") {
+          $targets += "msi"
+        }
+        
+        # 构建
+        npx electron-builder --config electron-builder-windows.json --${{ matrix.arch }} --win $($targets -join ",") --publish=never
+        
+        # 列出构建产物
+        Write-Output "Build artifacts:"
+        Get-ChildItem -Path "dist-windows" -Include "*.exe","*.msi","*.zip" -Recurse | ForEach-Object {
+          Write-Output "- $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)"
+        }
+      shell: powershell
+    
+    - name: Test installer
+      if: matrix.build && matrix.arch == 'x64'
+      run: |
+        # 简单验证安装包
+        $installer = Get-ChildItem -Path "dist-windows" -Filter "*-x64.exe" | Select-Object -First 1
+        if ($installer) {
+          Write-Output "✅ Found installer: $($installer.Name)"
+          # 可以添加更多测试，如静默安装测试
+        } else {
+          Write-Error "❌ No installer found"
+          exit 1
+        }
+      shell: powershell
+    
+    - name: Upload artifacts
+      if: matrix.build
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-${{ matrix.arch }}-standalone
+        path: |
+          dist-windows/*.exe
+          dist-windows/*.msi
+          dist-windows/*.zip
+          dist-windows/*.blockmap
+          dist-windows/latest*.yml
+        retention-days: 30
+    
+    - name: Restore original package.json
+      if: always()
+      run: |
+        if (Test-Path "package.original.json") {
+          Copy-Item package.original.json package.json -Force
+          Remove-Item package.original.json -Force
+        }
+      shell: powershell
+  
+  release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: Prepare release files
+      run: |
+        mkdir -p release-files
+        find artifacts -name "*.exe" -o -name "*.msi" -o -name "*.zip" | while read file; do
+          cp "$file" release-files/
+        done
+        ls -la release-files/
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: windows-v${{ github.event.inputs.version }}
+        name: Miaoda Windows v${{ github.event.inputs.version }}
+        body: |
+          # 🎉 Miaoda Windows 独立版本 v${{ github.event.inputs.version }}
+          
+          ## 📦 下载选项
+          
+          ### 64位系统 (推荐)
+          - **Miaoda-${{ github.event.inputs.version }}-x64.exe** - NSIS 安装程序
+          - **Miaoda-${{ github.event.inputs.version }}-x64.msi** - MSI 企业部署包
+          - **Miaoda-${{ github.event.inputs.version }}-x64.zip** - 便携版
+          
+          ### 32位系统
+          - **Miaoda-${{ github.event.inputs.version }}-ia32.exe** - NSIS 安装程序
+          - **Miaoda-${{ github.event.inputs.version }}-ia32.zip** - 便携版
+          
+          ## ✨ Windows 版本特性
+          
+          - 🖥️ **原生 Windows 体验** - Fluent Design 风格 UI
+          - 💻 **PowerShell 优先** - 支持 PowerShell Core 和传统 PowerShell
+          - 🚀 **ConPTY 终端** - 真实的 Windows 终端体验
+          - 🔧 **环境自动检测** - 智能检测 Windows 依赖
+          - 📦 **多种安装方式** - NSIS、MSI、便携版可选
+          
+          ## 🛠️ 系统要求
+          
+          - Windows 10 版本 1803 或更高
+          - Windows 11（推荐）
+          - .NET Framework 4.7.2+（通常已预装）
+          - 最少 4GB RAM，推荐 8GB+
+          
+          ## 📝 安装说明
+          
+          1. 根据您的系统选择对应版本
+          2. 双击运行安装程序
+          3. 如遇 Windows Defender 警告，选择"更多信息"→"仍要运行"
+          4. 按照安装向导完成安装
+          
+          ## 🚀 快速开始
+          
+          1. 启动 Miaoda
+          2. 系统会自动检测环境
+          3. 使用配置向导设置 AI 服务
+          4. 开始使用！
+          
+          ---
+          
+          **注意**: 这是 Windows 独立版本，专门针对 Windows 平台优化。
+        files: |
+          release-files/*
+        draft: true
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+  notify:
+    needs: [build-windows, release]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Build Summary
+      run: |
+        echo "## 🏗️ Windows Standalone Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: ${{ github.event.inputs.version || 'development' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build 32-bit**: ${{ github.event.inputs.build_32bit != 'false' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build MSI**: ${{ github.event.inputs.build_msi != 'false' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.build-windows.result }}" == "success" ]; then
+          echo "✅ Build completed successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Build failed" >> $GITHUB_STEP_SUMMARY
+        fi
