@@ -20,6 +20,9 @@ npm run dist            # 同上，构建并生成分发包
 # 代码质量
 npm run lint            # ESLint 检查（src/**/*.js）
 
+# 测试新功能
+node test/test-new-features.js    # 测试 v4.1.0 新功能
+
 # Git Flow 分支管理
 ./scripts/init-git-flow.sh        # 初始化分支结构
 ./scripts/git-flow-helper.sh help # 查看分支管理帮助
@@ -90,6 +93,7 @@ Claude CLI → 本地代理服务器(:8118) → 配置的 API
 - **多会话管理**：PtySessionManager 维护多个独立终端
 - **数据流**：pty 进程 → IPC → xterm.js 渲染
 - **命令历史**：本地存储在 localStorage
+- **终端实现**：src/main/pty-manager.js:23 处理所有终端会话
 
 ### 代理服务器
 - **端口**：默认 8118，自动递增避免冲突
@@ -98,6 +102,7 @@ Claude CLI → 本地代理服务器(:8118) → 配置的 API
 - **错误处理**：智能错误识别和解决方案提示
 - **动态路由**：支持 `/proxy/:service/:model/*` 格式
 - **格式转换**：自动在不同 AI 服务 API 格式间转换
+- **核心实现**：src/main/services/proxy-server.js:45 处理所有代理请求
 
 ### 配置管理
 - **存储位置**：`~/Library/Application Support/miaoda/`
@@ -105,29 +110,38 @@ Claude CLI → 本地代理服务器(:8118) → 配置的 API
 - **测试连接**：支持配置验证和延迟测试
 - **配置向导**：分步骤引导用户完成配置
 - **服务预设**：内置 7+ AI 服务的预配置
+- **配置服务**：src/main/services/config-service.js:15 管理所有配置
 
 ## 新增功能说明（v4.1.0）
 
-### 服务注册表
+### 服务注册表 (src/main/services/service-registry.js)
 - 预设 OpenAI、Claude、Gemini、Groq、Ollama 等服务
 - 统一的服务发现和认证接口
 - 支持自定义服务添加
+- 动态 URL 构建和认证头生成
 
-### 格式转换器
+### 格式转换器 (src/main/services/format-converter.js)
 - 自动检测 API 请求/响应格式
 - 支持双向转换（如 Claude ↔ OpenAI）
 - 可扩展的转换器架构
+- 处理流式响应和错误转换
 
-### 本地模型支持
+### 本地模型支持 (src/main/services/local-model-service.js)
 - Ollama：自动检测、模型拉取/删除
 - LM Studio：通过 OpenAI 兼容接口
 - LocalAI：Docker 或二进制部署
+- 服务健康检查和模型列表管理
+
+### UI 组件
+- **配置向导** (src/renderer/components/ConfigWizard.js): 4步引导配置
+- **本地模型管理** (src/renderer/components/LocalModelManager.js): 可视化管理界面
 
 ## 开发注意事项
 
 ### 环境变量
 - macOS 应用需要手动获取系统 PATH：`/usr/libexec/path_helper -s`
 - 代理服务通过环境变量传递：`ANTHROPIC_API_URL`、`ANTHROPIC_API_KEY`
+- 环境检测服务：src/main/services/environment-service.js:35
 
 ### 错误处理
 - 使用 `error-service.js` 提供友好错误提示
@@ -139,8 +153,15 @@ Claude CLI → 本地代理服务器(:8118) → 配置的 API
 - 功能开发在 `feature/*` 分支
 - 紧急修复使用 `hotfix/*` 分支
 - 版本发布通过 `release/*` 分支
+- Windows 版本使用独立分支 `feature/windows-support`
 
 ### 调试技巧
 - 终端问题：检查 `pty-manager.js` 和 `xterm-terminal.js` 的日志
 - IPC 问题：在 `ipc-controller-simple.js` 添加日志
 - 代理问题：访问 `http://localhost:8118/health` 检查状态
+- 格式转换：在 format-converter.js 中启用详细日志
+
+### GitHub Actions
+- macOS 构建：`.github/workflows/build-macos.yml`
+- Windows 构建：`.github/workflows/build-windows.yml`
+- 触发方式：创建标签 (v* 或 windows-v*) 或手动触发

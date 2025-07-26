@@ -8,11 +8,16 @@ const path = require('path');
 const ipcController = require('./services/ipc-controller-simple');
 const PtySessionManager = require('./pty-session-manager');
 const errorHandler = require('./error-handler');
+const Analytics = require('./analytics');
+const Updater = require('./updater');
+const analyticsIntegration = require('./services/analytics-integration');
 
 // 全局变量
 let mainWindow = null;
 let tray = null;
 let ptySessionManager = null;
+let analytics = null;
+let updater = null;
 // const store = new Store(); // 暂时禁用
 
 // 防止多实例
@@ -64,6 +69,19 @@ function createWindow() {
   
   // 初始化错误处理器
   errorHandler.initialize(mainWindow);
+  
+  // 初始化统计分析
+  analytics = new Analytics();
+  analytics.startSession();
+  analytics.trackPageView('app_start');
+  analytics.setupAutoUpload();
+  
+  // 初始化统计集成
+  analyticsIntegration.initialize(analytics);
+  
+  // 初始化更新检查
+  updater = new Updater(mainWindow);
+  updater.setupAutoCheck();
 
   // 窗口关闭处理
   mainWindow.on('close', () => {
@@ -105,6 +123,15 @@ function createTray() {
       click: () => {
         if (mainWindow) {
           mainWindow.webContents.send('tray:stop-claude');
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '检查更新',
+      click: () => {
+        if (updater) {
+          updater.checkForUpdates(false);
         }
       }
     },
@@ -190,6 +217,14 @@ app.on('window-all-closed', () => {
  * 应用退出前
  */
 app.on('before-quit', () => {
+  // 结束统计会话
+  if (analytics) {
+    analytics.endSession();
+    analytics.uploadReports().catch(err => {
+      console.error('上报统计数据失败:', err);
+    });
+  }
+  
   // 清理资源
   ipcController.cleanup();
   if (ptySessionManager) {
