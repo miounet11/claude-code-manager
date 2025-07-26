@@ -171,13 +171,109 @@ class EnvironmentService {
    */
   async checkCommand(command, versionArg = '--version') {
     console.log(`检查命令: ${command}`);
+    const { execSync } = require('child_process');
     
     try {
-      // 先检查命令是否存在
-      const wherePath = await this.findExecutable(command);
+      // 使用与 Claude_code_proxy.sh 相同的检测方法
+      let isInstalled = false;
+      let commandPath = '';
       
-      if (!wherePath) {
-        console.log(`未找到命令 ${command} 的可执行文件`);
+      // 方法1: 直接使用 command -v 检测
+      try {
+        const testCmd = `command -v ${command}`;
+        
+        execSync(testCmd, { 
+          stdio: 'ignore',
+          shell: '/bin/bash'
+        });
+        isInstalled = true;
+        
+        // 获取命令路径
+        try {
+          commandPath = execSync(testCmd, {
+            encoding: 'utf8',
+            shell: '/bin/bash'
+          }).trim();
+        } catch (e) {
+          commandPath = command;
+        }
+      } catch (e) {
+        
+        // 方法2: 尝试 which
+        try {
+          commandPath = execSync(`which ${command}`, {
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'ignore']
+          }).trim();
+          
+          if (commandPath) {
+            isInstalled = true;
+          }
+        } catch (e2) {
+          // 继续尝试下一个方法
+        }
+        
+        // 方法3: 直接尝试执行命令
+        if (!isInstalled) {
+          try {
+            const output = execSync(`${command} --version 2>&1`, {
+              encoding: 'utf8',
+              timeout: 2000
+            });
+            isInstalled = true;
+            commandPath = command;
+          } catch (e3) {
+            // 继续尝试下一个方法
+          }
+        }
+      }
+      
+      // 方法4: 在打包环境中，PATH 可能被限制，尝试使用完整路径
+      if (!isInstalled) {
+        const pathsToCheck = [
+          '/usr/local/bin',
+          '/usr/bin',
+          '/opt/homebrew/bin',
+          `${process.env.HOME}/.npm-global/bin`,
+          `${process.env.HOME}/Documents/claude code/node-v20.10.0-darwin-arm64/bin`,
+          `${process.env.HOME}/.local/bin`,
+          `${process.env.HOME}/.cargo/bin`,
+          '/Applications/Claude.app/Contents/Resources/bin'
+        ];
+        
+        for (const dir of pathsToCheck) {
+          const fullPath = `${dir}/${command}`;
+          try {
+            // 检查文件是否存在且可执行
+            const fs = require('fs');
+            fs.accessSync(fullPath, fs.constants.X_OK);
+            
+            // 尝试使用完整路径执行版本命令
+            try {
+              const versionOutput = execSync(`"${fullPath}" ${versionArg} 2>&1`, {
+                encoding: 'utf8',
+                timeout: 3000
+              }).trim();
+              
+              isInstalled = true;
+              commandPath = fullPath;
+              break;
+            } catch (execError) {
+              // 对于某些命令，即使版本参数失败，文件存在也算已安装
+              if (command === 'node' || command === 'claude' || command === 'npm') {
+                isInstalled = true;
+                commandPath = fullPath;
+                break;
+              }
+            }
+          } catch (e) {
+            // 文件不存在或不可执行，继续下一个
+          }
+        }
+      }
+      
+      if (!isInstalled) {
+        console.log(`未找到命令 ${command}`);
         
         // 对于特定命令提供更详细的错误信息
         let errorMessage = '未找到可执行文件';
@@ -198,30 +294,38 @@ class EnvironmentService {
         };
       }
 
-      console.log(`找到 ${command} 位于: ${wherePath}`);
+      console.log(`找到 ${command} 位于: ${commandPath}`);
 
       // 获取版本信息
-      const versionResult = await this.executeCommand(command, [versionArg]);
-      
-      if (versionResult.success) {
-        const version = (versionResult.stdout || versionResult.stderr || '').trim().split('\n')[0];
+      let version = '已安装';
+      try {
+        // 使用完整路径执行版本命令
+        const versionCommand = commandPath.includes('/') ? `"${commandPath}"` : command;
+        const versionOutput = execSync(`${versionCommand} ${versionArg} 2>&1`, {
+          encoding: 'utf8',
+          timeout: 3000
+        }).trim();
+        
+        if (versionOutput) {
+          version = versionOutput.split('\n')[0];
+        }
         console.log(`${command} 版本: ${version}`);
-        return {
-          installed: true,
-          command: command,
-          version: version || '已安装',
-          path: wherePath
-        };
+      } catch (e) {
+        // 对于 node 和 claude，即使无法获取版本也认为已安装
+        if (command === 'node' || command === 'claude' || command === 'npm') {
+          version = '已安装';
+        } else {
+          version = '已安装（版本未知）';
+        }
       }
 
-      // 某些工具可能不支持版本参数，但仍然已安装
-      console.log(`${command} 已安装但无法获取版本信息`);
       return {
         installed: true,
         command: command,
-        version: '已安装（版本未知）',
-        path: wherePath
+        version: version,
+        path: commandPath
       };
+      
     } catch (error) {
       console.error(`检查命令 ${command} 时出错:`, error);
       return {
@@ -236,44 +340,38 @@ class EnvironmentService {
    * 查找可执行文件
    */
   async findExecutable(command) {
-    // 首先尝试直接执行命令来检查它是否存在
+    const { execSync } = require('child_process');
+    
+    // 方法1：使用 command -v (POSIX 标准)
     try {
-      const { execSync } = require('child_process');
-      const userEnv = await this.getUserEnvironment();
+      const result = execSync(`command -v ${command} 2>/dev/null`, {
+        encoding: 'utf8',
+        shell: '/bin/bash'
+      }).trim();
       
-      // 使用 command -v 代替 which，更加可靠
-      try {
-        const result = execSync(`command -v ${command}`, {
-          encoding: 'utf8',
-          env: userEnv,
-          shell: '/bin/sh'
-        }).trim();
-        
-        if (result) {
-          console.log(`通过 command -v 找到 ${command}: ${result}`);
-          return result;
-        }
-      } catch (e) {
-        // command -v 失败，尝试 which
-        try {
-          const result = execSync(`which ${command}`, {
-            encoding: 'utf8',
-            env: userEnv
-          }).trim();
-          
-          if (result) {
-            console.log(`通过 which 找到 ${command}: ${result}`);
-            return result;
-          }
-        } catch (e2) {
-          // which 也失败了
-        }
+      if (result) {
+        console.log(`通过 command -v 找到 ${command}: ${result}`);
+        return result;
       }
-    } catch (error) {
-      console.log(`查找 ${command} 时出错:`, error.message);
+    } catch (e) {
+      // 继续尝试其他方法
     }
 
-    // 检查常见路径
+    // 方法2：使用 which
+    try {
+      const result = execSync(`which ${command} 2>/dev/null`, {
+        encoding: 'utf8'
+      }).trim();
+      
+      if (result) {
+        console.log(`通过 which 找到 ${command}: ${result}`);
+        return result;
+      }
+    } catch (e) {
+      // 继续尝试其他方法
+    }
+
+    // 方法3：在常见路径中查找
     console.log(`在常见路径中查找 ${command}...`);
     const paths = this.getCommonPaths(command);
     for (const p of paths) {
@@ -374,100 +472,30 @@ class EnvironmentService {
    * 执行命令
    */
   executeCommand(command, args = []) {
-    return new Promise(async (resolve) => {
-      try {
-        // 获取用户完整的环境变量
-        const userEnv = await this.getUserEnvironment();
-        
-        // 对于简单的版本检查，尝试使用 execSync 更可靠
-        if (args.length === 1 && (args[0] === '--version' || args[0] === '-v')) {
-          try {
-            const { execSync } = require('child_process');
-            const result = execSync(`${command} ${args[0]}`, {
-              encoding: 'utf8',
-              env: userEnv,
-              timeout: 5000
-            });
-            
-            return resolve({
-              success: true,
-              code: 0,
-              stdout: result.trim(),
-              stderr: ''
-            });
-          } catch (syncError) {
-            // 如果 execSync 失败，继续使用 spawn
-            console.log(`execSync 失败 (${command}):`, syncError.message);
-          }
-        }
-        
-        const options = {
-          shell: true,
-          timeout: 5000,
-          windowsHide: true,
-          env: userEnv
-        };
-
-        const child = spawn(command, args, options);
-        
-        let stdout = '';
-        let stderr = '';
-        
-        if (child.stdout) {
-          child.stdout.on('data', (data) => {
-            stdout += data.toString();
-          });
-        }
-        
-        if (child.stderr) {
-          child.stderr.on('data', (data) => {
-            stderr += data.toString();
-          });
-        }
-        
-        child.on('error', (error) => {
-          console.error(`命令执行错误 (${command}):`, error);
-          resolve({
-            success: false,
-            error: error.message,
-            stdout,
-            stderr
-          });
-        });
-        
-        child.on('close', (code) => {
-          resolve({
-            success: code === 0,
-            code,
-            stdout: stdout.trim(),
-            stderr: stderr.trim()
-          });
-        });
-
-        // 超时处理
-        const timeout = setTimeout(() => {
-          child.kill();
-          resolve({
-            success: false,
-            error: 'Command timeout',
-            stdout,
-            stderr
-          });
-        }, options.timeout);
-        
-        // 确保定时器被清理
-        child.on('close', () => clearTimeout(timeout));
-        child.on('error', () => clearTimeout(timeout));
-      } catch (error) {
-        console.error(`executeCommand 错误 (${command}):`, error);
-        resolve({
-          success: false,
-          error: error.message,
-          stdout: '',
-          stderr: ''
-        });
-      }
-    });
+    const { execSync } = require('child_process');
+    
+    try {
+      const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+      const result = execSync(fullCommand, {
+        encoding: 'utf8',
+        timeout: 5000,
+        shell: '/bin/bash'
+      });
+      
+      return {
+        success: true,
+        code: 0,
+        stdout: result.trim(),
+        stderr: ''
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stdout: '',
+        stderr: error.stderr ? error.stderr.toString() : ''
+      };
+    }
   }
 
   /**

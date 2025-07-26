@@ -170,13 +170,14 @@ class IPCControllerSimple {
       
       // 返回默认结果
       const defaultResult = {
-        nodejs: { installed: false },
-        git: { installed: false },
-        claude: { installed: false },
-        uv: { installed: false }
+        nodejs: { installed: false, error: '检测失败' },
+        git: { installed: false, error: '检测失败' },
+        claude: { installed: false, error: '检测失败' },
+        uv: { installed: false, error: '检测失败' }
       };
       
-      console.log('[IPC] 返回默认结果:', JSON.stringify(defaultResult, null, 2));
+      console.log('\n[IPC] 返回默认结果:', JSON.stringify(defaultResult, null, 2));
+      console.log('\n============================================\n');
       return defaultResult;
     }
   }
