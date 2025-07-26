@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Miaoda for Windows</title>
+  <link rel="stylesheet" href="styles/windows.css">
+  <link rel="stylesheet" href="styles/fluent.css">
+</head>
+<body class="windows-app">
+  <!-- Windows 风格标题栏 -->
+  <div class="titlebar">
+    <div class="titlebar-drag-region">
+      <img src="../../assets/icon.ico" class="titlebar-icon" alt="Miaoda">
+      <span class="titlebar-text">Miaoda - AI Service Bridge</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" id="minimize-btn">
+        <svg width="10" height="1">
+          <path d="M 0 0 L 10 0" stroke="currentColor" stroke-width="1"/>
+        </svg>
+      </button>
+      <button class="titlebar-btn" id="maximize-btn">
+        <svg width="10" height="10">
+          <path d="M 0 0 L 0 10 L 10 10 L 10 0 Z" stroke="currentColor" stroke-width="1" fill="none"/>
+        </svg>
+      </button>
+      <button class="titlebar-btn close" id="close-btn">
+        <svg width="10" height="10">
+          <path d="M 0 0 L 10 10 M 10 0 L 0 10" stroke="currentColor" stroke-width="1"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 主应用区域 -->
+  <div class="app-container">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <!-- Logo 区域 -->
+      <div class="sidebar-header">
+        <img src="../../assets/logo.png" alt="Miaoda" class="logo">
+        <div class="version">v1.0.0</div>
+      </div>
+
+      <!-- 导航菜单 -->
+      <nav class="nav-menu">
+        <div class="nav-section">
+          <h3 class="nav-section-title">快速开始</h3>
+          <button class="nav-item active" data-page="terminal">
+            <span class="nav-icon">💻</span>
+            <span class="nav-text">终端</span>
+          </button>
+          <button class="nav-item" data-page="environment">
+            <span class="nav-icon">🔧</span>
+            <span class="nav-text">环境检测</span>
+          </button>
+          <button class="nav-item" data-page="config">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-text">配置管理</span>
+          </button>
+        </div>
+
+        <div class="nav-section">
+          <h3 class="nav-section-title">高级功能</h3>
+          <button class="nav-item" data-page="services">
+            <span class="nav-icon">🌐</span>
+            <span class="nav-text">AI 服务</span>
+          </button>
+          <button class="nav-item" data-page="stats">
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">使用统计</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- 底部操作 -->
+      <div class="sidebar-footer">
+        <button class="action-btn primary" id="start-claude-btn">
+          <span class="btn-icon">▶️</span>
+          <span>启动 Claude</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主内容区域 -->
+    <main class="main-content">
+      <!-- 终端页面 -->
+      <div class="page active" id="terminal-page">
+        <div class="page-header">
+          <h1>Windows 终端</h1>
+          <div class="terminal-tabs" id="terminal-tabs">
+            <div class="tab active" data-session="default">
+              <span class="tab-title">PowerShell</span>
+              <button class="tab-close">×</button>
+            </div>
+            <button class="tab-add" id="add-terminal-btn">+</button>
+          </div>
+        </div>
+        <div class="terminal-container" id="terminal-container">
+          <!-- xterm.js 终端将在这里渲染 -->
+        </div>
+      </div>
+
+      <!-- 环境检测页面 -->
+      <div class="page" id="environment-page">
+        <div class="page-header">
+          <h1>环境检测</h1>
+          <button class="btn secondary" id="refresh-env-btn">刷新</button>
+        </div>
+        <div class="env-content">
+          <div class="env-summary" id="env-summary">
+            <!-- 环境检测摘要 -->
+          </div>
+          <div class="env-details" id="env-details">
+            <!-- 详细检测结果 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 配置管理页面 -->
+      <div class="page" id="config-page">
+        <div class="page-header">
+          <h1>配置管理</h1>
+          <button class="btn primary" id="add-config-btn">新建配置</button>
+        </div>
+        <div class="config-list" id="config-list">
+          <!-- 配置列表 -->
+        </div>
+      </div>
+
+      <!-- AI 服务页面 -->
+      <div class="page" id="services-page">
+        <div class="page-header">
+          <h1>AI 服务配置</h1>
+        </div>
+        <div class="services-content">
+          <div class="service-cards" id="service-cards">
+            <!-- 服务卡片列表 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 使用统计页面 -->
+      <div class="page" id="stats-page">
+        <div class="page-header">
+          <h1>使用统计</h1>
+        </div>
+        <div class="stats-content">
+          <div class="stats-cards">
+            <div class="stat-card">
+              <h3>今日使用</h3>
+              <div class="stat-value" id="today-usage">0</div>
+              <div class="stat-unit">tokens</div>
+            </div>
+            <div class="stat-card">
+              <h3>本月使用</h3>
+              <div class="stat-value" id="month-usage">0</div>
+              <div class="stat-unit">tokens</div>
+            </div>
+            <div class="stat-card">
+              <h3>预估费用</h3>
+              <div class="stat-value" id="estimated-cost">$0.00</div>
+              <div class="stat-unit">USD</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 状态栏 -->
+  <footer class="statusbar">
+    <div class="status-item">
+      <span class="status-icon">🟢</span>
+      <span class="status-text" id="connection-status">已连接</span>
+    </div>
+    <div class="status-item">
+      <span class="status-text" id="current-model">claude-3-7-sonnet</span>
+    </div>
+    <div class="status-item">
+      <span class="status-text" id="system-info">Windows 11</span>
+    </div>
+  </footer>
+
+  <!-- 加载脚本 -->
+  <script src="app.js"></script>
+</body>
+</html>

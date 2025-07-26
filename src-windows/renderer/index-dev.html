@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Miaoda for Windows (Dev Mode)</title>
+  <link rel="stylesheet" href="styles/windows.css">
+  <link rel="stylesheet" href="styles/fluent.css">
+  <style>
+    /* 开发模式指示器 */
+    .dev-indicator {
+      position: fixed;
+      top: 40px;
+      right: 10px;
+      background: #ff6b6b;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 9999;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body class="windows-app">
+  <!-- 开发模式指示器 -->
+  <div class="dev-indicator">DEV MODE</div>
+
+  <!-- 复制 index.html 的内容 -->
+  <div class="titlebar">
+    <div class="titlebar-drag-region">
+      <img src="../../assets/icon.ico" class="titlebar-icon" alt="Miaoda">
+      <span class="titlebar-text">Miaoda - AI Service Bridge (Development)</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" id="minimize-btn">
+        <svg width="10" height="1">
+          <path d="M 0 0 L 10 0" stroke="currentColor" stroke-width="1"/>
+        </svg>
+      </button>
+      <button class="titlebar-btn" id="maximize-btn">
+        <svg width="10" height="10">
+          <path d="M 0 0 L 0 10 L 10 10 L 10 0 Z" stroke="currentColor" stroke-width="1" fill="none"/>
+        </svg>
+      </button>
+      <button class="titlebar-btn close" id="close-btn">
+        <svg width="10" height="10">
+          <path d="M 0 0 L 10 10 M 10 0 L 0 10" stroke="currentColor" stroke-width="1"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../../assets/logo.png" alt="Miaoda" class="logo">
+        <div class="version">v1.0.0-dev</div>
+      </div>
+
+      <nav class="nav-menu">
+        <div class="nav-section">
+          <h3 class="nav-section-title">快速开始</h3>
+          <button class="nav-item active" data-page="terminal">
+            <span class="nav-icon">💻</span>
+            <span class="nav-text">终端</span>
+          </button>
+          <button class="nav-item" data-page="environment">
+            <span class="nav-icon">🔧</span>
+            <span class="nav-text">环境检测</span>
+          </button>
+          <button class="nav-item" data-page="config">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-text">配置管理</span>
+          </button>
+        </div>
+
+        <div class="nav-section">
+          <h3 class="nav-section-title">高级功能</h3>
+          <button class="nav-item" data-page="services">
+            <span class="nav-icon">🌐</span>
+            <span class="nav-text">AI 服务</span>
+          </button>
+          <button class="nav-item" data-page="stats">
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">使用统计</span>
+          </button>
+        </div>
+
+        <!-- 开发模式专用 -->
+        <div class="nav-section">
+          <h3 class="nav-section-title">开发工具</h3>
+          <button class="nav-item" onclick="location.reload()">
+            <span class="nav-icon">🔄</span>
+            <span class="nav-text">重新加载</span>
+          </button>
+          <button class="nav-item" onclick="miaodaAPI.app.openDevTools()">
+            <span class="nav-icon">🐛</span>
+            <span class="nav-text">开发者工具</span>
+          </button>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="action-btn primary" id="start-claude-btn">
+          <span class="btn-icon">▶️</span>
+          <span>启动 Claude</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="page active" id="terminal-page">
+        <div class="page-header">
+          <h1>Windows 终端</h1>
+          <div class="terminal-tabs" id="terminal-tabs">
+            <div class="tab active" data-session="default">
+              <span class="tab-title">PowerShell</span>
+              <button class="tab-close">×</button>
+            </div>
+            <button class="tab-add" id="add-terminal-btn">+</button>
+          </div>
+        </div>
+        <div class="terminal-container" id="terminal-container"></div>
+      </div>
+
+      <div class="page" id="environment-page">
+        <div class="page-header">
+          <h1>环境检测</h1>
+          <button class="btn secondary" id="refresh-env-btn">刷新</button>
+        </div>
+        <div class="env-content">
+          <div class="env-summary" id="env-summary"></div>
+          <div class="env-details" id="env-details"></div>
+        </div>
+      </div>
+
+      <div class="page" id="config-page">
+        <div class="page-header">
+          <h1>配置管理</h1>
+          <button class="btn primary" id="add-config-btn">新建配置</button>
+        </div>
+        <div class="config-list" id="config-list"></div>
+      </div>
+
+      <div class="page" id="services-page">
+        <div class="page-header">
+          <h1>AI 服务配置</h1>
+        </div>
+        <div class="services-content">
+          <div class="service-cards" id="service-cards"></div>
+        </div>
+      </div>
+
+      <div class="page" id="stats-page">
+        <div class="page-header">
+          <h1>使用统计</h1>
+        </div>
+        <div class="stats-content">
+          <div class="stats-cards">
+            <div class="stat-card">
+              <h3>今日使用</h3>
+              <div class="stat-value" id="today-usage">0</div>
+              <div class="stat-unit">tokens</div>
+            </div>
+            <div class="stat-card">
+              <h3>本月使用</h3>
+              <div class="stat-value" id="month-usage">0</div>
+              <div class="stat-unit">tokens</div>
+            </div>
+            <div class="stat-card">
+              <h3>预估费用</h3>
+              <div class="stat-value" id="estimated-cost">$0.00</div>
+              <div class="stat-unit">USD</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer class="statusbar">
+    <div class="status-item">
+      <span class="status-icon">🟢</span>
+      <span class="status-text" id="connection-status">已连接</span>
+    </div>
+    <div class="status-item">
+      <span class="status-text" id="current-model">claude-3-7-sonnet</span>
+    </div>
+    <div class="status-item">
+      <span class="status-text" id="system-info">Windows 11</span>
+    </div>
+  </footer>
+
+  <!-- 开发模式下的控制台输出 -->
+  <script>
+    console.log('%c Miaoda Windows Dev Mode ', 'background: #0078d4; color: white; padding: 5px 10px; border-radius: 3px;');
+    console.log('Platform:', navigator.platform);
+    console.log('User Agent:', navigator.userAgent);
+    console.log('API available:', typeof miaodaAPI !== 'undefined');
+  </script>
+
+  <script src="app.js"></script>
+</body>
+</html>
