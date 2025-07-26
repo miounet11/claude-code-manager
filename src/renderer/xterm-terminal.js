@@ -8,10 +8,14 @@ class XTerminal {
     this.container = container;
     this.terminal = null;
     this.fitAddon = null;
+    this.searchAddon = null;
     this.ptyProcess = null;
     this.sessionId = null;
     this.isInitialized = false;
     this.currentPath = '~';
+    this.commandHistory = [];
+    this.historyIndex = -1;
+    this.currentCommand = '';
     this.createUI();
   }
   
@@ -58,9 +62,14 @@ class XTerminal {
    * 初始化终端
    */
   async initialize() {
-    // 加载保存的设置
+    // 加载保存的设置和历史
     const savedSettings = localStorage.getItem('terminal-settings');
     const settings = savedSettings ? JSON.parse(savedSettings) : {};
+    
+    const savedHistory = localStorage.getItem('terminal-history');
+    if (savedHistory) {
+      this.commandHistory = JSON.parse(savedHistory);
+    }
     
     // 创建终端
     this.terminal = new Terminal({

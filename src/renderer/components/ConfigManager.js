@@ -218,6 +218,10 @@ class ConfigManager {
             <i class="icon icon-save"></i>
             保存
           </button>
+          <button class="btn btn-secondary" id="btn-test-config">
+            <i class="icon icon-test"></i>
+            测试连接
+          </button>
           <button class="btn btn-secondary" id="btn-cancel-edit">
             取消
           </button>
@@ -228,6 +232,8 @@ class ConfigManager {
             </button>
           ` : ''}
         </div>
+        
+        <div id="test-result" class="test-result" style="display: none; margin-top: 20px; padding: 15px; border-radius: 5px;"></div>
       </div>
     `;
   }
@@ -272,6 +278,12 @@ class ConfigManager {
       saveBtn.addEventListener('click', () => this.saveConfig());
     }
     
+    // 测试连接
+    const testBtn = this.modalElement.querySelector('#btn-test-config');
+    if (testBtn) {
+      testBtn.addEventListener('click', () => this.testConnection());
+    }
+    
     // 取消编辑
     const cancelBtn = this.modalElement.querySelector('#btn-cancel-edit');
     if (cancelBtn) {
@@ -296,6 +308,73 @@ class ConfigManager {
         toggleBtn.querySelector('i').className = 
           input.type === 'password' ? 'icon icon-eye' : 'icon icon-eye-off';
       });
+    }
+  }
+
+  /**
+   * 测试连接
+   */
+  async testConnection() {
+    const testResultDiv = this.modalElement.querySelector('#test-result');
+    const testBtn = this.modalElement.querySelector('#btn-test-config');
+    
+    // 收集表单数据
+    const formData = {
+      name: this.modalElement.querySelector('#config-name').value.trim(),
+      apiUrl: this.modalElement.querySelector('#config-api-url').value.trim(),
+      apiKey: this.modalElement.querySelector('#config-api-key').value.trim(),
+      model: this.modalElement.querySelector('#config-model').value,
+      proxy: this.modalElement.querySelector('#config-proxy').value.trim()
+    };
+
+    // 基本验证
+    if (!formData.apiUrl || !formData.apiKey) {
+      testResultDiv.style.display = 'block';
+      testResultDiv.className = 'test-result error';
+      testResultDiv.innerHTML = `
+        <i class="icon icon-error"></i>
+        <span>请先填写 API 地址和 API Key</span>
+      `;
+      return;
+    }
+
+    // 显示测试中状态
+    testBtn.disabled = true;
+    testBtn.innerHTML = '<i class="icon icon-loading"></i> 测试中...';
+    testResultDiv.style.display = 'block';
+    testResultDiv.className = 'test-result testing';
+    testResultDiv.innerHTML = `
+      <i class="icon icon-loading"></i>
+      <span>正在测试连接...</span>
+    `;
+
+    try {
+      const result = await window.electronAPI.invoke('config:test', formData);
+      
+      if (result.success) {
+        testResultDiv.className = 'test-result success';
+        testResultDiv.innerHTML = `
+          <i class="icon icon-check"></i>
+          <span>${result.message}</span>
+          ${result.latency ? `<small>延迟: ${result.latency}ms</small>` : ''}
+        `;
+      } else {
+        testResultDiv.className = 'test-result error';
+        testResultDiv.innerHTML = `
+          <i class="icon icon-error"></i>
+          <span>${result.message}</span>
+          ${result.error ? `<small>${result.error}</small>` : ''}
+        `;
+      }
+    } catch (error) {
+      testResultDiv.className = 'test-result error';
+      testResultDiv.innerHTML = `
+        <i class="icon icon-error"></i>
+        <span>测试失败: ${error.message}</span>
+      `;
+    } finally {
+      testBtn.disabled = false;
+      testBtn.innerHTML = '<i class="icon icon-test"></i> 测试连接';
     }
   }
 

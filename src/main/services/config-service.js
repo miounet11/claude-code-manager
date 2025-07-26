@@ -201,6 +201,114 @@ class ConfigService {
   }
 
   /**
+   * 测试配置连接
+   */
+  async testConnection(config) {
+    try {
+      const https = require('https');
+      const http = require('http');
+      const url = new URL(config.apiUrl);
+      const isHttps = url.protocol === 'https:';
+      
+      // 构建测试请求
+      const options = {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01'
+        },
+        timeout: 10000
+      };
+
+      // 设置认证头
+      if (config.apiKey.startsWith('Bearer ')) {
+        options.headers['Authorization'] = config.apiKey;
+      } else if (config.apiKey.startsWith('sk-')) {
+        options.headers['x-api-key'] = config.apiKey;
+      } else {
+        options.headers['Authorization'] = `Bearer ${config.apiKey}`;
+      }
+
+      // 测试请求体
+      const testBody = JSON.stringify({
+        model: config.model || 'claude-3-sonnet-20240229',
+        messages: [{
+          role: 'user',
+          content: 'Hi'
+        }],
+        max_tokens: 10
+      });
+
+      return new Promise((resolve) => {
+        const client = isHttps ? https : http;
+        const req = client.request(options, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            if (res.statusCode === 200 || res.statusCode === 201) {
+              resolve({
+                success: true,
+                message: '连接成功',
+                latency: Date.now() - startTime
+              });
+            } else if (res.statusCode === 401) {
+              resolve({
+                success: false,
+                message: 'API Key 无效或已过期'
+              });
+            } else if (res.statusCode === 403) {
+              resolve({
+                success: false,
+                message: '无权限访问该 API'
+              });
+            } else if (res.statusCode === 429) {
+              resolve({
+                success: false,
+                message: '请求频率过高，请稍后再试'
+              });
+            } else {
+              resolve({
+                success: false,
+                message: `服务器返回错误: ${res.statusCode}`,
+                details: data
+              });
+            }
+          });
+        });
+
+        req.on('error', (error) => {
+          resolve({
+            success: false,
+            message: '网络连接失败',
+            error: error.message
+          });
+        });
+
+        req.on('timeout', () => {
+          req.destroy();
+          resolve({
+            success: false,
+            message: '连接超时'
+          });
+        });
+
+        const startTime = Date.now();
+        req.write(testBody);
+        req.end();
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: '测试失败',
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * 复制配置
    */
   duplicateConfig(id) {

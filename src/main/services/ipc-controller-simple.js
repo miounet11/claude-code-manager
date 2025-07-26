@@ -75,6 +75,57 @@ class IPCControllerSimple {
       return { success: true };
     });
 
+    this.registerHandler('config:test', async (event, config) => {
+      const configService = require('./config-service');
+      return await configService.testConnection(config);
+    });
+
+    // 使用新的配置服务方法
+    this.registerHandler('getAllConfigs', async () => {
+      const configService = require('./config-service');
+      return configService.getAllConfigs();
+    });
+
+    this.registerHandler('getCurrentConfig', async () => {
+      const configService = require('./config-service');
+      return configService.getCurrentConfig();
+    });
+
+    this.registerHandler('addConfig', async (event, config) => {
+      const configService = require('./config-service');
+      return configService.addConfig(config);
+    });
+
+    this.registerHandler('updateConfig', async (event, id, updates) => {
+      const configService = require('./config-service');
+      return configService.updateConfig(id, updates);
+    });
+
+    this.registerHandler('deleteConfig', async (event, id) => {
+      const configService = require('./config-service');
+      return configService.deleteConfig(id);
+    });
+
+    this.registerHandler('setCurrentConfig', async (event, id) => {
+      const configService = require('./config-service');
+      return configService.setCurrentConfig(id);
+    });
+
+    this.registerHandler('validateConfig', async (event, config) => {
+      const configService = require('./config-service');
+      return configService.validateConfig(config);
+    });
+
+    this.registerHandler('duplicateConfig', async (event, id) => {
+      const configService = require('./config-service');
+      return configService.duplicateConfig(id);
+    });
+
+    this.registerHandler('exportConfig', async (event, id) => {
+      const configService = require('./config-service');
+      return configService.exportConfig(id);
+    });
+
     // Claude 管理
     this.registerHandler('claude:start', async (event, config) => {
       return this.startClaude(config);
@@ -96,6 +147,25 @@ class IPCControllerSimple {
     // 打开系统终端
     this.registerHandler('terminal:open', async (event, config) => {
       return this.openSystemTerminal(config);
+    });
+
+    // 代理服务器统计
+    this.registerHandler('proxy:stats', async () => {
+      try {
+        const proxyServer = require('./proxy-server');
+        if (proxyServer.isRunning) {
+          return proxyServer.getStatistics();
+        }
+        return null;
+      } catch (error) {
+        return null;
+      }
+    });
+
+    // 监听 Claude 服务的使用统计事件
+    const claudeService = require('./claude-service');
+    claudeService.on('usage', (data) => {
+      this.sendToRenderer('usage:update', data);
     });
   }
 

@@ -37,6 +37,23 @@ class ClaudeService extends EventEmitter {
     this.config = config;
     this.port = await this.findAvailablePort();
 
+    // 先启动代理服务器（如果需要）
+    let proxyUrl = null;
+    if (config.apiUrl && config.apiUrl !== 'https://api.anthropic.com') {
+      const proxyServer = require('./proxy-server');
+      const proxyResult = await proxyServer.start(config);
+      proxyUrl = proxyResult.url;
+      
+      // 监听代理服务器事件
+      proxyServer.on('usage', (data) => {
+        this.emit('usage', data);
+      });
+      
+      proxyServer.on('error', (error) => {
+        this.emit('proxy-error', error);
+      });
+    }
+
     // 构建启动参数
     const args = [];
     
@@ -61,11 +78,11 @@ class ClaudeService extends EventEmitter {
     }
 
     // 启动进程
-    this.emit('starting', { config: config.name, port: this.port });
+    this.emit('starting', { config: config.name, port: this.port, proxyUrl });
     
     try {
       this.process = spawn('claude', args, {
-        env: this.buildEnvironment(config),
+        env: this.buildEnvironment(config, proxyUrl),
         shell: true,
         windowsHide: true
       });
@@ -134,7 +151,7 @@ class ClaudeService extends EventEmitter {
   /**
    * 停止 Claude
    */
-  stop() {
+  async stop() {
     if (!this.isRunning || !this.process) {
       return { success: true, message: 'Claude 未在运行' };
     }
@@ -151,6 +168,16 @@ class ClaudeService extends EventEmitter {
       }
       this.killTimeout = null;
     }, 5000);
+
+    // 停止代理服务器
+    try {
+      const proxyServer = require('./proxy-server');
+      if (proxyServer.isRunning) {
+        await proxyServer.stop();
+      }
+    } catch (e) {
+      console.error('停止代理服务器失败:', e);
+    }
 
     return { success: true, message: '正在停止 Claude' };
   }
@@ -213,20 +240,30 @@ class ClaudeService extends EventEmitter {
   /**
    * 构建环境变量
    */
-  buildEnvironment(config) {
+  buildEnvironment(config, proxyUrl) {
     const env = { ...process.env };
 
-    // 设置代理
+    // 如果使用代理服务器，设置代理 URL
+    if (proxyUrl) {
+      // Claude CLI 将通过代理访问 API
+      env.ANTHROPIC_API_URL = proxyUrl;
+      // 代理服务器会处理认证，这里设置一个占位符
+      env.ANTHROPIC_API_KEY = 'proxy-handled';
+    } else {
+      // 直接使用配置的 API
+      env.ANTHROPIC_API_KEY = config.apiKey;
+      if (config.apiUrl) {
+        env.ANTHROPIC_API_URL = config.apiUrl;
+      }
+    }
+
+    // 设置网络代理
     if (config.proxy) {
       env.HTTP_PROXY = config.proxy;
       env.HTTPS_PROXY = config.proxy;
       env.http_proxy = config.proxy;
       env.https_proxy = config.proxy;
     }
-
-    // 其他环境变量
-    env.CLAUDE_API_KEY = config.apiKey;
-    env.CLAUDE_API_URL = config.apiUrl;
 
     return env;
   }
