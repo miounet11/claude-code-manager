@@ -1,0 +1,144 @@
+name: Build macOS Version
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '!*-windows*'  # 排除 Windows 专用标签
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 4.1.0)'
+        required: true
+        default: '4.1.0'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            name: Intel
+          - arch: arm64
+            name: Apple Silicon
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        npm install -g electron-builder
+    
+    - name: Update version
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        npm version ${{ github.event.inputs.version }} --no-git-tag-version
+    
+    - name: Build macOS ${{ matrix.name }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CSC_IDENTITY_AUTO_DISCOVERY: false
+      run: |
+        npm run prebuild
+        npx electron-builder --mac --${{ matrix.arch }} --publish=never
+    
+    - name: List build artifacts
+      run: |
+        echo "Build artifacts for ${{ matrix.name }}:"
+        ls -la dist/*.dmg dist/*.zip | grep -E "(dmg|zip)$"
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-${{ matrix.arch }}
+        path: |
+          dist/*.dmg
+          dist/*.zip
+          dist/*.blockmap
+          dist/latest*.yml
+        retention-days: 30
+  
+  create-release:
+    needs: build-macos
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: Prepare release notes
+      id: release_notes
+      run: |
+        VERSION="${{ github.ref_name }}"
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        
+        # 检查是否有发布说明文件
+        if [ -f "RELEASE_NOTES_${VERSION}.md" ]; then
+          echo "has_notes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_notes=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Read release notes
+      if: steps.release_notes.outputs.has_notes == 'true'
+      id: read_notes
+      run: |
+        NOTES=$(cat RELEASE_NOTES_${{ steps.release_notes.outputs.VERSION }}.md)
+        echo "notes<<EOF" >> $GITHUB_OUTPUT
+        echo "$NOTES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Miaoda ${{ github.ref_name }} - macOS
+        body: |
+          ${{ steps.release_notes.outputs.has_notes == 'true' && steps.read_notes.outputs.notes || format('# Miaoda {0} for macOS\n\n## 📦 Downloads\n\n### Intel Mac\n- `Miaoda-{0}.dmg` - DMG installer\n- `Miaoda-{0}-mac.zip` - ZIP archive\n\n### Apple Silicon (M1/M2/M3)\n- `Miaoda-{0}-arm64.dmg` - DMG installer\n- `Miaoda-{0}-arm64-mac.zip` - ZIP archive\n\n## 🚀 Installation\n\n1. Download the appropriate version for your Mac\n2. Open the DMG file\n3. Drag Miaoda to Applications folder\n4. Launch Miaoda from Applications\n\n## 📝 Changelog\n\nSee [CHANGELOG.md](https://github.com/miounet11/claude-code-manager/blob/main/CHANGELOG.md) for details.', github.ref_name) }}
+        files: |
+          artifacts/**/*.dmg
+          artifacts/**/*.zip
+        draft: true
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+  notify:
+    needs: [build-macos, create-release]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Build Summary
+      run: |
+        echo "## 🍎 macOS Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: ${{ github.ref_name || github.event.inputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.build-macos.result }}" == "success" ]; then
+          echo "✅ Build completed successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Build failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Release draft created: [View Release](https://github.com/${{ github.repository }}/releases)" >> $GITHUB_STEP_SUMMARY
+        fi
