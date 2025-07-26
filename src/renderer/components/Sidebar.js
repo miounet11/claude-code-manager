@@ -62,6 +62,12 @@ class Sidebar extends EventEmitter {
           <div id="config-list" class="config-list">
             <div class="config-empty">暂无配置</div>
           </div>
+          <div class="config-actions">
+            <button class="action-btn" id="btn-config-wizard">
+              <i class="icon icon-plus"></i>
+              <span>配置向导</span>
+            </button>
+          </div>
         </div>
         
         <!-- 快捷操作 -->
@@ -135,6 +141,11 @@ class Sidebar extends EventEmitter {
     // 管理配置
     this.container.querySelector('#btn-manage-configs').addEventListener('click', () => {
       this.emit('show-configs');
+    });
+    
+    // 配置向导
+    this.container.querySelector('#btn-config-wizard').addEventListener('click', () => {
+      this.emit('show-config-wizard');
     });
     
     // 安装依赖

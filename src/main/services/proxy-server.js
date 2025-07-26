@@ -5,6 +5,8 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const bodyParser = require('body-parser');
 const EventEmitter = require('events');
 const crypto = require('crypto');
+const serviceRegistry = require('./service-registry');
+const formatConverter = require('./format-converter');
 
 /**
  * API 代理服务器
@@ -34,11 +36,16 @@ class ProxyServer extends EventEmitter {
       throw new Error('代理服务器已在运行');
     }
 
-    if (!config || !config.apiUrl || !config.apiKey) {
+    // 动态路由模式可以没有固定配置
+    const isDynamicMode = !config || config.mode === 'dynamic';
+
+    if (!isDynamicMode && (!config || !config.apiUrl || !config.apiKey)) {
       throw new Error('配置不完整');
     }
 
     this.app = express();
+    this.config = config;
+    this.isDynamicMode = isDynamicMode;
     
     // 请求体解析中间件
     this.app.use(bodyParser.json({ limit: '50mb' }));
@@ -92,6 +99,15 @@ class ProxyServer extends EventEmitter {
     this.app.get('/stats', (req, res) => {
       res.json(this.getStatistics());
     });
+
+    // 动态路由处理
+    if (this.isDynamicMode) {
+      // 动态路由: /proxy/:service/:model/*
+      this.app.use('/proxy/:service/:model/*', this.handleDynamicRoute.bind(this));
+      
+      // 兼容旧路由
+      this.app.use('/v1/*', this.handleLegacyRoute.bind(this));
+    }
 
     // Claude API 代理配置
     const proxyOptions = {
@@ -352,6 +368,172 @@ class ProxyServer extends EventEmitter {
    */
   getProxyUrl() {
     return this.isRunning ? `http://localhost:${this.port}` : null;
+  }
+
+  /**
+   * 处理动态路由请求
+   */
+  async handleDynamicRoute(req, res) {
+    try {
+      // 解析路由参数
+      const { service: serviceId, model } = req.params;
+      const apiPath = req.params[0] || '';
+      
+      // 从请求头或查询参数获取 API Key
+      const apiKey = req.headers['x-api-key'] || 
+                     req.headers['authorization']?.replace('Bearer ', '') ||
+                     req.query.key;
+
+      if (!apiKey) {
+        return res.status(401).json({
+          error: 'API Key required',
+          message: 'Please provide API key in header or query parameter'
+        });
+      }
+
+      // 获取服务配置
+      const service = serviceRegistry.get(serviceId);
+      if (!service) {
+        return res.status(404).json({
+          error: 'Service not found',
+          message: `Unknown service: ${serviceId}`,
+          availableServices: serviceRegistry.getServiceList()
+        });
+      }
+
+      // 记录请求
+      this.emit('dynamic-request', {
+        service: serviceId,
+        model,
+        path: apiPath,
+        timestamp: new Date()
+      });
+
+      // 构建目标 URL
+      const targetUrl = serviceRegistry.buildUrl(serviceId, 'chat', { model });
+      
+      // 获取认证头
+      const authHeaders = serviceRegistry.getAuthHeaders(serviceId, apiKey);
+
+      // 检测并转换请求格式
+      const sourceFormat = formatConverter.detectRequestFormat(req.body);
+      const targetFormat = service.format;
+      
+      let convertedBody = req.body;
+      if (sourceFormat !== targetFormat) {
+        convertedBody = await formatConverter.convertRequest(
+          sourceFormat, 
+          targetFormat, 
+          req.body
+        );
+      }
+
+      // 设置模型
+      if (model && convertedBody) {
+        convertedBody.model = model;
+      }
+
+      // 发起请求
+      const response = await this.forwardRequest({
+        url: targetUrl,
+        method: req.method,
+        headers: {
+          ...authHeaders,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(convertedBody)
+      });
+
+      // 转换响应格式
+      let responseData = response.data;
+      if (sourceFormat !== targetFormat) {
+        responseData = await formatConverter.convertResponse(
+          targetFormat,
+          sourceFormat,
+          response.data
+        );
+      }
+
+      // 更新统计
+      if (responseData.usage) {
+        this.updateTokenUsage(responseData.usage, { model, service: serviceId });
+      }
+
+      res.status(response.status).json(responseData);
+    } catch (error) {
+      console.error('动态路由错误:', error);
+      res.status(500).json({
+        error: 'Proxy error',
+        message: error.message
+      });
+    }
+  }
+
+  /**
+   * 处理旧版路由（兼容性）
+   */
+  async handleLegacyRoute(req, res) {
+    // 使用默认配置处理
+    if (!this.config) {
+      return res.status(503).json({
+        error: 'No default configuration',
+        message: 'Please use dynamic routing: /proxy/:service/:model/*'
+      });
+    }
+
+    // 使用原有的代理逻辑
+    // ... 现有的代理逻辑
+  }
+
+  /**
+   * 转发请求
+   */
+  async forwardRequest(options) {
+    const https = require('https');
+    const http = require('http');
+    const url = new URL(options.url);
+    const isHttps = url.protocol === 'https:';
+
+    return new Promise((resolve, reject) => {
+      const client = isHttps ? https : http;
+      const reqOptions = {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: url.pathname + url.search,
+        method: options.method,
+        headers: options.headers
+      };
+
+      const req = client.request(reqOptions, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const jsonData = JSON.parse(data);
+            resolve({
+              status: res.statusCode,
+              headers: res.headers,
+              data: jsonData
+            });
+          } catch (e) {
+            resolve({
+              status: res.statusCode,
+              headers: res.headers,
+              data: data
+            });
+          }
+        });
+      });
+
+      req.on('error', reject);
+      
+      if (options.body) {
+        req.write(options.body);
+      }
+      
+      req.end();
+    });
   }
 }
 
