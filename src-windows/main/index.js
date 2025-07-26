@@ -5,6 +5,9 @@ const path = require('path');
 const windowsEnv = require('./services/windows-env');
 const ConPTYManager = require('./services/conpty');
 const store = require('electron-store');
+const WindowsAnalytics = require('./analytics');
+const WindowsUpdater = require('./updater');
+const windowsAnalyticsIntegration = require('./services/analytics-integration');
 
 // Windows 特定设置
 if (process.platform === 'win32') {
@@ -15,6 +18,8 @@ if (process.platform === 'win32') {
 // 全局变量
 let mainWindow = null;
 let tray = null;
+let analytics = null;
+let updater = null;
 const conptyManager = new ConPTYManager();
 const configStore = new store({ name: 'miaoda-config' });
 
@@ -90,7 +95,17 @@ function createTray() {
     {
       label: '设置',
       click: () => {
+        windowsAnalyticsIntegration.trackPageView('tray_settings');
         mainWindow?.webContents.send('tray:open-settings');
+      }
+    },
+    {
+      label: '检查更新',
+      click: async () => {
+        windowsAnalyticsIntegration.trackFeatureUse('manual_update_check');
+        if (updater) {
+          await updater.checkForUpdates(false);
+        }
       }
     },
     { type: 'separator' },
@@ -120,6 +135,7 @@ function createTray() {
 function registerIPCHandlers() {
   // 环境检测
   ipcMain.handle('env:check', async () => {
+    windowsAnalyticsIntegration.trackFeatureUse('env_check');
     return await windowsEnv.checkAll();
   });
 
@@ -129,6 +145,7 @@ function registerIPCHandlers() {
 
   // 终端管理
   ipcMain.handle('terminal:create', async (event, options) => {
+    windowsAnalyticsIntegration.trackTerminalAction('create', options?.shell);
     return conptyManager.createSession(options);
   });
 
@@ -164,6 +181,7 @@ function registerIPCHandlers() {
 
   // Claude 管理
   ipcMain.handle('claude:start', async (event, config) => {
+    windowsAnalyticsIntegration.trackClaudeAction('start');
     return await conptyManager.executeClaude(config);
   });
 
@@ -189,6 +207,7 @@ function registerIPCHandlers() {
   });
 
   ipcMain.handle('config:save', async (event, config) => {
+    windowsAnalyticsIntegration.trackConfigAction('save');
     const configs = configStore.get('configs', []);
     const index = configs.findIndex(c => c.id === config.id);
     
@@ -239,6 +258,70 @@ function registerIPCHandlers() {
   ipcMain.handle('app:quit', () => {
     app.quit();
   });
+
+  // 统计分析相关
+  ipcMain.handle('analytics:track-page', (event, pageName) => {
+    windowsAnalyticsIntegration.trackPageView(pageName);
+    return { success: true };
+  });
+
+  ipcMain.handle('analytics:track-feature', (event, featureName) => {
+    windowsAnalyticsIntegration.trackFeatureUse(featureName);
+    return { success: true };
+  });
+
+  ipcMain.handle('analytics:track-terminal', (event, action, terminalType) => {
+    windowsAnalyticsIntegration.trackTerminalAction(action, terminalType);
+    return { success: true };
+  });
+
+  ipcMain.handle('analytics:track-error', (event, errorType, context, details) => {
+    windowsAnalyticsIntegration.trackError(errorType, context, details);
+    return { success: true };
+  });
+
+  ipcMain.handle('analytics:get-stats', () => {
+    return windowsAnalyticsIntegration.getStatsSummary();
+  });
+
+  ipcMain.handle('analytics:upload', async () => {
+    try {
+      return await windowsAnalyticsIntegration.uploadReports();
+    } catch (error) {
+      console.error('🪟 Analytics upload failed:', error);
+      throw error;
+    }
+  });
+
+  // 更新检查相关
+  ipcMain.handle('updater:check', async (event, silent = false) => {
+    if (updater) {
+      return await updater.checkForUpdates(silent);
+    }
+    return false;
+  });
+
+  ipcMain.handle('updater:get-info', () => {
+    if (updater) {
+      return updater.getUpdateHistory();
+    }
+    return null;
+  });
+
+  ipcMain.handle('updater:download-latest', async () => {
+    if (updater) {
+      return await updater.downloadLatest();
+    }
+    throw new Error('Updater not available');
+  });
+
+  ipcMain.handle('updater:clear-history', () => {
+    if (updater) {
+      updater.clearUpdateHistory();
+      return { success: true };
+    }
+    return { success: false };
+  });
 }
 
 /**
@@ -249,6 +332,19 @@ app.whenReady().then(() => {
   createTray();
   registerIPCHandlers();
 
+  // 初始化统计分析
+  analytics = new WindowsAnalytics();
+  windowsAnalyticsIntegration.initialize(analytics);
+  analytics.startSession();
+  windowsAnalyticsIntegration.trackPageView('app_start');
+  analytics.setupAutoUpload();
+  
+  // 初始化更新检查
+  updater = new WindowsUpdater(mainWindow);
+  updater.setupAutoCheck();
+  
+  console.log('🪟 Windows Analytics 和 Updater 已初始化');
+
   // Windows 特定：单实例锁
   const gotTheLock = app.requestSingleInstanceLock();
   if (!gotTheLock) {
@@ -256,6 +352,7 @@ app.whenReady().then(() => {
   } else {
     app.on('second-instance', () => {
       // 如果用户尝试打开第二个实例，聚焦到第一个实例的窗口
+      windowsAnalyticsIntegration.trackFeatureUse('second_instance_focus');
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.focus();
@@ -284,6 +381,12 @@ app.on('activate', () => {
 });
 
 app.on('before-quit', () => {
+  // 结束统计会话
+  if (analytics) {
+    analytics.endSession();
+    windowsAnalyticsIntegration.trackFeatureUse('app_quit');
+  }
+  
   // 清理资源
   conptyManager.cleanup();
 });
