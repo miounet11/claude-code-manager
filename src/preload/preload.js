@@ -96,6 +96,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFile: (options) => ipcRenderer.invoke('dialog:select-file', options),
   saveFile: (options) => ipcRenderer.invoke('dialog:save-file', options),
   
+  // 本地模型管理
+  detectLocalModels: () => ipcRenderer.invoke('local-models:detect'),
+  getLocalModels: (serviceId) => ipcRenderer.invoke('local-models:get-models', serviceId),
+  pullLocalModel: (modelName) => ipcRenderer.invoke('local-models:pull', modelName),
+  deleteLocalModel: (modelName) => ipcRenderer.invoke('local-models:delete', modelName),
+  testLocalModelConnection: (serviceId) => ipcRenderer.invoke('local-models:test', serviceId),
+  onLocalModelDetected: (callback) => {
+    ipcRenderer.on('local-models:service-detected', (event, data) => callback(data));
+  },
+  onLocalModelPullProgress: (callback) => {
+    ipcRenderer.on('local-models:pull-progress', (event, data) => callback(data));
+  },
+  
   // 系统托盘事件
   onTrayAction: (callback) => {
     ipcRenderer.on('tray:start-claude', () => callback('start'));

@@ -1,24 +1,32 @@
-# Miaoda - Claude Code Manager
+# Miaoda - Universal AI Service Bridge
 
 <div align="center">
   <img src="assets/logo.png" alt="Miaoda Logo" width="128">
   
-  [![Version](https://img.shields.io/badge/version-3.0.1-blue.svg)](https://github.com/yourusername/miaoda/releases)
+  [![Version](https://img.shields.io/badge/version-4.1.0-blue.svg)](https://github.com/yourusername/miaoda/releases)
   [![Platform](https://img.shields.io/badge/platform-macOS-blue.svg)](https://github.com/yourusername/miaoda/releases)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 </div>
 
 ## 🚀 介绍
 
-Miaoda 是一款专为 Claude Code (claude.ai/code) 设计的 macOS 桌面管理工具，提供了完美的终端体验和便捷的配置管理功能。
+Miaoda 是一个通用的 AI 服务聚合平台，最初为 Claude Code (claude.ai/code) 设计，现已升级支持多种 AI 服务提供商。通过智能的 API 格式转换和动态路由，您可以使用统一的接口访问不同的 AI 服务。
 
 ### ✨ 主要特性
 
+#### 🌉 v4.1.0 新功能 - "Universal Bridge"
+- **🔄 动态路由系统** - 运行时切换不同 AI 服务，无需重启
+- **🔀 API 格式转换** - 自动转换不同服务之间的 API 格式
+- **🤖 多服务支持** - 内置 OpenAI、Claude、Gemini、Groq 等 7+ 服务
+- **🦙 本地模型** - 完整支持 Ollama、LM Studio、LocalAI
+- **🎯 配置向导** - 分步骤引导，轻松配置各种 AI 服务
+
+#### 💻 核心功能
 - **🖥️ VSCode 风格终端** - 使用 xterm.js 实现，完美复刻 VSCode 终端体验
 - **📑 多终端标签** - 支持多个独立终端会话，可拖拽排序
 - **🎨 主题定制** - 支持字体大小、样式、光标等自定义设置
 - **🔧 配置管理** - 支持多配置文件，轻松切换不同的 API 设置
-- **🆓 免费试用** - 内置免费试用功能，每日 100k token
+- **📊 使用统计** - 实时追踪 Token 使用量和费用
 - **🍎 macOS 专用版** - 专为 macOS 平台深度优化
 
 ## 📦 安装
@@ -55,15 +63,42 @@ npm run dist        # 构建所有架构
 
 1. **启动应用** - 双击应用图标启动 Miaoda
 2. **环境检测** - 应用会自动检测 Claude CLI 和依赖环境
-3. **配置 API** - 在配置管理中设置你的 API Key 和 API URL
+3. **配置 API** - 使用配置向导或配置管理器设置 AI 服务
 4. **开始使用** - 点击终端标签，输入 `claude` 开始对话
 
-### 免费试用
+### 🆕 配置向导（推荐）
 
-如果你还没有 API Key，可以使用内置的免费试用功能：
-- API URL: `http://www.miaoda.vip/`
-- 模型: `claude-3-7-sonnet-20250219`
-- 限制: 每日 100k token
+点击侧边栏的"配置向导"按钮，通过 4 个简单步骤完成配置：
+1. **选择服务** - 从预设的 AI 服务中选择
+2. **配置认证** - 输入 API Key（本地服务无需此步）
+3. **选择模型** - 选择要使用的 AI 模型
+4. **测试连接** - 验证配置是否正确
+
+### 支持的 AI 服务
+
+#### ☁️ 云端服务
+- **OpenAI** - GPT-4、GPT-3.5 等模型
+- **Anthropic Claude** - Claude 3 Opus、Sonnet、Haiku
+- **Google Gemini** - Gemini Pro、Pro Vision
+- **Groq Cloud** - 超快速推理，支持 Llama 2、Mixtral
+- **Perplexity AI** - 实时搜索增强的 AI
+
+#### 🖥️ 本地服务
+- **Ollama** - 运行 Llama、Mistral、CodeLlama 等开源模型
+- **LM Studio** - 图形化本地模型管理工具
+- **LocalAI** - 兼容 OpenAI API 的本地推理服务
+
+### 动态路由使用
+
+v4.1.0 支持通过 URL 动态指定服务和模型：
+```
+http://localhost:8118/proxy/{service}/{model}/v1/chat/completions
+```
+
+示例：
+- OpenAI GPT-4: `/proxy/openai/gpt-4/v1/chat/completions`
+- Claude Opus: `/proxy/claude/claude-3-opus/v1/messages`
+- Ollama Llama2: `/proxy/ollama/llama2/api/chat`
 
 ## ⌨️ 快捷键
 

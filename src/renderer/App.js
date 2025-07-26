@@ -46,6 +46,7 @@ class App {
     const { StatusBar } = await import('./components/StatusBar.js');
     const { EnvironmentPanel } = await import('./components/EnvironmentPanel.js');
     const { ConfigManager } = await import('./components/ConfigManager.js');
+    const { ConfigWizard } = await import('./components/ConfigWizard.js');
     const { InstallerWizard } = await import('./components/InstallerWizard.js');
     
     // 创建组件实例
@@ -54,6 +55,7 @@ class App {
     this.components.statusBar = new StatusBar();
     this.components.environmentPanel = new EnvironmentPanel();
     this.components.configManager = new ConfigManager();
+    this.components.configWizard = new ConfigWizard();
     this.components.installerWizard = new InstallerWizard();
   }
 
@@ -126,6 +128,10 @@ class App {
     
     this.components.sidebar.on('show-configs', () => {
       this.showConfigManager();
+    });
+    
+    this.components.sidebar.on('show-config-wizard', () => {
+      this.showConfigWizard();
     });
     
     this.components.sidebar.on('show-installer', () => {
@@ -225,6 +231,14 @@ class App {
   showConfigManager() {
     const modalContainer = document.getElementById('modal-container');
     this.components.configManager.show(modalContainer);
+  }
+
+  /**
+   * 显示配置向导
+   */
+  showConfigWizard() {
+    const modalContainer = document.getElementById('modal-container');
+    this.components.configWizard.show(modalContainer);
   }
 
   /**

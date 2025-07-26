@@ -91,6 +91,17 @@
   color: var(--text-secondary);
 }
 
+/* 配置操作按钮 */
+.config-actions {
+  margin-top: var(--spacing-md);
+  padding: 0 var(--spacing-sm);
+}
+
+.config-actions .action-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .config-item {
   padding: var(--spacing-sm);
   background: var(--bg-tertiary);
@@ -1157,4 +1168,569 @@ select.form-control {
   .form-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* 配置向导样式 */
+.config-wizard .modal-content {
+  max-width: 800px;
+}
+
+.wizard-progress {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 40px;
+  position: relative;
+}
+
+.wizard-progress::before {
+  content: '';
+  position: absolute;
+  top: 15px;
+  left: 50px;
+  right: 50px;
+  height: 2px;
+  background: var(--border-color);
+  z-index: 0;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.progress-step .step-number {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.progress-step.active .step-number {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.progress-step.completed .step-number {
+  background: var(--color-success);
+  color: white;
+  border-color: var(--color-success);
+}
+
+.progress-step .step-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.progress-step.active .step-label {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* 向导步骤内容 */
+.wizard-content {
+  min-height: 400px;
+}
+
+.wizard-step h3 {
+  margin-bottom: 8px;
+}
+
+.step-description {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+/* 服务选择 */
+.service-grid h4 {
+  margin: 24px 0 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.service-grid h4:first-child {
+  margin-top: 0;
+}
+
+.service-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.service-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.service-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.service-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-alpha);
+}
+
+.service-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.service-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.service-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.service-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* 认证配置 */
+.form-help {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 模型选择 */
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.model-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.model-card:hover {
+  border-color: var(--color-primary);
+  transform: translateX(4px);
+}
+
+.model-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-alpha);
+}
+
+.model-info {
+  flex: 1;
+}
+
+.model-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.model-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.model-badge {
+  padding: 2px 8px;
+  background: var(--color-success);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.model-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 12px;
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+}
+
+/* 测试连接 */
+.config-summary {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.config-summary h4 {
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.config-summary .summary-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.config-summary .summary-item:last-child {
+  border-bottom: none;
+}
+
+.summary-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.summary-value {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.test-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.test-result {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.test-result.testing {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  border: 1px solid var(--color-info);
+}
+
+.test-result.success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border: 1px solid var(--color-success);
+}
+
+.test-result.error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+
+.test-result small {
+  opacity: 0.8;
+  margin-left: auto;
+}
+
+/* 向导按钮 */
+.config-wizard .modal-footer {
+  justify-content: space-between;
+}
+
+.config-wizard .btn-success {
+  background: var(--color-success);
+  color: white;
+}
+
+.config-wizard .btn-success:hover {
+  background: var(--color-success-hover);
+}
+
+/* 颜色变量补充 */
+:root {
+  --color-primary-alpha: rgba(13, 188, 121, 0.1);
+  --color-info-bg: rgba(33, 150, 243, 0.1);
+  --color-success-bg: rgba(76, 175, 80, 0.1);
+  --color-danger-bg: rgba(244, 67, 54, 0.1);
+  --color-success-hover: #388e3c;
+}
+
+/* 加载动画 */
+.icon-loading {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 错误和测试图标 */
+.icon-test::before { content: '🧪'; }
+.icon-error::before { content: '❌'; }
+.icon-loading::before { content: '⏳'; }
+
+/* 本地模型管理器 */
+.local-model-manager .modal-content {
+  max-width: 900px;
+}
+
+.local-model-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.service-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: 24px;
+}
+
+.service-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.service-tab:hover {
+  opacity: 0.8;
+  background: var(--bg-hover);
+}
+
+.service-tab.active {
+  opacity: 1;
+  background: var(--bg-primary);
+  border-bottom: 2px solid var(--color-primary);
+  margin-bottom: -2px;
+}
+
+.service-tab.available .tab-status {
+  color: var(--color-success);
+}
+
+.tab-icon {
+  font-size: 20px;
+}
+
+.tab-name {
+  font-weight: 500;
+}
+
+.tab-status {
+  font-size: 14px;
+  margin-left: 4px;
+}
+
+/* 服务内容 */
+.service-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: var(--text-secondary);
+}
+
+.service-unavailable {
+  text-align: center;
+  padding: 40px;
+}
+
+.unavailable-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.install-guide {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin: 24px 0;
+  text-align: left;
+}
+
+.install-guide h4 {
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.install-guide ol {
+  margin: 0 0 16px 0;
+  padding-left: 20px;
+}
+
+.install-guide li {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+/* 服务可用 */
+.service-available {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.service-info {
+  display: flex;
+  gap: 24px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.info-item .label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.info-item .value {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.info-item .value.success {
+  color: var(--color-success);
+}
+
+.model-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* 模型列表 */
+.model-list h4 {
+  margin-bottom: 16px;
+  font-size: 16px;
+}
+
+.model-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.models-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.model-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.model-item:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.model-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.model-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-item {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 进度对话框 */
+.progress-dialog .modal-content {
+  max-width: 400px;
+}
+
+.modal-small {
+  max-width: 400px;
+}
+
+.progress-bar {
+  height: 4px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 16px 0 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+  width: 0;
+}
+
+#progress-status {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
 }
