@@ -4,6 +4,7 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const TerminalManager = require('../terminal-manager');
+const localModelService = require('./local-model-service');
 
 /**
  * 简化的 IPC 控制器
@@ -23,6 +24,14 @@ class IPCControllerSimple {
     
     // 清除之前的处理器（安全方式）
     this.cleanup();
+    
+    // 开始本地模型定期检测
+    localModelService.startPeriodicDetection(30000);
+    
+    // 监听本地模型检测事件
+    localModelService.on('service-detected', (data) => {
+      this.mainWindow?.webContents.send('local-models:service-detected', data);
+    });
     
     // 基本处理器
     this.registerHandler('app:version', () => {
@@ -76,6 +85,12 @@ class IPCControllerSimple {
     });
 
     this.registerHandler('config:test', async (event, config) => {
+      // 如果是本地服务，使用本地模型服务测试
+      if (config.service === 'ollama' || config.service === 'lmstudio' || config.service === 'localai') {
+        return await localModelService.testConnection(config.service);
+      }
+      
+      // 否则使用标准配置服务测试
       const configService = require('./config-service');
       return await configService.testConnection(config);
     });
@@ -144,6 +159,29 @@ class IPCControllerSimple {
       return this.installDependency(dependency);
     });
 
+    // 本地模型管理
+    this.registerHandler('local-models:detect', async () => {
+      return localModelService.detectAll();
+    });
+
+    this.registerHandler('local-models:get-models', async (event, serviceId) => {
+      return localModelService.getModels(serviceId);
+    });
+
+    this.registerHandler('local-models:pull', async (event, modelName) => {
+      return localModelService.pullModel(modelName, (progress) => {
+        this.mainWindow?.webContents.send('local-models:pull-progress', progress);
+      });
+    });
+
+    this.registerHandler('local-models:delete', async (event, modelName) => {
+      return localModelService.deleteModel(modelName);
+    });
+
+    this.registerHandler('local-models:test', async (event, serviceId) => {
+      return localModelService.testConnection(serviceId);
+    });
+
     // 打开系统终端
     this.registerHandler('terminal:open', async (event, config) => {
       return this.openSystemTerminal(config);
@@ -199,6 +237,10 @@ class IPCControllerSimple {
     if (this.terminalManager.isRunning()) {
       this.stopClaude();
     }
+    
+    // 停止本地模型检测
+    localModelService.stopPeriodicDetection();
+    localModelService.removeAllListeners();
     
     // 安全地移除所有处理器
     this.handlers.forEach((handler, channel) => {
