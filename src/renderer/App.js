@@ -48,6 +48,7 @@ class App {
     const { ConfigManager } = await import('./components/ConfigManager.js');
     const { ConfigWizard } = await import('./components/ConfigWizard.js');
     const { InstallerWizard } = await import('./components/InstallerWizard.js');
+    const { LocalModelManager } = await import('./components/LocalModelManager.js');
     
     // 创建组件实例
     this.components.sidebar = new Sidebar();
@@ -57,6 +58,7 @@ class App {
     this.components.configManager = new ConfigManager();
     this.components.configWizard = new ConfigWizard();
     this.components.installerWizard = new InstallerWizard();
+    this.components.localModelManager = new LocalModelManager();
   }
 
   /**
@@ -136,6 +138,10 @@ class App {
     
     this.components.sidebar.on('show-installer', () => {
       this.showInstallerWizard();
+    });
+    
+    this.components.sidebar.on('show-local-models', () => {
+      this.showLocalModelManager();
     });
     
     this.components.sidebar.on('toggle-claude', () => {
@@ -325,6 +331,14 @@ class App {
     } else if (status.type === 'error') {
       this.components.statusBar.showError('Claude 运行错误: ' + status.message);
     }
+  }
+
+  /**
+   * 显示本地模型管理器
+   */
+  showLocalModelManager() {
+    const modalContainer = document.getElementById('modal-container');
+    this.components.localModelManager.show(modalContainer);
   }
 
   /**
