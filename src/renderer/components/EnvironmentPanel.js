@@ -60,6 +60,10 @@ class EnvironmentPanel {
             <i class="icon icon-refresh"></i>
             刷新
           </button>
+          <button class="btn btn-secondary" id="btn-clear-cache">
+            <i class="icon icon-trash"></i>
+            清理缓存
+          </button>
           <button class="btn btn-primary" id="btn-install">
             <i class="icon icon-download"></i>
             安装缺失依赖
@@ -232,6 +236,14 @@ class EnvironmentPanel {
       this.refresh();
     });
     
+    // 清理缓存按钮
+    const clearCacheBtn = this.modalElement.querySelector('#btn-clear-cache');
+    if (clearCacheBtn) {
+      clearCacheBtn.addEventListener('click', async () => {
+        await this.clearCache();
+      });
+    }
+    
     // 安装按钮
     this.modalElement.querySelector('#btn-install').addEventListener('click', () => {
       this.installDependencies();
@@ -305,6 +317,52 @@ class EnvironmentPanel {
    */
   isVisible() {
     return this.modalElement && this.modalElement.classList.contains('show');
+  }
+  
+  /**
+   * 清理缓存
+   */
+  async clearCache() {
+    const clearBtn = this.modalElement.querySelector('#btn-clear-cache');
+    const originalText = clearBtn.innerHTML;
+    
+    try {
+      // 显示加载状态
+      clearBtn.disabled = true;
+      clearBtn.innerHTML = '<i class="icon icon-loading"></i> 清理中...';
+      
+      // 调用清理缓存
+      const result = await window.electronAPI.invoke('cache:clear');
+      
+      if (result.success) {
+        // 获取缓存统计
+        const stats = await window.electronAPI.invoke('cache:get-stats');
+        
+        window.electronAPI.showSuccess(
+          '缓存已清理', 
+          `缓存清理成功！\n当前版本: ${stats.version}\n开发模式: ${stats.isDevelopment ? '是' : '否'}`
+        );
+        
+        // 询问是否重新加载
+        const reload = await window.electronAPI.showConfirm(
+          '重新加载',
+          '缓存已清理，是否重新加载应用以确保使用最新代码？'
+        );
+        
+        if (reload) {
+          await window.electronAPI.invoke('cache:reload-window');
+        }
+      } else {
+        window.electronAPI.showError('清理失败', result.error || '缓存清理失败');
+      }
+    } catch (error) {
+      console.error('清理缓存失败:', error);
+      window.electronAPI.showError('清理失败', error.message);
+    } finally {
+      // 恢复按钮状态
+      clearBtn.disabled = false;
+      clearBtn.innerHTML = originalText;
+    }
   }
 
   /**

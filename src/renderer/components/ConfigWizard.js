@@ -123,7 +123,13 @@ class ConfigWizard {
       <div class="modal-content modal-large">
         <div class="modal-header">
           <h2>配置向导</h2>
-          <button class="btn-close" data-action="close">×</button>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-switch-to-advanced" title="切换到高级配置">
+              <i class="icon icon-settings"></i>
+              高级配置
+            </button>
+            <button class="btn-close" data-action="close">×</button>
+          </div>
         </div>
         
         <div class="modal-body">
@@ -409,6 +415,18 @@ class ConfigWizard {
     this.modalElement.querySelectorAll('[data-action="close"]').forEach(el => {
       el.addEventListener('click', () => this.close());
     });
+    
+    // 切换到高级配置
+    const switchBtn = this.modalElement.querySelector('#btn-switch-to-advanced');
+    if (switchBtn) {
+      switchBtn.addEventListener('click', () => {
+        this.close();
+        // 触发显示配置管理器事件
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('show-config-manager'));
+        }, 300);
+      });
+    }
     
     // 上一步/下一步按钮
     const prevBtn = this.modalElement.querySelector('#btn-prev');

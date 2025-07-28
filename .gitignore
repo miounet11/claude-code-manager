@@ -38,6 +38,11 @@ coverage/
 *.temp
 .cache/
 
+# Version files (auto-generated)
+src/renderer/version.json
+build-info.json
+app-version.json
+
 # Electron
 electron-builder.yml
 !electron-builder.json

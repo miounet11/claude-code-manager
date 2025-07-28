@@ -1146,6 +1146,9 @@ select.form-control {
 .icon-package::before { content: '📦'; }
 .icon-tools::before { content: '🔧'; }
 .icon-settings::before { content: '⚙️'; }
+.icon-wizard::before { content: '🔮'; }
+.icon-trash::before { content: '🗑️'; }
+.icon-loading::before { content: '⏳'; animation: spin 1s linear infinite; }
 .icon-config-large::before { content: '⚙️'; font-size: 64px; }
 
 /* 实用类 */

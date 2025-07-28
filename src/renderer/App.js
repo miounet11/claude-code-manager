@@ -13,7 +13,25 @@ class App {
       sidebarVisible: true
     };
     
+    // 版本号用于防止缓存
+    this.scriptVersion = Date.now();
+    
     this.initialize();
+  }
+  
+  /**
+   * 动态导入模块（带版本号防缓存）
+   */
+  async importModule(modulePath) {
+    // 为模块路径添加版本查询参数
+    const versionedPath = `${modulePath}?v=${this.scriptVersion}`;
+    try {
+      return await import(versionedPath);
+    } catch (error) {
+      console.error(`模块加载失败: ${modulePath}`, error);
+      // 如果带版本号失败，尝试不带版本号
+      return await import(modulePath);
+    }
   }
 
   /**
@@ -40,15 +58,15 @@ class App {
    * 创建组件
    */
   async createComponents() {
-    // 动态加载组件
-    const { Sidebar } = await import('./components/Sidebar.js');
-    const { Terminal } = await import('./components/Terminal.js');
-    const { StatusBar } = await import('./components/StatusBar.js');
-    const { EnvironmentPanel } = await import('./components/EnvironmentPanel.js');
-    const { ConfigManager } = await import('./components/ConfigManager.js');
-    const { ConfigWizard } = await import('./components/ConfigWizard.js');
-    const { InstallerWizard } = await import('./components/InstallerWizard.js');
-    const { LocalModelManager } = await import('./components/LocalModelManager.js');
+    // 动态加载组件（带版本号防缓存）
+    const { Sidebar } = await this.importModule('./components/Sidebar.js');
+    const { Terminal } = await this.importModule('./components/Terminal.js');
+    const { StatusBar } = await this.importModule('./components/StatusBar.js');
+    const { EnvironmentPanel } = await this.importModule('./components/EnvironmentPanel.js');
+    const { ConfigManager } = await this.importModule('./components/ConfigManager.js');
+    const { ConfigWizard } = await this.importModule('./components/ConfigWizard.js');
+    const { InstallerWizard } = await this.importModule('./components/InstallerWizard.js');
+    const { LocalModelManager } = await this.importModule('./components/LocalModelManager.js');
     
     // 创建组件实例
     this.components.sidebar = new Sidebar();
@@ -133,6 +151,15 @@ class App {
     });
     
     this.components.sidebar.on('show-config-wizard', () => {
+      this.showConfigWizard();
+    });
+    
+    // 监听配置界面切换事件
+    window.addEventListener('show-config-manager', () => {
+      this.showConfigManager();
+    });
+    
+    window.addEventListener('show-config-wizard', () => {
       this.showConfigWizard();
     });
     

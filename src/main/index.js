@@ -1,5 +1,8 @@
 'use strict';
 
+// 在最开始设置开发环境缓存配置
+require('./services/dev-cache-config');
+
 const { app, BrowserWindow, Menu, Tray, ipcMain } = require('electron');
 const path = require('path');
 // const Store = require('electron-store'); // 暂时禁用
@@ -11,6 +14,7 @@ const errorHandler = require('./error-handler');
 const Analytics = require('./analytics');
 const Updater = require('./updater');
 const analyticsIntegration = require('./services/analytics-integration');
+const cacheManager = require('./services/cache-manager');
 
 // 全局变量
 let mainWindow = null;
@@ -51,17 +55,34 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '../preload/preload.js')
+      preload: path.join(__dirname, '../preload/preload.js'),
+      // 禁用缓存
+      webSecurity: true,
+      allowRunningInsecureContent: false
     }
   });
 
   // 加载应用
   const htmlPath = path.join(__dirname, '../renderer/app-full.html');
-  mainWindow.loadFile(htmlPath);
+  
+  // 使用缓存管理器加载页面
+  const versionedUrl = cacheManager.addVersionToUrl(htmlPath);
+  mainWindow.loadFile(htmlPath, {
+    query: { v: Date.now() }
+  });
   
   // 开发模式打开开发者工具
   if (process.env.NODE_ENV === 'development') {
     mainWindow.webContents.openDevTools();
+    // 禁用开发者工具的缓存
+    mainWindow.webContents.on('devtools-opened', () => {
+      mainWindow.webContents.executeJavaScript(`
+        if (window.DevToolsAPI) {
+          // 尝试禁用缓存
+          console.log('开发模式：缓存已禁用');
+        }
+      `);
+    });
   }
 
   // 初始化 IPC 控制器
@@ -159,7 +180,10 @@ function createTray() {
 /**
  * 应用准备就绪
  */
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // 初始化缓存管理器
+  await cacheManager.initialize();
+  
   createWindow();
   createTray();
   

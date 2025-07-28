@@ -1,17 +1,22 @@
 {
   "name": "miaoda",
-  "version": "4.3.1",
+  "version": "4.4.4",
   "description": "通用 AI 服务聚合平台 - 支持 Claude、OpenAI、Gemini 等多种 AI 服务，智能格式转换，本地模型集成",
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
     "dev": "NODE_ENV=development electron . --dev",
-    "build": "npm run prebuild && electron-builder --mac --publish=never",
+    "build": "npm run prebuild && npm run update-version && electron-builder --mac --publish=never",
     "prebuild": "node scripts/prebuild.js",
-    "dist": "npm run prebuild && electron-builder --mac --publish=never",
+    "dist": "npm run prebuild && npm run update-version && electron-builder --mac --publish=never",
     "build:windows": "node scripts/build-windows.js",
     "dev:windows": "cross-env NODE_ENV=development electron package-windows.json --dev",
-    "lint": "eslint src/**/*.js"
+    "lint": "eslint src/**/*.js",
+    "test:core": "bash scripts/test-core-features.sh",
+    "test:config": "node test/test-config-enhancements.js",
+    "precommit": "npm run test:core",
+    "update-version": "node scripts/update-version.js",
+    "clear-cache": "node scripts/clear-cache.js"
   },
   "keywords": [
     "claude",

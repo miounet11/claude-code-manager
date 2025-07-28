@@ -21,6 +21,11 @@ class ConfigManager {
     // 加载配置
     await this.loadConfigs();
     
+    // 如果有当前配置，自动进入编辑模式
+    if (this.currentConfig) {
+      this.editingConfig = { ...this.currentConfig };
+    }
+    
     // 创建模态窗口
     this.modalElement = document.createElement('div');
     this.modalElement.className = 'modal config-manager';
@@ -42,8 +47,11 @@ class ConfigManager {
    * 加载配置
    */
   async loadConfigs() {
+    console.log('[ConfigManager] 开始加载配置...');
     this.configs = await window.electronAPI.getAllConfigs();
+    console.log('[ConfigManager] 加载到的配置:', this.configs);
     this.currentConfig = await window.electronAPI.getCurrentConfig();
+    console.log('[ConfigManager] 当前配置:', this.currentConfig);
   }
 
   /**
@@ -55,7 +63,13 @@ class ConfigManager {
       <div class="modal-content modal-large">
         <div class="modal-header">
           <h2>配置管理</h2>
-          <button class="btn-close" data-action="close">×</button>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-switch-to-wizard" title="切换到配置向导">
+              <i class="icon icon-wizard"></i>
+              配置向导
+            </button>
+            <button class="btn-close" data-action="close">×</button>
+          </div>
         </div>
         
         <div class="modal-body">
@@ -222,11 +236,7 @@ class ConfigManager {
         <div class="form-actions">
           <button class="btn btn-primary" id="btn-save-and-apply">
             <i class="icon icon-save"></i>
-            保存并启用
-          </button>
-          <button class="btn btn-secondary" id="btn-save-only">
-            <i class="icon icon-save"></i>
-            仅保存
+            保存并启动代理
           </button>
           <button class="btn btn-secondary" id="btn-test-config">
             <i class="icon icon-test"></i>
@@ -251,6 +261,18 @@ class ConfigManager {
       el.addEventListener('click', () => this.close());
     });
     
+    // 切换到配置向导
+    const switchBtn = this.modalElement.querySelector('#btn-switch-to-wizard');
+    if (switchBtn) {
+      switchBtn.addEventListener('click', () => {
+        this.close();
+        // 触发显示配置向导事件
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('show-config-wizard'));
+        }, 300);
+      });
+    }
+    
     // 新建配置
     this.modalElement.querySelector('#btn-add-config').addEventListener('click', () => {
       this.editConfig();
@@ -269,6 +291,12 @@ class ConfigManager {
       
       if (action && configId) {
         this.handleConfigAction(action, configId);
+      } else if (configId) {
+        // 点击配置项本身时，进入编辑模式
+        const config = this.configs.find(c => c.id === configId);
+        if (config) {
+          this.editConfig(config);
+        }
       }
     });
     
@@ -523,6 +551,43 @@ class ConfigManager {
     } catch (error) {
       window.electronAPI.showError('应用配置失败', error.message);
     }
+  }
+  
+  /**
+   * 还原默认配置
+   */
+  async restoreDefaultConfig() {
+    const confirm = await window.electronAPI.showConfirm(
+      '还原默认配置',
+      '确定要还原为 Claude Code 官方默认配置吗？\n\n这将覆盖当前编辑的内容。'
+    );
+    
+    if (!confirm) return;
+    
+    // 设置默认配置
+    const defaultConfig = {
+      name: 'Claude Code 官方配置',
+      apiUrl: 'https://api.anthropic.com',
+      apiKey: '',  // 用户需要自己填写
+      model: 'claude-3-5-sonnet-20241022',
+      maxTokens: 4096,
+      temperature: 0,
+      proxy: ''
+    };
+    
+    // 如果正在编辑的配置有 ID，保留 ID
+    if (this.editingConfig.id) {
+      defaultConfig.id = this.editingConfig.id;
+    }
+    
+    // 更新编辑的配置
+    this.editingConfig = defaultConfig;
+    
+    // 更新表单显示
+    this.updateView();
+    
+    // 显示提示
+    window.electronAPI.showInfo('已还原', '已还原为 Claude Code 官方默认配置，请填写您的 API Key');
   }
 
   /**

@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const TerminalManager = require('../terminal-manager');
 const localModelService = require('./local-model-service');
+const cacheManager = require('./cache-manager');
 
 /**
  * 简化的 IPC 控制器
@@ -50,6 +51,28 @@ class IPCControllerSimple {
         this.mainWindow.close();
       }
     });
+    
+    // 缓存管理
+    this.registerHandler('cache:clear', async () => {
+      try {
+        await cacheManager.clearAllCaches();
+        return { success: true, message: '缓存已清理' };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+    
+    this.registerHandler('cache:get-stats', async () => {
+      return await cacheManager.getCacheStats();
+    });
+    
+    this.registerHandler('cache:reload-window', async () => {
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        await cacheManager.clearWindowCache(this.mainWindow.webContents);
+        return { success: true };
+      }
+      return { success: false, error: '窗口不存在' };
+    });
 
     // 环境检测
     this.registerHandler('env:check', async () => {
@@ -90,7 +113,7 @@ class IPCControllerSimple {
       
       // 保存当前配置ID
       const Store = require('electron-store');
-      const configStore = new Store({ name: 'claude-configs' });
+      const configStore = new Store({ name: 'miaoda-configs' });
       configStore.set('currentConfigId', config.id);
       
       return { success: true };
@@ -330,9 +353,11 @@ class IPCControllerSimple {
   // 配置管理实现
   async getConfigs() {
     const Store = require('electron-store');
-    const configStore = new Store({ name: 'claude-configs' });
+    const configStore = new Store({ name: 'miaoda-configs' });
     
+    console.log('[getConfigs] 配置文件路径:', configStore.path);
     let configs = configStore.get('configs', []);
+    console.log('[getConfigs] 读取到的配置数量:', configs.length);
     
     // 如果没有配置，创建默认配置
     if (configs.length === 0) {
@@ -373,7 +398,7 @@ class IPCControllerSimple {
 
   async saveConfig(config) {
     const Store = require('electron-store');
-    const configStore = new Store({ name: 'claude-configs' });
+    const configStore = new Store({ name: 'miaoda-configs' });
     
     const index = this.configs.findIndex(c => c.id === config.id);
     if (index >= 0) {
@@ -388,7 +413,7 @@ class IPCControllerSimple {
 
   async deleteConfig(id) {
     const Store = require('electron-store');
-    const configStore = new Store({ name: 'claude-configs' });
+    const configStore = new Store({ name: 'miaoda-configs' });
     
     this.configs = this.configs.filter(c => c.id !== id);
     configStore.set('configs', this.configs);

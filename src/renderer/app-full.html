@@ -156,6 +156,8 @@
       height: 100%;
       max-width: 1200px;
       margin: 0 auto;
+      padding: 20px;
+      box-sizing: border-box;
     }
     
     .config-list {
@@ -163,6 +165,8 @@
       background: #2d2d2d;
       border-radius: 8px;
       padding: 20px;
+      overflow-y: auto;
+      max-height: 100%;
     }
     
     .config-item {
@@ -188,6 +192,8 @@
       background: #2d2d2d;
       border-radius: 8px;
       padding: 20px;
+      overflow-y: auto;
+      max-height: 100%;
     }
     
     .form-group {
@@ -524,6 +530,50 @@
       background: #a02020;
     }
     
+    /* 主要按钮样式 */
+    button.btn-primary {
+      background: #0dbc79;
+      color: white;
+      font-weight: 500;
+    }
+    
+    button.btn-primary:hover {
+      background: #0ba568;
+    }
+    
+    /* 按钮内的图标 */
+    button i {
+      margin-right: 6px;
+      font-style: normal;
+    }
+    
+    /* 警告按钮样式 */
+    button.btn-warning {
+      background: #f0ad4e;
+      color: white;
+    }
+    
+    button.btn-warning:hover {
+      background: #ec971f;
+    }
+    
+    /* 成功按钮样式 */
+    button.btn-success {
+      background: #5cb85c;
+      color: white;
+    }
+    
+    button.btn-success:hover {
+      background: #449d44;
+    }
+    
+    /* 图标定义 */
+    .icon-save::before { content: '💾'; }
+    .icon-test::before { content: '🧪'; }
+    .icon-trash::before { content: '🗑️'; }
+    .icon-restore::before { content: '🔄'; }
+    .icon-check::before { content: '✅'; }
+    
     /* 状态栏 */
     .status-bar {
       background: #252525;
@@ -671,15 +721,15 @@
       <div class="logo">Miaoda</div>
     </div>
     <nav class="nav-menu">
-      <div class="nav-item active" onclick="showPanel('environment')">
+      <div class="nav-item active" onclick="showPanel('environment', event)">
         <span>🌍</span>
         <span>环境检测</span>
       </div>
-      <div class="nav-item" onclick="showPanel('config')">
+      <div class="nav-item" onclick="showPanel('config', event)">
         <span>⚙️</span>
         <span>配置管理</span>
       </div>
-      <div class="nav-item" onclick="showPanel('terminal')">
+      <div class="nav-item" onclick="showPanel('terminal', event)">
         <span>💻</span>
         <span>终端</span>
       </div>
@@ -796,9 +846,29 @@
               </div>
               
               <div style="display: flex; gap: 10px; margin-top: 30px;">
-                <button type="button" onclick="saveConfig()">保存</button>
-                <button type="button" class="secondary" onclick="testConfig()">测试</button>
-                <button type="button" class="danger" onclick="deleteConfig()">删除</button>
+                <button type="button" onclick="saveConfigAndStart()" class="btn-primary">
+                  <i class="icon icon-save"></i>
+                  保存并启动代理
+                </button>
+                <button type="button" class="secondary" onclick="testConfig()">
+                  <i class="icon icon-test"></i>
+                  测试连接
+                </button>
+                <button type="button" class="secondary" onclick="saveConfig()">
+                  <i class="icon icon-save"></i>
+                  仅保存
+                </button>
+                <button type="button" class="danger" onclick="deleteConfig()">
+                  <i class="icon icon-trash"></i>
+                  删除
+                </button>
+              </div>
+              
+              <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
+                <button type="button" class="btn-warning" onclick="restoreDefaultConfig()">
+                  <i class="icon icon-restore"></i>
+                  还原 Claude Code 官方配置
+                </button>
               </div>
             </form>
           </div>
@@ -827,8 +897,25 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
-  <script src="xterm-terminal.js"></script>
-  <script src="terminal-tabs.js"></script>
+  <script>
+    // 为所有本地脚本添加版本号以防止缓存
+    const scriptVersion = new Date().getTime();
+    
+    function loadScript(src) {
+      const script = document.createElement('script');
+      script.src = src + '?v=' + scriptVersion;
+      document.body.appendChild(script);
+      return new Promise((resolve) => {
+        script.onload = resolve;
+      });
+    }
+    
+    // 按顺序加载脚本
+    Promise.resolve()
+      .then(() => loadScript('xterm-terminal.js'))
+      .then(() => loadScript('terminal-tabs.js'))
+      .catch(err => console.error('脚本加载失败:', err));
+  </script>
   
   <script>
     // 全局状态
@@ -875,7 +962,8 @@
       const terminalInput = document.getElementById('terminal-input');
       
       // Enter 发送，Shift+Enter 换行
-      terminalInput.addEventListener('keydown', (e) => {
+      if (terminalInput) {
+        terminalInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           sendMessage();
@@ -910,15 +998,27 @@
           clearTerminal();
         }
       });
+      }
     }
     
     // 面板切换
-    async function showPanel(panelName) {
+    async function showPanel(panelName, event) {
       // 更新导航栏
       document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
       });
-      event.currentTarget.classList.add('active');
+      
+      // 如果有事件对象，使用它；否则根据 panelName 找到对应的导航项
+      if (event && event.currentTarget) {
+        event.currentTarget.classList.add('active');
+      } else {
+        // 根据 panelName 找到对应的导航项
+        const navItems = document.querySelectorAll('.nav-item');
+        const panelIndex = panelName === 'environment' ? 0 : panelName === 'config' ? 1 : 2;
+        if (navItems[panelIndex]) {
+          navItems[panelIndex].classList.add('active');
+        }
+      }
       
       // 更新面板
       document.querySelectorAll('.panel').forEach(panel => {
@@ -1035,7 +1135,9 @@
     async function loadConfigs() {
       try {
         // 从本地加载配置
+        console.log('[loadConfigs] 开始加载配置...');
         configs = await window.electronAPI.getAllConfigs();
+        console.log('[loadConfigs] 加载到的配置:', configs);
         
         renderConfigList();
         if (configs.length > 0) {
@@ -1051,6 +1153,14 @@
     
     function renderConfigList() {
       const listEl = document.getElementById('config-list-items');
+      console.log('[renderConfigList] 渲染配置列表, 配置数量:', configs.length);
+      console.log('[renderConfigList] 列表元素:', listEl);
+      
+      if (!listEl) {
+        console.error('[renderConfigList] 找不到 config-list-items 元素!');
+        return;
+      }
+      
       listEl.innerHTML = configs.map(config => `
         <div class="config-item ${currentConfig?.id === config.id ? 'active' : ''}" 
              onclick="selectConfig(${JSON.stringify(config).replace(/"/g, '&quot;')})">
@@ -1094,7 +1204,53 @@
         form.insertBefore(notice, form.firstChild);
       }
       
+      // 更新按钮区域，添加"使用此配置"按钮
+      updateConfigButtons(config);
+      
       renderConfigList();
+    }
+    
+    function updateConfigButtons(config) {
+      // 获取当前配置
+      window.electronAPI.getCurrentConfig().then(current => {
+        const buttonArea = document.querySelector('#config-form > div:nth-last-child(2)');
+        
+        // 检查是否需要显示"使用此配置"按钮
+        if (config && config.id && (!current || config.id !== current.id)) {
+          // 如果按钮不存在，添加它
+          let useBtn = document.getElementById('btn-use-config');
+          if (!useBtn) {
+            useBtn = document.createElement('button');
+            useBtn.id = 'btn-use-config';
+            useBtn.type = 'button';
+            useBtn.className = 'btn-success';
+            useBtn.innerHTML = '<i class="icon icon-check"></i> 使用此配置';
+            useBtn.onclick = () => useConfig();
+            buttonArea.appendChild(useBtn);
+          }
+          useBtn.style.display = 'inline-block';
+        } else {
+          // 隐藏按钮
+          const useBtn = document.getElementById('btn-use-config');
+          if (useBtn) {
+            useBtn.style.display = 'none';
+          }
+        }
+      });
+    }
+    
+    async function useConfig() {
+      if (!currentConfig || !currentConfig.id) return;
+      
+      try {
+        await window.electronAPI.setCurrentConfig(currentConfig);
+        // 重新加载配置列表以更新状态
+        await loadConfigs();
+        window.electronAPI.showSuccess('配置已切换', `已切换到配置: ${currentConfig.name}`);
+      } catch (error) {
+        console.error('切换配置失败:', error);
+        window.electronAPI.showError('切换失败', error.message);
+      }
     }
     
     function createNewConfig() {
@@ -1130,6 +1286,39 @@
       } catch (error) {
         console.error('保存配置失败:', error);
         alert('保存失败: ' + error.message);
+      }
+    }
+    
+    async function saveConfigAndStart() {
+      if (!currentConfig) return;
+      
+      // 先保存配置
+      currentConfig.name = document.getElementById('config-name').value;
+      currentConfig.apiKey = document.getElementById('config-apikey').value;
+      currentConfig.apiUrl = document.getElementById('config-apiurl').value;
+      currentConfig.model = document.getElementById('config-model').value;
+      currentConfig.proxy = document.getElementById('config-proxy').value;
+      
+      try {
+        // 保存到本地
+        await window.electronAPI.saveConfig(currentConfig);
+        await window.electronAPI.setCurrentConfig(currentConfig);
+        
+        // 重新加载配置列表
+        await loadConfigs();
+        
+        // 启动代理和 Claude
+        await window.electronAPI.startProxy(currentConfig);
+        
+        // 切换到终端面板
+        showPanel('terminal');
+        
+        // 启动 Claude
+        await startClaude();
+        
+      } catch (error) {
+        console.error('保存并启动失败:', error);
+        alert('操作失败: ' + error.message);
       }
     }
     
@@ -1184,6 +1373,44 @@
         console.error('删除配置失败:', error);
         alert('删除失败: ' + error.message);
       }
+    }
+    
+    async function restoreDefaultConfig() {
+      const confirm = await window.electronAPI.showConfirm(
+        '还原默认配置',
+        '确定要还原为 Claude Code 官方默认配置吗？\n\n这将覆盖当前编辑的内容。'
+      );
+      
+      if (!confirm) return;
+      
+      // 设置默认配置
+      const defaultConfig = {
+        name: 'Claude Code 官方配置',
+        apiUrl: 'https://api.anthropic.com',
+        apiKey: '',  // 用户需要自己填写
+        model: 'claude-3-5-sonnet-20241022',
+        maxTokens: 4096,
+        temperature: 0,
+        proxy: ''
+      };
+      
+      // 如果当前有配置，保留 ID
+      if (currentConfig && currentConfig.id) {
+        defaultConfig.id = currentConfig.id;
+      }
+      
+      // 更新表单
+      document.getElementById('config-name').value = defaultConfig.name;
+      document.getElementById('config-apikey').value = defaultConfig.apiKey;
+      document.getElementById('config-apiurl').value = defaultConfig.apiUrl;
+      document.getElementById('config-model').value = defaultConfig.model;
+      document.getElementById('config-proxy').value = defaultConfig.proxy;
+      
+      // 更新当前配置
+      Object.assign(currentConfig || {}, defaultConfig);
+      
+      // 显示提示
+      window.electronAPI.showInfo('已还原', '已还原为 Claude Code 官方默认配置，请填写您的 API Key');
     }
     
     // 在系统终端中打开

@@ -17,6 +17,12 @@
   </div>
   
   <!-- 主应用脚本 -->
-  <script type="module" src="App.js"></script>
+  <script type="module">
+    // 动态加载 App.js 并添加版本号防缓存
+    const scriptVersion = new Date().getTime();
+    import(`./App.js?v=${scriptVersion}`).catch(err => {
+      console.error('App.js 加载失败:', err);
+    });
+  </script>
 </body>
 </html>
