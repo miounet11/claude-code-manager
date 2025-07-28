@@ -38,6 +38,16 @@ class IPCControllerSimple {
     this.registerHandler('app:version', () => {
       return require('electron').app.getVersion();
     });
+    
+    this.registerHandler('app:open-path', async (event, path) => {
+      const { shell } = require('electron');
+      return await shell.showItemInFolder(path);
+    });
+    
+    this.registerHandler('app:show-error', async (event, title, message) => {
+      const { dialog } = require('electron');
+      dialog.showErrorBox(title, message);
+    });
 
     // 窗口控制
     this.registerListener('window:minimize', () => {
@@ -83,6 +93,24 @@ class IPCControllerSimple {
     this.registerHandler('env:diagnostics', async () => {
       const environmentService = require('./environment-service');
       return await environmentService.getDiagnostics();
+    });
+    
+    // 运行完整的环境诊断（用于调试）
+    this.registerHandler('environment:run-diagnostics', async () => {
+      const EnvironmentDiagnostics = require('./environment-diagnostics');
+      const diagnostics = await EnvironmentDiagnostics.runFullDiagnostics();
+      const reportPath = await EnvironmentDiagnostics.saveDiagnosticsReport(diagnostics);
+      
+      // 显示诊断结果摘要
+      const summary = {
+        node: diagnostics.commands.node.found ? '✓ 已找到' : '✗ 未找到',
+        npm: diagnostics.commands.npm.found ? '✓ 已找到' : '✗ 未找到',
+        git: diagnostics.commands.git.found ? '✓ 已找到' : '✗ 未找到',
+        claude: diagnostics.commands.claude.found ? '✓ 已找到' : '✗ 未找到',
+        reportPath
+      };
+      
+      return { success: true, diagnostics, summary };
     });
     
     // 修复 Claude 路径

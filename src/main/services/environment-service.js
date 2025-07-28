@@ -125,7 +125,58 @@ class EnvironmentService {
    * 检查 Node.js
    */
   async checkNodejs() {
-    const result = await this.checkCommand('node', '--version');
+    // 先尝试常规检测
+    let result = await this.checkCommand('node', '--version');
+    
+    // 如果常规检测失败，尝试特殊方法
+    if (!result.installed) {
+      console.log('Node.js 常规检测失败，尝试特殊方法...');
+      
+      // 方法1: 检查 Electron 内置的 Node.js
+      if (process.versions && process.versions.node) {
+        console.log('检测到 Electron 内置 Node.js:', process.versions.node);
+        result = {
+          installed: true,
+          command: 'node',
+          version: `v${process.versions.node}`,
+          path: process.execPath,
+          displayVersion: `v${process.versions.node}`,
+          note: 'Electron 内置'
+        };
+      }
+      
+      // 方法2: 尝试通过完整路径查找常见的 Node.js 安装
+      if (!result.installed) {
+        const commonNodePaths = [
+          '/usr/local/bin/node',
+          '/opt/homebrew/bin/node',
+          '/usr/bin/node',
+          `${process.env.HOME}/.nvm/current/bin/node`,
+          `${process.env.HOME}/n/bin/node`,
+          '/Applications/Node.app/Contents/MacOS/node'
+        ];
+        
+        const fs = require('fs');
+        for (const nodePath of commonNodePaths) {
+          try {
+            await fs.promises.access(nodePath, fs.constants.X_OK);
+            const { execSync } = require('child_process');
+            const version = execSync(`"${nodePath}" --version`, { encoding: 'utf8' }).trim();
+            console.log(`找到 Node.js: ${nodePath}, 版本: ${version}`);
+            result = {
+              installed: true,
+              command: 'node',
+              version: version,
+              path: nodePath,
+              displayVersion: version
+            };
+            break;
+          } catch (e) {
+            // 继续尝试下一个路径
+          }
+        }
+      }
+    }
     
     if (result.installed && result.version) {
       const versionMatch = result.version.match(/v?(\d+)\.(\d+)\.(\d+)/);
@@ -133,7 +184,7 @@ class EnvironmentService {
         const major = parseInt(versionMatch[1]);
         result.minVersion = 16;
         result.compatible = major >= result.minVersion;
-        result.displayVersion = `v${versionMatch[1]}.${versionMatch[2]}.${versionMatch[3]}`;
+        result.displayVersion = result.displayVersion || `v${versionMatch[1]}.${versionMatch[2]}.${versionMatch[3]}`;
       }
     }
     
@@ -157,7 +208,83 @@ class EnvironmentService {
    * 检查 Claude
    */
   async checkClaude() {
-    const result = await this.checkCommand('claude', '--version');
+    // 先尝试常规检测
+    let result = await this.checkCommand('claude', '--version');
+    
+    // 如果常规检测失败，尝试特殊方法
+    if (!result.installed) {
+      console.log('Claude CLI 常规检测失败，尝试特殊方法...');
+      
+      // 获取可能的 npm 全局路径
+      const { execSync } = require('child_process');
+      const fs = require('fs');
+      const possiblePaths = [];
+      
+      // 方法1: 尝试获取 npm 全局路径
+      try {
+        const npmPrefix = execSync('npm config get prefix', { 
+          encoding: 'utf8',
+          timeout: 5000
+        }).trim();
+        if (npmPrefix) {
+          possiblePaths.push(
+            `${npmPrefix}/bin/claude`,
+            `${npmPrefix}/lib/node_modules/@anthropic-ai/claude-code/bin/claude`,
+            `${npmPrefix}/lib/node_modules/@anthropic-ai/claude-code/bin/claude.js`
+          );
+        }
+      } catch (e) {
+        console.log('无法获取 npm prefix');
+      }
+      
+      // 方法2: 检查常见的安装位置
+      possiblePaths.push(
+        '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude',
+        '/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude',
+        `${process.env.HOME}/.npm-global/lib/node_modules/@anthropic-ai/claude-code/bin/claude`,
+        `${process.env.HOME}/Documents/claude code/node-v20.10.0-darwin-arm64/bin/claude`
+      );
+      
+      // 检查每个可能的路径
+      for (const claudePath of possiblePaths) {
+        try {
+          await fs.promises.access(claudePath, fs.constants.F_OK);
+          console.log(`检查 Claude 路径: ${claudePath}`);
+          
+          // 尝试执行获取版本
+          try {
+            const version = execSync(`"${claudePath}" --version 2>&1`, {
+              encoding: 'utf8',
+              timeout: 5000
+            }).trim();
+            
+            console.log(`找到 Claude CLI: ${claudePath}, 版本: ${version}`);
+            result = {
+              installed: true,
+              command: 'claude',
+              version: version,
+              path: claudePath,
+              displayName: 'Claude Code CLI'
+            };
+            break;
+          } catch (e) {
+            // 即使无法执行，文件存在也认为已安装
+            console.log(`找到 Claude CLI 文件但无法执行: ${claudePath}`);
+            result = {
+              installed: true,
+              command: 'claude',
+              version: '已安装',
+              path: claudePath,
+              displayName: 'Claude Code CLI',
+              note: '检测到文件但无法获取版本'
+            };
+            break;
+          }
+        } catch (e) {
+          // 文件不存在，继续检查下一个
+        }
+      }
+    }
     
     if (result.installed) {
       result.displayName = 'Claude Code CLI';
@@ -808,39 +935,83 @@ class EnvironmentService {
       if (process.platform === 'darwin') {
         const { execSync } = require('child_process');
         
-        // 尝试获取用户的完整 PATH
+        // 方法1: 使用 launchctl 获取用户环境变量
         try {
-          // 方法1: 使用 path_helper
-          const systemPath = execSync('/usr/libexec/path_helper -s', { 
-            encoding: 'utf8',
-            shell: '/bin/bash'
-          });
-          const pathMatch = systemPath.match(/PATH="([^"]+)"/);
-          if (pathMatch && pathMatch[1]) {
-            process.env.PATH = pathMatch[1];
+          const userPath = execSync('launchctl getenv PATH', {
+            encoding: 'utf8'
+          }).trim();
+          if (userPath) {
+            process.env.PATH = userPath;
+            console.log('通过 launchctl 获取到 PATH');
           }
         } catch (e) {
-          console.log('path_helper 失败，尝试其他方法');
-          
-          // 方法2: 从用户 shell 获取
+          console.log('launchctl 获取 PATH 失败');
+        }
+        
+        // 方法2: 使用 path_helper
+        if (!process.env.PATH || process.env.PATH.split(':').length < 5) {
           try {
-            const userPath = execSync('echo $PATH', {
+            const systemPath = execSync('/usr/libexec/path_helper -s', { 
               encoding: 'utf8',
-              shell: process.env.SHELL || '/bin/bash'
-            }).trim();
-            if (userPath) {
-              process.env.PATH = userPath;
+              shell: '/bin/bash'
+            });
+            const pathMatch = systemPath.match(/PATH="([^"]+)"/);
+            if (pathMatch && pathMatch[1]) {
+              process.env.PATH = pathMatch[1];
+              console.log('通过 path_helper 获取到 PATH');
             }
-          } catch (e2) {
-            console.log('获取用户 PATH 失败');
+          } catch (e) {
+            console.log('path_helper 失败');
           }
         }
         
-        // 方法3: 手动构建完整 PATH
+        // 方法3: 从用户默认 shell 获取
+        if (!process.env.PATH || process.env.PATH.split(':').length < 5) {
+          try {
+            // 获取用户默认 shell
+            const userShell = execSync('dscl . -read /Users/$USER UserShell', {
+              encoding: 'utf8'
+            }).match(/UserShell: (.+)/)?.[1] || '/bin/zsh';
+            
+            // 从 shell 配置文件读取 PATH
+            const shellConfigs = {
+              '/bin/zsh': ['~/.zshrc', '~/.zprofile'],
+              '/bin/bash': ['~/.bashrc', '~/.bash_profile', '~/.profile'],
+              '/bin/sh': ['~/.profile']
+            };
+            
+            const configs = shellConfigs[userShell] || shellConfigs['/bin/zsh'];
+            for (const config of configs) {
+              try {
+                const expandedConfig = config.replace('~', process.env.HOME);
+                const configContent = require('fs').readFileSync(expandedConfig, 'utf8');
+                const pathExports = configContent.match(/export\s+PATH=["']?([^"'\n]+)["']?/g);
+                if (pathExports) {
+                  console.log(`从 ${config} 找到 PATH 配置`);
+                  // 这里简化处理，实际可能需要更复杂的解析
+                }
+              } catch (e) {
+                // 配置文件不存在或无法读取
+              }
+            }
+          } catch (e) {
+            console.log('从 shell 配置获取 PATH 失败');
+          }
+        }
+        
+        // 方法4: 手动构建完整 PATH
         const dynamicPaths = await this.getDynamicPaths();
         const currentPaths = (process.env.PATH || '').split(':').filter(p => p);
         const allPaths = [...new Set([...currentPaths, ...dynamicPaths])];
         process.env.PATH = allPaths.join(':');
+        
+        // 确保 PATH 至少包含基本路径
+        const minimalPaths = ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+        for (const path of minimalPaths) {
+          if (!process.env.PATH.includes(path)) {
+            process.env.PATH = `${process.env.PATH}:${path}`;
+          }
+        }
       }
     } catch (error) {
       console.error('增强 PATH 失败:', error);

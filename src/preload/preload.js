@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onEnvironmentUpdate: (callback) => {
     ipcRenderer.on('env:status-update', (event, data) => callback(data));
   },
+  runEnvironmentDiagnostics: () => ipcRenderer.invoke('environment:run-diagnostics'),
   
   // 安装管理
   installDependency: (dependency) => ipcRenderer.invoke('install:dependency', dependency),
@@ -83,6 +84,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 通用功能
   getSystemInfo: () => ipcRenderer.invoke('app:system-info'),
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
+  openPath: (path) => ipcRenderer.invoke('app:open-path', path),
   showError: (title, message) => ipcRenderer.invoke('app:show-error', title, message),
   showInfo: (title, message) => {
     ipcRenderer.invoke('app:show-error', title, message); // 临时使用 error box

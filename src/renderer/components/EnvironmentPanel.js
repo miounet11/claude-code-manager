@@ -64,6 +64,10 @@ class EnvironmentPanel {
             <i class="icon icon-trash"></i>
             清理缓存
           </button>
+          <button class="btn btn-secondary" id="btn-diagnostics" title="生成详细的环境诊断报告">
+            <i class="icon icon-info"></i>
+            环境诊断
+          </button>
           <button class="btn btn-primary" id="btn-install">
             <i class="icon icon-download"></i>
             安装缺失依赖
@@ -201,6 +205,73 @@ class EnvironmentPanel {
   }
 
   /**
+   * 运行环境诊断
+   */
+  async runDiagnostics() {
+    const diagnosticsBtn = this.modalElement.querySelector('#btn-diagnostics');
+    const originalText = diagnosticsBtn.innerHTML;
+    
+    try {
+      // 显示加载状态
+      diagnosticsBtn.disabled = true;
+      diagnosticsBtn.innerHTML = '<i class="icon icon-spinner"></i> 生成诊断报告...';
+      
+      // 运行诊断
+      const result = await window.electronAPI.runEnvironmentDiagnostics();
+      
+      if (result.success) {
+        // 显示成功消息
+        diagnosticsBtn.classList.remove('btn-secondary');
+        diagnosticsBtn.classList.add('btn-success');
+        diagnosticsBtn.innerHTML = '<i class="icon icon-check"></i> 诊断完成';
+        
+        // 显示诊断结果摘要
+        const message = `
+环境诊断完成！
+
+检测结果：
+• Node.js: ${result.summary.node}
+• npm: ${result.summary.npm}
+• Git: ${result.summary.git}
+• Claude CLI: ${result.summary.claude}
+
+详细报告已保存到：
+${result.summary.reportPath}
+        `;
+        
+        await window.electronAPI.showInfo('环境诊断报告', message);
+        
+        // 如果需要，可以打开报告文件
+        const openReport = await window.electronAPI.showConfirm(
+          '打开诊断报告',
+          '是否要在 Finder 中查看诊断报告文件？'
+        );
+        
+        if (openReport) {
+          await window.electronAPI.openPath(result.summary.reportPath);
+        }
+      } else {
+        throw new Error(result.error || '诊断失败');
+      }
+    } catch (error) {
+      console.error('环境诊断失败:', error);
+      diagnosticsBtn.classList.remove('btn-secondary');
+      diagnosticsBtn.classList.add('btn-danger');
+      diagnosticsBtn.innerHTML = '<i class="icon icon-error"></i> 诊断失败';
+      
+      await window.electronAPI.showError('诊断失败', error.message);
+    } finally {
+      // 恢复按钮状态
+      setTimeout(() => {
+        diagnosticsBtn.disabled = false;
+        diagnosticsBtn.classList.remove('btn-success', 'btn-danger');
+        diagnosticsBtn.classList.add('btn-secondary');
+        diagnosticsBtn.innerHTML = originalText;
+      }, 3000);
+    }
+  }
+
+  /**
    * 格式化平台名称
    */
   formatPlatform(platform) {
@@ -241,6 +312,14 @@ class EnvironmentPanel {
     if (clearCacheBtn) {
       clearCacheBtn.addEventListener('click', async () => {
         await this.clearCache();
+      });
+    }
+    
+    // 环境诊断按钮
+    const diagnosticsBtn = this.modalElement.querySelector('#btn-diagnostics');
+    if (diagnosticsBtn) {
+      diagnosticsBtn.addEventListener('click', async () => {
+        await this.runDiagnostics();
       });
     }
     
