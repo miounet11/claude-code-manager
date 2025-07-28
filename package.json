@@ -9,6 +9,8 @@
     "build": "npm run prebuild && electron-builder --mac --publish=never",
     "prebuild": "node scripts/prebuild.js",
     "dist": "npm run prebuild && electron-builder --mac --publish=never",
+    "build:windows": "node scripts/build-windows.js",
+    "dev:windows": "cross-env NODE_ENV=development electron package-windows.json --dev",
     "lint": "eslint src/**/*.js"
   },
   "keywords": [

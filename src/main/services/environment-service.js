@@ -106,6 +106,17 @@ class EnvironmentService {
       return null;
     }
   }
+  
+  /**
+   * 获取 npm 全局 bin 目录
+   */
+  async getNpmBinPath() {
+    const prefix = await this.getNpmPrefix();
+    if (prefix) {
+      return `${prefix}/bin`;
+    }
+    return null;
+  }
 
   /**
    * 检查 Node.js
@@ -230,16 +241,7 @@ class EnvironmentService {
       
       // 方法4: 在打包环境中，PATH 可能被限制，尝试使用完整路径
       if (!isInstalled) {
-        const pathsToCheck = [
-          '/usr/local/bin',
-          '/usr/bin',
-          '/opt/homebrew/bin',
-          `${process.env.HOME}/.npm-global/bin`,
-          `${process.env.HOME}/Documents/claude code/node-v20.10.0-darwin-arm64/bin`,
-          `${process.env.HOME}/.local/bin`,
-          `${process.env.HOME}/.cargo/bin`,
-          '/Applications/Claude.app/Contents/Resources/bin'
-        ];
+        const pathsToCheck = await this.getSearchPaths(command);
         
         for (const dir of pathsToCheck) {
           const fullPath = `${dir}/${command}`;
@@ -278,7 +280,7 @@ class EnvironmentService {
         // 对于特定命令提供更详细的错误信息
         let errorMessage = '未找到可执行文件';
         if (command === 'claude') {
-          errorMessage = '未安装 Claude CLI。请访问 claude.ai/code 安装';
+          errorMessage = '未安装 Claude CLI。请运行: npm install -g @anthropic-ai/claude-code';
         } else if (command === 'node') {
           errorMessage = '未安装 Node.js。请访问 nodejs.org 安装';
         } else if (command === 'git') {
@@ -373,7 +375,7 @@ class EnvironmentService {
 
     // 方法3：在常见路径中查找
     console.log(`在常见路径中查找 ${command}...`);
-    const paths = this.getCommonPaths(command);
+    const paths = await this.getSearchPaths(command);
     for (const p of paths) {
       try {
         await fs.access(p, fs.constants.X_OK);
@@ -389,24 +391,64 @@ class EnvironmentService {
   }
 
   /**
-   * 获取常见路径
+   * 动态获取搜索路径
    */
-  getCommonPaths(command) {
-    // macOS 专用路径
-    const paths = [
+  async getSearchPaths(command) {
+    const paths = [];
+    const { execSync } = require('child_process');
+    
+    // 1. 获取 npm 全局路径
+    try {
+      const npmPrefix = execSync('npm config get prefix', { encoding: 'utf8' }).trim();
+      if (npmPrefix) {
+        paths.push(`${npmPrefix}/bin/${command}`);
+        // 检查 @anthropic-ai/claude-code 包的 bin 目录
+        if (command === 'claude') {
+          paths.push(`${npmPrefix}/lib/node_modules/@anthropic-ai/claude-code/bin/${command}`);
+        }
+      }
+    } catch (e) {
+      console.log('无法获取 npm prefix');
+    }
+    
+    // 2. 获取当前 Node.js 的 bin 目录
+    try {
+      const nodePath = execSync('which node', { encoding: 'utf8' }).trim();
+      if (nodePath) {
+        const nodeDir = path.dirname(nodePath);
+        paths.push(`${nodeDir}/${command}`);
+      }
+    } catch (e) {
+      console.log('无法获取 node 路径');
+    }
+    
+    // 3. 标准系统路径
+    const standardPaths = [
       `/usr/local/bin/${command}`,
       `/usr/bin/${command}`,
       `/bin/${command}`,
       `/opt/homebrew/bin/${command}`,
       `${process.env.HOME}/.npm-global/bin/${command}`,
       `${process.env.HOME}/.local/bin/${command}`,
-      `${process.env.HOME}/.nvm/current/bin/${command}`,
       `${process.env.HOME}/.cargo/bin/${command}`,
-      `/Applications/Claude.app/Contents/Resources/bin/${command}`,
-      `/usr/local/opt/${command}/bin/${command}`
+      `/Applications/Claude.app/Contents/Resources/bin/${command}`
     ];
-
-    // 添加当前 PATH 中的所有路径
+    
+    paths.push(...standardPaths);
+    
+    // 4. 检查 nvm 管理的 Node 版本
+    const nvmDir = process.env.NVM_DIR || `${process.env.HOME}/.nvm`;
+    try {
+      const fs = require('fs');
+      const versionDirs = await fs.promises.readdir(`${nvmDir}/versions/node`).catch(() => []);
+      for (const version of versionDirs) {
+        paths.push(`${nvmDir}/versions/node/${version}/bin/${command}`);
+      }
+    } catch (e) {
+      // nvm 不存在或无法访问
+    }
+    
+    // 5. 添加当前 PATH 中的所有路径
     if (process.env.PATH) {
       const pathDirs = process.env.PATH.split(':');
       for (const dir of pathDirs) {
@@ -415,8 +457,9 @@ class EnvironmentService {
         }
       }
     }
-
-    return paths;
+    
+    // 去重
+    return [...new Set(paths)];
   }
 
   /**
@@ -441,20 +484,8 @@ class EnvironmentService {
         }
       }
       
-      // 添加常见的路径
-      const additionalPaths = [
-        '/usr/local/bin',
-        '/usr/bin',
-        '/bin',
-        '/usr/sbin',
-        '/sbin',
-        '/opt/homebrew/bin',
-        '/opt/homebrew/sbin',
-        `${process.env.HOME}/.npm-global/bin`,
-        `${process.env.HOME}/.local/bin`,
-        `${process.env.HOME}/.cargo/bin`,
-        '/Applications/Claude.app/Contents/Resources/bin'
-      ];
+      // 动态获取额外的路径
+      const additionalPaths = await this.getDynamicPaths();
       
       // 合并 PATH
       const currentPaths = (env.PATH || '').split(':').filter(p => p);
@@ -529,6 +560,152 @@ class EnvironmentService {
       issues,
       message: ready ? '环境就绪' : `缺少 ${missing.length} 个必需依赖`
     };
+  }
+
+  /**
+   * 尝试修复 Claude CLI 路径问题
+   */
+  async fixClaudePath() {
+    const { execSync } = require('child_process');
+    
+    try {
+      // 1. 获取 npm 全局安装路径
+      const npmPrefix = execSync('npm config get prefix', { encoding: 'utf8' }).trim();
+      const npmBinPath = `${npmPrefix}/bin`;
+      
+      // 2. 检查 Claude 是否在 npm bin 目录中
+      const claudePath = `${npmBinPath}/claude`;
+      const fs = require('fs');
+      
+      if (fs.existsSync(claudePath)) {
+        // 3. 创建符号链接到常用路径
+        const targetPaths = ['/usr/local/bin/claude', '/opt/homebrew/bin/claude'];
+        
+        for (const target of targetPaths) {
+          try {
+            // 检查目录是否存在
+            const targetDir = path.dirname(target);
+            if (fs.existsSync(targetDir)) {
+              // 如果目标已存在，先删除
+              if (fs.existsSync(target)) {
+                fs.unlinkSync(target);
+              }
+              // 创建符号链接
+              execSync(`ln -s "${claudePath}" "${target}"`, { encoding: 'utf8' });
+              console.log(`创建符号链接: ${target} -> ${claudePath}`);
+              return { success: true, message: `已创建符号链接到 ${target}` };
+            }
+          } catch (e) {
+            console.log(`无法创建链接到 ${target}:`, e.message);
+          }
+        }
+      }
+      
+      // 4. 如果 Claude 未安装，返回安装建议
+      return {
+        success: false,
+        message: 'Claude CLI 未找到，请运行: npm install -g @anthropic-ai/claude-code'
+      };
+      
+    } catch (error) {
+      console.error('修复 Claude 路径失败:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: '无法自动修复，请手动检查 Claude CLI 安装'
+      };
+    }
+  }
+
+  /**
+   * 获取详细的环境诊断信息
+   */
+  async getDiagnostics() {
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      platform: process.platform,
+      arch: process.arch,
+      nodeVersion: process.version,
+      electronVersion: process.versions.electron,
+      paths: {
+        PATH: process.env.PATH,
+        npm: await this.getNpmPrefix(),
+        home: process.env.HOME || process.env.USERPROFILE
+      },
+      checks: {}
+    };
+    
+    // 检查关键命令
+    const commands = ['node', 'npm', 'git', 'claude'];
+    for (const cmd of commands) {
+      diagnostics.checks[cmd] = await this.checkCommand(cmd);
+    }
+    
+    // 检查 npm 全局包
+    try {
+      const { execSync } = require('child_process');
+      const globalPackages = execSync('npm list -g --depth=0', { encoding: 'utf8' });
+      diagnostics.npmGlobalPackages = globalPackages;
+    } catch (e) {
+      diagnostics.npmGlobalPackages = 'Unable to list global packages';
+    }
+    
+    return diagnostics;
+  }
+  
+  /**
+   * 动态获取额外的 PATH 路径
+   */
+  async getDynamicPaths() {
+    const paths = [];
+    const { execSync } = require('child_process');
+    
+    // 基础系统路径
+    const basePaths = [
+      '/usr/local/bin',
+      '/usr/local/sbin',
+      '/usr/bin',
+      '/bin',
+      '/usr/sbin',
+      '/sbin',
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin'
+    ];
+    
+    paths.push(...basePaths);
+    
+    // 动态获取 npm 相关路径
+    try {
+      const npmPrefix = execSync('npm config get prefix', { encoding: 'utf8' }).trim();
+      if (npmPrefix) {
+        paths.push(`${npmPrefix}/bin`);
+      }
+    } catch (e) {
+      // npm 不可用
+    }
+    
+    // 动态获取当前 Node.js 的 bin 目录
+    try {
+      const nodePath = execSync('which node', { encoding: 'utf8' }).trim();
+      if (nodePath) {
+        const nodeDir = path.dirname(nodePath);
+        paths.push(nodeDir);
+      }
+    } catch (e) {
+      // node 路径获取失败
+    }
+    
+    // 用户目录下的常见路径
+    paths.push(
+      `${process.env.HOME}/.npm-global/bin`,
+      `${process.env.HOME}/.local/bin`,
+      `${process.env.HOME}/.cargo/bin`
+    );
+    
+    // 应用特定路径
+    paths.push('/Applications/Claude.app/Contents/Resources/bin');
+    
+    return [...new Set(paths)];
   }
 }
 

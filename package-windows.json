@@ -1,0 +1,92 @@
+{
+  "name": "miaoda-windows",
+  "productName": "Miaoda for Windows",
+  "version": "4.3.1",
+  "description": "Universal AI Service Bridge for Windows - Optimized for Claude Code",
+  "main": "src-windows/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "set NODE_ENV=development && electron . --dev",
+    "build": "electron-builder --win --publish=never",
+    "dist": "npm run build",
+    "lint": "eslint src-windows --fix"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "windows",
+    "terminal",
+    "electron"
+  ],
+  "author": {
+    "name": "Miaoda Team",
+    "email": "support@miaoda.app"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^25.1.8",
+    "eslint": "^8.57.0"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6",
+    "node-pty": "^1.0.0",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-webgl": "^0.16.0"
+  },
+  "build": {
+    "appId": "com.miaoda.app.windows",
+    "productName": "Miaoda",
+    "directories": {
+      "output": "dist-windows"
+    },
+    "files": [
+      "src-windows/**/*",
+      "assets/**/*",
+      "!**/*.map",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "ia32"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "publisherName": "Miaoda Team",
+      "certificateFile": null,
+      "certificatePassword": null,
+      "verifyUpdateCodeSignature": false,
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Miaoda",
+      "include": "build/installer.nsh",
+      "license": "LICENSE"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

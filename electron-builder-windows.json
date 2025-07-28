@@ -1,0 +1,82 @@
+{
+  "appId": "com.miaoda.app.windows",
+  "productName": "Miaoda",
+  "directories": {
+    "output": "dist-windows",
+    "buildResources": "build-windows"
+  },
+  "files": [
+    "src-windows/**/*",
+    "assets/**/*",
+    "!**/*.map",
+    "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+    "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+    "!**/node_modules/*.d.ts",
+    "!**/node_modules/.bin",
+    "!**/{.DS_Store,.git,.gitignore,.gitattributes}",
+    "!**/{tsconfig.json,*.ts,*.tsx}",
+    "!src/**",
+    "!src-windows/**/*.map"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64", "ia32"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64", "ia32"]
+      },
+      {
+        "target": "msi",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "assets/icon.ico",
+    "publisherName": "Miaoda Team",
+    "certificateFile": null,
+    "certificatePassword": null,
+    "verifyUpdateCodeSignature": false,
+    "requestedExecutionLevel": "asInvoker",
+    "artifactName": "${productName}-${version}-${arch}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "assets/icon.ico",
+    "uninstallerIcon": "assets/icon.ico",
+    "installerHeaderIcon": "assets/icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Miaoda",
+    "runAfterFinish": true,
+    "deleteAppDataOnUninstall": false,
+    "differentialPackage": true,
+    "displayLanguageSelector": true,
+    "menuCategory": true,
+    "unicode": true,
+    "warningsAsErrors": false
+  },
+  "msi": {
+    "oneClick": false,
+    "perMachine": true,
+    "upgradeCode": "A5B6C7D8-E9F0-1234-5678-90ABCDEF1234",
+    "warningsAsErrors": false,
+    "runAfterFinish": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "miaoda-team",
+      "repo": "miaoda-windows"
+    }
+  ],
+  "releaseInfo": {
+    "releaseNotes": "Windows 版本首次发布",
+    "releaseName": "Miaoda for Windows v1.0.0"
+  }
+}

@@ -55,6 +55,18 @@ class IPCControllerSimple {
     this.registerHandler('env:check', async () => {
       return this.checkEnvironment();
     });
+    
+    // 环境诊断
+    this.registerHandler('env:diagnostics', async () => {
+      const environmentService = require('./environment-service');
+      return await environmentService.getDiagnostics();
+    });
+    
+    // 修复 Claude 路径
+    this.registerHandler('env:fix-claude-path', async () => {
+      const environmentService = require('./environment-service');
+      return await environmentService.fixClaudePath();
+    });
 
     // 配置管理
     this.registerHandler('config:get-all', async () => {
@@ -156,7 +168,28 @@ class IPCControllerSimple {
 
     // 环境安装
     this.registerHandler('install:dependency', async (event, dependency) => {
-      return this.installDependency(dependency);
+      const installerService = require('./installer-service');
+      
+      // 使用新的安装服务
+      const result = await installerService.install(dependency, (progress) => {
+        // 发送进度更新到渲染进程
+        this.sendToRenderer('install:progress', progress);
+      });
+      
+      // 如果是 Claude 安装成功，尝试修复路径
+      if (dependency === 'claude' && result.success) {
+        const environmentService = require('./environment-service');
+        const fixResult = await environmentService.fixClaudePath();
+        if (fixResult.success) {
+          console.log('Claude 路径修复成功:', fixResult.message);
+        }
+        
+        // 重新检查环境
+        const checkResult = await this.checkEnvironment();
+        this.sendToRenderer('env:updated', checkResult);
+      }
+      
+      return result;
     });
 
     // 本地模型管理
@@ -450,16 +483,11 @@ class IPCControllerSimple {
       
       switch (dependency) {
         case 'claude':
-          // 安装 Claude CLI - 使用正确的包名
-          if (process.platform === 'darwin' || process.platform === 'linux') {
-            // macOS/Linux: 使用 brew 或 直接下载
-            command = 'sh';
-            args = ['-c', 'curl -fsSL https://storage.googleapis.com/anthropic-release/claude-cli/install.sh | sh'];
-          } else {
-            // Windows: 使用 npm 或其他方式
-            command = 'npm';
-            args = ['install', '-g', 'claude'];
-          }
+          // 安装 Claude CLI - 使用正确的 npm 包名
+          command = 'npm';
+          args = ['install', '-g', '@anthropic-ai/claude-code'];
+          // 添加环境变量以避免权限问题
+          process.env.npm_config_unsafe_perm = 'true';
           break;
           
         case 'uv':

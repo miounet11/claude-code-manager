@@ -67,6 +67,10 @@ class Sidebar extends EventEmitter {
               <i class="icon icon-plus"></i>
               <span>配置向导</span>
             </button>
+            <button class="action-btn" id="btn-local-models">
+              <i class="icon icon-server"></i>
+              <span>本地模型</span>
+            </button>
           </div>
         </div>
         
@@ -146,6 +150,11 @@ class Sidebar extends EventEmitter {
     // 配置向导
     this.container.querySelector('#btn-config-wizard').addEventListener('click', () => {
       this.emit('show-config-wizard');
+    });
+    
+    // 本地模型管理
+    this.container.querySelector('#btn-local-models').addEventListener('click', () => {
+      this.emit('show-local-models');
     });
     
     // 安装依赖

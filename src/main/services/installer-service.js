@@ -251,9 +251,16 @@ class InstallerService {
       });
     }
 
-    // 执行安装
+    // 执行安装 - 使用正确的包名
     const result = await this.executeCommand('npm', ['install', '-g', '@anthropic-ai/claude-code'], {
-      timeout: 180000 // 3分钟
+      timeout: 180000, // 3分钟
+      env: {
+        ...process.env,
+        // 确保 npm 使用正确的路径
+        PATH: `/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:${process.env.PATH || ''}`,
+        // 避免权限问题
+        npm_config_unsafe_perm: 'true'
+      }
     });
 
     if (result.success) {
@@ -266,8 +273,26 @@ class InstallerService {
         });
       }
 
-      // 验证安装
-      const verifyResult = await this.executeCommand('claude', ['--version']);
+      // 验证安装 - 尝试多个可能的路径
+      let verifyResult = await this.executeCommand('claude', ['--version']);
+      
+      // 如果直接命令失败，尝试完整路径
+      if (!verifyResult.success) {
+        const possiblePaths = [
+          '/usr/local/bin/claude',
+          '/opt/homebrew/bin/claude',
+          `${process.env.HOME}/.npm-global/bin/claude`,
+          '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude'
+        ];
+        
+        for (const claudePath of possiblePaths) {
+          const pathResult = await this.executeCommand(claudePath, ['--version']);
+          if (pathResult.success) {
+            verifyResult = pathResult;
+            break;
+          }
+        }
+      }
       
       if (verifyResult.success) {
         return {
