@@ -48,7 +48,10 @@ class EnvironmentService {
 
     this.isChecking = true;
     console.log('====== 开始环境检测 ======');
-    console.log('当前 PATH:', process.env.PATH);
+    
+    // 在打包应用中增强 PATH
+    await this.enhanceEnvironmentPath();
+    console.log('增强后的 PATH:', process.env.PATH);
 
     try {
       const result = {
@@ -183,93 +186,131 @@ class EnvironmentService {
   async checkCommand(command, versionArg = '--version') {
     console.log(`检查命令: ${command}`);
     const { execSync } = require('child_process');
+    const fs = require('fs');
     
     try {
+      // 先增强 PATH 环境
+      await this.enhanceEnvironmentPath();
+      
       // 使用与 Claude_code_proxy.sh 相同的检测方法
       let isInstalled = false;
       let commandPath = '';
+      let version = '';
       
       // 方法1: 直接使用 command -v 检测
       try {
         const testCmd = `command -v ${command}`;
         
-        execSync(testCmd, { 
-          stdio: 'ignore',
-          shell: '/bin/bash'
-        });
-        isInstalled = true;
+        commandPath = execSync(testCmd, {
+          encoding: 'utf8',
+          shell: '/bin/bash',
+          env: process.env
+        }).trim();
         
-        // 获取命令路径
-        try {
-          commandPath = execSync(testCmd, {
-            encoding: 'utf8',
-            shell: '/bin/bash'
-          }).trim();
-        } catch (e) {
-          commandPath = command;
+        if (commandPath) {
+          isInstalled = true;
+          console.log(`通过 command -v 找到 ${command}: ${commandPath}`);
         }
       } catch (e) {
-        
-        // 方法2: 尝试 which
+        // 继续尝试其他方法
+      }
+      
+      // 方法2: 尝试 which
+      if (!isInstalled) {
         try {
           commandPath = execSync(`which ${command}`, {
             encoding: 'utf8',
-            stdio: ['pipe', 'pipe', 'ignore']
+            stdio: ['pipe', 'pipe', 'ignore'],
+            env: process.env
           }).trim();
           
           if (commandPath) {
             isInstalled = true;
+            console.log(`通过 which 找到 ${command}: ${commandPath}`);
           }
         } catch (e2) {
           // 继续尝试下一个方法
         }
-        
-        // 方法3: 直接尝试执行命令
-        if (!isInstalled) {
-          try {
-            const output = execSync(`${command} --version 2>&1`, {
-              encoding: 'utf8',
-              timeout: 2000
-            });
-            isInstalled = true;
-            commandPath = command;
-          } catch (e3) {
-            // 继续尝试下一个方法
-          }
+      }
+      
+      // 方法3: 直接尝试执行命令
+      if (!isInstalled) {
+        try {
+          const output = execSync(`${command} ${versionArg} 2>&1`, {
+            encoding: 'utf8',
+            timeout: 3000,
+            env: process.env
+          });
+          isInstalled = true;
+          commandPath = command;
+          version = output.trim().split('\n')[0];
+          console.log(`直接执行找到 ${command}, 版本: ${version}`);
+        } catch (e3) {
+          // 继续尝试下一个方法
         }
       }
       
-      // 方法4: 在打包环境中，PATH 可能被限制，尝试使用完整路径
+      // 方法4: 在常见路径中查找
       if (!isInstalled) {
         const pathsToCheck = await this.getSearchPaths(command);
+        console.log(`在 ${pathsToCheck.length} 个路径中查找 ${command}...`);
         
-        for (const dir of pathsToCheck) {
-          const fullPath = `${dir}/${command}`;
+        for (const fullPath of pathsToCheck) {
           try {
-            // 检查文件是否存在且可执行
-            const fs = require('fs');
-            fs.accessSync(fullPath, fs.constants.X_OK);
+            // 检查文件是否存在
+            await fs.promises.access(fullPath, fs.constants.F_OK);
             
-            // 尝试使用完整路径执行版本命令
+            // 检查是否可执行
             try {
-              const versionOutput = execSync(`"${fullPath}" ${versionArg} 2>&1`, {
-                encoding: 'utf8',
-                timeout: 3000
-              }).trim();
+              await fs.promises.access(fullPath, fs.constants.X_OK);
+              console.log(`找到可执行文件: ${fullPath}`);
               
-              isInstalled = true;
-              commandPath = fullPath;
-              break;
-            } catch (execError) {
-              // 对于某些命令，即使版本参数失败，文件存在也算已安装
-              if (command === 'node' || command === 'claude' || command === 'npm') {
+              // 尝试获取版本
+              try {
+                const versionOutput = execSync(`"${fullPath}" ${versionArg} 2>&1`, {
+                  encoding: 'utf8',
+                  timeout: 3000,
+                  env: process.env
+                }).trim();
+                
                 isInstalled = true;
                 commandPath = fullPath;
+                version = versionOutput.split('\n')[0];
+                console.log(`${command} 版本: ${version}`);
+                break;
+              } catch (execError) {
+                // 某些命令可能不支持版本参数，但文件存在就认为已安装
+                if (command === 'node' || command === 'npm' || command === 'git') {
+                  // 尝试其他版本参数
+                  const altVersionArgs = ['-v', 'version', '-version'];
+                  for (const altArg of altVersionArgs) {
+                    try {
+                      const altOutput = execSync(`"${fullPath}" ${altArg} 2>&1`, {
+                        encoding: 'utf8',
+                        timeout: 3000,
+                        env: process.env
+                      }).trim();
+                      version = altOutput.split('\n')[0];
+                      break;
+                    } catch (e) {
+                      // 继续尝试
+                    }
+                  }
+                }
+                
+                // 即使无法获取版本，文件存在也算已安装
+                isInstalled = true;
+                commandPath = fullPath;
+                if (!version) {
+                  version = '已安装（版本未知）';
+                }
                 break;
               }
+            } catch (e) {
+              console.log(`文件存在但不可执行: ${fullPath}`);
             }
           } catch (e) {
-            // 文件不存在或不可执行，继续下一个
+            // 文件不存在，继续下一个
           }
         }
       }
@@ -298,33 +339,35 @@ class EnvironmentService {
 
       console.log(`找到 ${command} 位于: ${commandPath}`);
 
-      // 获取版本信息
-      let version = '已安装';
-      try {
-        // 使用完整路径执行版本命令
-        const versionCommand = commandPath.includes('/') ? `"${commandPath}"` : command;
-        const versionOutput = execSync(`${versionCommand} ${versionArg} 2>&1`, {
-          encoding: 'utf8',
-          timeout: 3000
-        }).trim();
-        
-        if (versionOutput) {
-          version = versionOutput.split('\n')[0];
-        }
-        console.log(`${command} 版本: ${version}`);
-      } catch (e) {
-        // 对于 node 和 claude，即使无法获取版本也认为已安装
-        if (command === 'node' || command === 'claude' || command === 'npm') {
-          version = '已安装';
-        } else {
-          version = '已安装（版本未知）';
+      // 获取版本信息（如果还没有获取到）
+      if (!version) {
+        try {
+          // 使用完整路径执行版本命令
+          const versionCommand = commandPath.includes('/') ? `"${commandPath}"` : command;
+          const versionOutput = execSync(`${versionCommand} ${versionArg} 2>&1`, {
+            encoding: 'utf8',
+            timeout: 3000,
+            env: process.env
+          }).trim();
+          
+          if (versionOutput) {
+            version = versionOutput.split('\n')[0];
+          }
+          console.log(`${command} 版本: ${version}`);
+        } catch (e) {
+          // 对于 node 和 claude，即使无法获取版本也认为已安装
+          if (command === 'node' || command === 'claude' || command === 'npm') {
+            version = '已安装';
+          } else {
+            version = '已安装（版本未知）';
+          }
         }
       }
 
       return {
         installed: true,
         command: command,
-        version: version,
+        version: version || '已安装',
         path: commandPath
       };
       
@@ -397,47 +440,71 @@ class EnvironmentService {
     const paths = [];
     const { execSync } = require('child_process');
     
-    // 1. 获取 npm 全局路径
+    // 1. 获取 npm 全局路径（多种方法）
     try {
-      const npmPrefix = execSync('npm config get prefix', { encoding: 'utf8' }).trim();
+      // 方法1: npm config get prefix
+      const npmPrefix = execSync('npm config get prefix', { 
+        encoding: 'utf8',
+        env: process.env
+      }).trim();
       if (npmPrefix) {
         paths.push(`${npmPrefix}/bin/${command}`);
         // 检查 @anthropic-ai/claude-code 包的 bin 目录
         if (command === 'claude') {
           paths.push(`${npmPrefix}/lib/node_modules/@anthropic-ai/claude-code/bin/${command}`);
+          paths.push(`${npmPrefix}/lib/node_modules/@anthropic-ai/claude-code/bin/claude.js`);
         }
       }
     } catch (e) {
-      console.log('无法获取 npm prefix');
-    }
-    
-    // 2. 获取当前 Node.js 的 bin 目录
-    try {
-      const nodePath = execSync('which node', { encoding: 'utf8' }).trim();
-      if (nodePath) {
-        const nodeDir = path.dirname(nodePath);
-        paths.push(`${nodeDir}/${command}`);
+      // 方法2: 尝试默认路径
+      const defaultNpmPaths = [
+        '/usr/local/lib/node_modules',
+        '/opt/homebrew/lib/node_modules',
+        `${process.env.HOME}/.npm-global/lib/node_modules`
+      ];
+      for (const npmPath of defaultNpmPaths) {
+        if (command === 'claude') {
+          paths.push(`${npmPath}/@anthropic-ai/claude-code/bin/${command}`);
+          paths.push(`${npmPath}/@anthropic-ai/claude-code/bin/claude.js`);
+        }
       }
-    } catch (e) {
-      console.log('无法获取 node 路径');
     }
     
-    // 3. 标准系统路径
+    // 2. 获取 Node.js 相关路径
+    // 从进程中获取 Node.js 执行路径
+    const nodeExecPath = process.execPath;
+    if (nodeExecPath) {
+      const nodeDir = path.dirname(nodeExecPath);
+      paths.push(`${nodeDir}/${command}`);
+      // 同时检查父目录的 bin
+      const parentDir = path.dirname(nodeDir);
+      paths.push(`${parentDir}/bin/${command}`);
+    }
+    
+    // 3. 标准系统路径（扩展）
     const standardPaths = [
       `/usr/local/bin/${command}`,
       `/usr/bin/${command}`,
       `/bin/${command}`,
+      `/usr/sbin/${command}`,
+      `/sbin/${command}`,
       `/opt/homebrew/bin/${command}`,
+      `/opt/homebrew/sbin/${command}`,
+      `/usr/local/opt/${command}/bin/${command}`,
       `${process.env.HOME}/.npm-global/bin/${command}`,
       `${process.env.HOME}/.local/bin/${command}`,
       `${process.env.HOME}/.cargo/bin/${command}`,
-      `/Applications/Claude.app/Contents/Resources/bin/${command}`
+      `${process.env.HOME}/bin/${command}`,
+      `/Applications/Claude.app/Contents/Resources/bin/${command}`,
+      `/Applications/Xcode.app/Contents/Developer/usr/bin/${command}`
     ];
     
     paths.push(...standardPaths);
     
-    // 4. 检查 nvm 管理的 Node 版本
+    // 4. nvm 相关路径
     const nvmDir = process.env.NVM_DIR || `${process.env.HOME}/.nvm`;
+    paths.push(`${nvmDir}/current/bin/${command}`);
+    
     try {
       const fs = require('fs');
       const versionDirs = await fs.promises.readdir(`${nvmDir}/versions/node`).catch(() => []);
@@ -448,7 +515,11 @@ class EnvironmentService {
       // nvm 不存在或无法访问
     }
     
-    // 5. 添加当前 PATH 中的所有路径
+    // 5. n (另一个 Node 版本管理器) 相关路径
+    paths.push(`${process.env.HOME}/n/bin/${command}`);
+    paths.push(`/usr/local/n/versions/node/*/bin/${command}`);
+    
+    // 6. 添加当前 PATH 中的所有路径
     if (process.env.PATH) {
       const pathDirs = process.env.PATH.split(':');
       for (const dir of pathDirs) {
@@ -458,7 +529,17 @@ class EnvironmentService {
       }
     }
     
-    // 去重
+    // 7. Homebrew 特定路径（Intel 和 Apple Silicon）
+    if (process.platform === 'darwin') {
+      // Homebrew 安装的 Node.js
+      paths.push(`/usr/local/Cellar/node/*/bin/${command}`);
+      paths.push(`/opt/homebrew/Cellar/node/*/bin/${command}`);
+      
+      // MacPorts
+      paths.push(`/opt/local/bin/${command}`);
+    }
+    
+    // 去重并返回
     return [...new Set(paths)];
   }
 
@@ -699,13 +780,71 @@ class EnvironmentService {
     paths.push(
       `${process.env.HOME}/.npm-global/bin`,
       `${process.env.HOME}/.local/bin`,
-      `${process.env.HOME}/.cargo/bin`
+      `${process.env.HOME}/.cargo/bin`,
+      `${process.env.HOME}/.nvm/current/bin`,
+      `${process.env.HOME}/bin`
     );
     
     // 应用特定路径
     paths.push('/Applications/Claude.app/Contents/Resources/bin');
     
+    // macOS 特定：获取 Homebrew 路径
+    if (process.platform === 'darwin') {
+      // Intel Mac
+      paths.push('/usr/local/Homebrew/bin');
+      // Apple Silicon Mac
+      paths.push('/opt/homebrew/bin');
+    }
+    
     return [...new Set(paths)];
+  }
+
+  /**
+   * 增强环境 PATH（专门为打包应用优化）
+   */
+  async enhanceEnvironmentPath() {
+    try {
+      // 如果是 macOS 打包应用，PATH 可能被限制
+      if (process.platform === 'darwin') {
+        const { execSync } = require('child_process');
+        
+        // 尝试获取用户的完整 PATH
+        try {
+          // 方法1: 使用 path_helper
+          const systemPath = execSync('/usr/libexec/path_helper -s', { 
+            encoding: 'utf8',
+            shell: '/bin/bash'
+          });
+          const pathMatch = systemPath.match(/PATH="([^"]+)"/);
+          if (pathMatch && pathMatch[1]) {
+            process.env.PATH = pathMatch[1];
+          }
+        } catch (e) {
+          console.log('path_helper 失败，尝试其他方法');
+          
+          // 方法2: 从用户 shell 获取
+          try {
+            const userPath = execSync('echo $PATH', {
+              encoding: 'utf8',
+              shell: process.env.SHELL || '/bin/bash'
+            }).trim();
+            if (userPath) {
+              process.env.PATH = userPath;
+            }
+          } catch (e2) {
+            console.log('获取用户 PATH 失败');
+          }
+        }
+        
+        // 方法3: 手动构建完整 PATH
+        const dynamicPaths = await this.getDynamicPaths();
+        const currentPaths = (process.env.PATH || '').split(':').filter(p => p);
+        const allPaths = [...new Set([...currentPaths, ...dynamicPaths])];
+        process.env.PATH = allPaths.join(':');
+      }
+    } catch (error) {
+      console.error('增强 PATH 失败:', error);
+    }
   }
 }
 
