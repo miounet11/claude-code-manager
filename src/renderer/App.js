@@ -246,6 +246,27 @@ class App {
     const modalContainer = document.getElementById('modal-container');
     this.components.configWizard.show(modalContainer);
   }
+  
+  /**
+   * 切换到终端页面
+   */
+  switchToTerminal() {
+    // 确保终端容器可见
+    const terminalContainer = document.getElementById('terminal-container');
+    if (terminalContainer) {
+      terminalContainer.scrollIntoView({ behavior: 'smooth' });
+      
+      // 激活终端焦点
+      if (this.components.terminal) {
+        this.components.terminal.focus();
+      }
+      
+      // 更新侧边栏活动状态
+      if (this.components.sidebar) {
+        this.components.sidebar.setActiveItem('terminal');
+      }
+    }
+  }
 
   /**
    * 显示安装向导
@@ -361,4 +382,11 @@ class App {
 // 启动应用
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
+  
+  // 暴露必要的方法到全局
+  window.switchToTerminal = () => window.app.switchToTerminal();
+  window.showConfigManager = () => window.app.showConfigManager();
+  window.showConfigWizard = () => window.app.showConfigWizard();
+  window.showEnvironmentPanel = () => window.app.showEnvironmentPanel();
+  window.showLocalModelManager = () => window.app.showLocalModelManager();
 });

@@ -1,11 +1,12 @@
 'use strict';
 
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 const EventEmitter = require('events');
+const fs = require('fs');
 
 /**
- * Claude 服务 - 负责管理 Claude 进程
+ * Claude 服务 - Windows 版本
  */
 class ClaudeService extends EventEmitter {
   constructor() {
@@ -44,7 +45,6 @@ class ClaudeService extends EventEmitter {
       const proxyResult = await proxyServer.start(config);
       proxyUrl = proxyResult.url;
       
-      // 监听代理服务器事件
       proxyServer.on('usage', (data) => {
         this.emit('usage', data);
       });
@@ -57,18 +57,12 @@ class ClaudeService extends EventEmitter {
     // 构建启动参数
     const args = [];
     
-    // 端口参数
     args.push('serve', '--port', this.port.toString());
     
-    // 模型参数
     if (config.model) {
       args.push('--model', config.model);
     }
 
-    // API 参数 - Claude CLI 使用环境变量而不是命令行参数
-    // 这些将在 buildEnvironment 中设置
-
-    // 其他参数
     if (config.maxTokens) {
       args.push('--max-tokens', config.maxTokens.toString());
     }
@@ -77,17 +71,18 @@ class ClaudeService extends EventEmitter {
       args.push('--temperature', config.temperature.toString());
     }
 
-    // 启动进程
     this.emit('starting', { config: config.name, port: this.port, proxyUrl });
     
     try {
       // 尝试找到 claude 命令的完整路径
       const claudePath = await this.findClaudePath();
+      const command = claudePath || 'claude';
       
-      this.process = spawn(claudePath || 'claude', args, {
+      // Windows 特殊处理：使用 cmd.exe 来执行命令
+      this.process = spawn('cmd.exe', ['/c', command, ...args], {
         env: this.buildEnvironment(config, proxyUrl),
-        shell: true,
-        windowsHide: true
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'pipe']
       });
 
       this.isRunning = true;
@@ -161,10 +156,21 @@ class ClaudeService extends EventEmitter {
 
     this.emit('stopping');
     
-    // 优雅关闭
-    this.process.kill('SIGTERM');
+    // Windows 下使用 taskkill
+    try {
+      if (this.process.pid) {
+        execSync(`taskkill /pid ${this.process.pid} /f`, { windowsHide: true });
+      }
+    } catch (e) {
+      console.error('使用 taskkill 停止进程失败:', e);
+    }
     
-    // 如果 5 秒后还没退出，强制关闭
+    // 如果 taskkill 失败，尝试常规方法
+    if (this.process && !this.process.killed) {
+      this.process.kill('SIGTERM');
+    }
+    
+    // 设置强制结束的超时
     this.killTimeout = setTimeout(() => {
       if (this.process && !this.process.killed) {
         this.process.kill('SIGKILL');
@@ -192,7 +198,7 @@ class ClaudeService extends EventEmitter {
     const config = this.config;
     
     if (this.isRunning) {
-      this.stop();
+      await this.stop();
       // 等待进程完全停止
       await new Promise(resolve => {
         const checkInterval = setInterval(() => {
@@ -246,14 +252,10 @@ class ClaudeService extends EventEmitter {
   buildEnvironment(config, proxyUrl) {
     const env = { ...process.env };
 
-    // 如果使用代理服务器，设置代理 URL
     if (proxyUrl) {
-      // Claude CLI 将通过代理访问 API
       env.ANTHROPIC_API_URL = proxyUrl;
-      // 代理服务器会处理认证，这里设置一个占位符
       env.ANTHROPIC_API_KEY = 'proxy-handled';
     } else {
-      // 直接使用配置的 API
       env.ANTHROPIC_API_KEY = config.apiKey;
       if (config.apiUrl) {
         env.ANTHROPIC_API_URL = config.apiUrl;
@@ -311,20 +313,16 @@ class ClaudeService extends EventEmitter {
     
     return new Promise((resolve, reject) => {
       const checkReady = () => {
-        // 检查进程是否还在运行
         if (!this.process || this.process.killed) {
           reject(new Error('Claude 进程已退出'));
           return;
         }
 
-        // 检查超时
         if (Date.now() - startTime > timeout) {
           reject(new Error('Claude 启动超时'));
           return;
         }
 
-        // TODO: 实现更可靠的就绪检查
-        // 目前简单等待一段时间
         setTimeout(() => {
           resolve();
         }, 2000);
@@ -338,13 +336,11 @@ class ClaudeService extends EventEmitter {
    * 清理资源
    */
   cleanup() {
-    // 清理定时器
     if (this.killTimeout) {
       clearTimeout(this.killTimeout);
       this.killTimeout = null;
     }
     
-    // 移除进程事件监听器
     if (this.process) {
       this.process.stdout.removeAllListeners();
       this.process.stderr.removeAllListeners();
@@ -356,101 +352,92 @@ class ClaudeService extends EventEmitter {
     this.startTime = null;
     this.port = null;
     
-    // 移除所有事件监听器
     this.removeAllListeners();
   }
   
   /**
-   * 查找 Claude CLI 的路径
+   * 查找 Claude CLI 的路径 (Windows 版本)
    */
   async findClaudePath() {
-    const { execSync } = require('child_process');
-    const fs = require('fs');
-    const path = require('path');
-    
-    // 1. 先尝试 which 命令
     try {
-      const claudePath = execSync('which claude', { encoding: 'utf8' }).trim();
-      if (claudePath) {
-        console.log('通过 which 找到 Claude CLI:', claudePath);
-        return claudePath;
+      // 1. 使用 where 命令
+      try {
+        const claudePath = execSync('where claude', { 
+          encoding: 'utf8',
+          windowsHide: true 
+        }).split('\n')[0].trim();
+        
+        if (claudePath) {
+          console.log('通过 where 找到 Claude CLI:', claudePath);
+          return claudePath;
+        }
+      } catch (e) {
+        // where 失败，继续尝试其他方法
       }
-    } catch (e) {
-      // which 失败，继续尝试其他方法
-    }
-    
-    // 2. 动态获取 npm 全局路径
-    const possiblePaths = [];
-    
-    try {
-      const npmPrefix = execSync('npm config get prefix', { encoding: 'utf8' }).trim();
-      if (npmPrefix) {
-        possiblePaths.push(`${npmPrefix}/bin/claude`);
-        possiblePaths.push(`${npmPrefix}/lib/node_modules/@anthropic-ai/claude-code/bin/claude`);
+      
+      // 2. 动态获取 npm 全局路径
+      const possiblePaths = [];
+      
+      try {
+        const npmPrefix = execSync('npm config get prefix', { 
+          encoding: 'utf8',
+          windowsHide: true 
+        }).trim();
+        
+        if (npmPrefix) {
+          possiblePaths.push(path.join(npmPrefix, 'claude.cmd'));
+          possiblePaths.push(path.join(npmPrefix, 'claude.exe'));
+          possiblePaths.push(path.join(npmPrefix, 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.cmd'));
+          
+          // AppData 路径
+          const appDataNpm = path.join(process.env.APPDATA || '', 'npm');
+          possiblePaths.push(path.join(appDataNpm, 'claude.cmd'));
+          possiblePaths.push(path.join(appDataNpm, 'claude.exe'));
+        }
+      } catch (e) {
+        console.log('无法获取 npm prefix');
       }
-    } catch (e) {
-      console.log('无法获取 npm prefix');
-    }
-    
-    // 3. 获取当前 Node.js 的 bin 目录
-    try {
-      const nodePath = execSync('which node', { encoding: 'utf8' }).trim();
-      if (nodePath) {
-        const nodeDir = path.dirname(nodePath);
-        possiblePaths.push(`${nodeDir}/claude`);
-      }
-    } catch (e) {
-      console.log('无法获取 node 路径');
-    }
-    
-    // 4. 标准路径
-    const standardPaths = [
-      '/usr/local/bin/claude',
-      '/opt/homebrew/bin/claude',
-      `${process.env.HOME}/.npm-global/bin/claude`,
-      '/usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude',
-      '/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude',
-      `${process.env.HOME}/.npm-global/lib/node_modules/@anthropic-ai/claude-code/bin/claude`
-    ];
-    
-    possiblePaths.push(...standardPaths);
-    
-    // 5. 检查 nvm 管理的版本
-    const nvmDir = process.env.NVM_DIR || `${process.env.HOME}/.nvm`;
-    try {
-      const versionDirs = fs.readdirSync(`${nvmDir}/versions/node`).filter(d => d.startsWith('v'));
-      for (const version of versionDirs) {
-        possiblePaths.push(`${nvmDir}/versions/node/${version}/bin/claude`);
-      }
-    } catch (e) {
-      // nvm 不存在或无法访问
-    }
-    
-    // 6. 从 PATH 环境变量获取
-    if (process.env.PATH) {
-      const pathDirs = process.env.PATH.split(':');
-      for (const dir of pathDirs) {
-        if (dir && dir.trim()) {
-          possiblePaths.push(`${dir.trim()}/claude`);
+      
+      // 3. 标准路径
+      const standardPaths = [
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'nodejs', 'claude.cmd'),
+        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'claude.cmd'),
+        path.join(process.env.USERPROFILE || '', '.npm-global', 'claude.cmd')
+      ];
+      
+      possiblePaths.push(...standardPaths);
+      
+      // 4. 从 PATH 环境变量获取
+      if (process.env.PATH) {
+        const pathDirs = process.env.PATH.split(';');
+        for (const dir of pathDirs) {
+          if (dir && dir.trim()) {
+            possiblePaths.push(path.join(dir.trim(), 'claude.cmd'));
+            possiblePaths.push(path.join(dir.trim(), 'claude.exe'));
+          }
         }
       }
-    }
-    
-    // 7. 去重并尝试所有路径
-    const uniquePaths = [...new Set(possiblePaths)];
-    
-    for (const claudePath of uniquePaths) {
-      try {
-        fs.accessSync(claudePath, fs.constants.X_OK);
-        console.log('找到 Claude CLI:', claudePath);
-        return claudePath;
-      } catch (e) {
-        // 文件不存在或不可执行
+      
+      // 5. 去重并尝试所有路径
+      const uniquePaths = [...new Set(possiblePaths)];
+      
+      for (const claudePath of uniquePaths) {
+        try {
+          await fs.promises.access(claudePath, fs.constants.F_OK);
+          console.log('找到 Claude CLI:', claudePath);
+          return claudePath;
+        } catch (e) {
+          // 文件不存在
+        }
       }
+      
+      console.log('未找到 Claude CLI 的具体路径，使用默认命令');
+      return null;
+      
+    } catch (error) {
+      console.error('查找 Claude 路径时出错:', error);
+      return null;
     }
-    
-    console.log('未找到 Claude CLI 的具体路径，使用默认命令');
-    return null;
   }
 }
 

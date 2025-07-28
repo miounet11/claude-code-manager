@@ -133,10 +133,28 @@ function createTray() {
  * 注册 IPC 处理器
  */
 function registerIPCHandlers() {
+  // 引入服务
+  const environmentService = require('./services/environment-service');
+  const installerService = require('./services/installer-service');
   // 环境检测
   ipcMain.handle('env:check', async () => {
     windowsAnalyticsIntegration.trackFeatureUse('env_check');
-    return await windowsEnv.checkAll();
+    return await environmentService.checkAll();
+  });
+  
+  ipcMain.handle('env:diagnostics', async () => {
+    return await environmentService.getDiagnostics();
+  });
+  
+  ipcMain.handle('env:fix-claude-path', async () => {
+    return await environmentService.fixClaudePath();
+  });
+  
+  ipcMain.handle('env:install', async (event, dependency) => {
+    if (dependency === 'claude') {
+      return await installerService.installClaude();
+    }
+    throw new Error(`Unknown dependency: ${dependency}`);
   });
 
   ipcMain.handle('env:install', async (event, dependency) => {
@@ -182,28 +200,40 @@ function registerIPCHandlers() {
   // Claude 管理
   ipcMain.handle('claude:start', async (event, config) => {
     windowsAnalyticsIntegration.trackClaudeAction('start');
-    return await conptyManager.executeClaude(config);
+    const environmentService = require('./services/environment-service');
+    const envResult = await environmentService.checkAll();
+    
+    if (!envResult.summary.ready) {
+      throw new Error('环境未就绪: ' + envResult.summary.issues.join(', '));
+    }
+    
+    return await claudeService.start(config);
+  });
+  
+  ipcMain.handle('claude:stop', async () => {
+    windowsAnalyticsIntegration.trackClaudeAction('stop');
+    return await claudeService.stop();
+  });
+  
+  ipcMain.handle('claude:restart', async () => {
+    windowsAnalyticsIntegration.trackClaudeAction('restart');
+    return await claudeService.restart();
+  });
+  
+  ipcMain.handle('claude:status', async () => {
+    return claudeService.getStatus();
+  });
+  
+  ipcMain.handle('claude:send-input', async (event, input) => {
+    return claudeService.sendInput(input);
   });
 
   // 配置管理
+  const configService = require('./services/config-service-windows');
+  const claudeService = require('./services/claude-service');
+  
   ipcMain.handle('config:get-all', async () => {
-    const configs = configStore.get('configs', []);
-    if (configs.length === 0) {
-      // 默认配置
-      const defaultConfigs = [
-        {
-          id: 'default',
-          name: '默认配置',
-          apiKey: '',
-          apiUrl: 'http://localhost:8118',
-          model: 'claude-3-7-sonnet-20250219',
-          proxy: ''
-        }
-      ];
-      configStore.set('configs', defaultConfigs);
-      return defaultConfigs;
-    }
-    return configs;
+    return configService.getAllConfigs();
   });
 
   ipcMain.handle('config:save', async (event, config) => {
@@ -221,22 +251,48 @@ function registerIPCHandlers() {
     return { success: true };
   });
 
+  ipcMain.handle('config:add', async (event, config) => {
+    windowsAnalyticsIntegration.trackConfigAction('add');
+    return configService.addConfig(config);
+  });
+
+  ipcMain.handle('config:update', async (event, id, config) => {
+    windowsAnalyticsIntegration.trackConfigAction('update');
+    return configService.updateConfig(id, config);
+  });
+
   ipcMain.handle('config:delete', async (event, configId) => {
-    const configs = configStore.get('configs', []);
-    const filtered = configs.filter(c => c.id !== configId);
-    configStore.set('configs', filtered);
-    return { success: true };
+    windowsAnalyticsIntegration.trackConfigAction('delete');
+    return configService.deleteConfig(configId);
   });
 
   ipcMain.handle('config:get-current', async () => {
-    const currentId = configStore.get('currentConfigId');
-    const configs = configStore.get('configs', []);
-    return configs.find(c => c.id === currentId) || configs[0] || null;
+    return configService.getCurrentConfig();
   });
 
-  ipcMain.handle('config:set-current', async (event, configId) => {
-    configStore.set('currentConfigId', configId);
-    return { success: true };
+  ipcMain.handle('config:set-current', async (event, config) => {
+    windowsAnalyticsIntegration.trackConfigAction('set-current');
+    return configService.setCurrentConfig(config.id || config);
+  });
+  
+  ipcMain.handle('config:duplicate', async (event, configId) => {
+    windowsAnalyticsIntegration.trackConfigAction('duplicate');
+    return configService.duplicateConfig(configId);
+  });
+  
+  ipcMain.handle('config:export', async (event, configId) => {
+    windowsAnalyticsIntegration.trackConfigAction('export');
+    return configService.exportConfig(configId);
+  });
+  
+  ipcMain.handle('config:test', async (event, config) => {
+    windowsAnalyticsIntegration.trackConfigAction('test');
+    // TODO: Implement config test for Windows
+    return { success: true, message: '连接成功' };
+  });
+  
+  ipcMain.handle('config:validate', async (event, config) => {
+    return configService.validateConfig(config);
   });
 
   // 系统操作

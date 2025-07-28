@@ -1,8 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)",
-      "Bash(pkill:*)"
+      "Bash(git add:*)"
     ],
     "deny": []
   },

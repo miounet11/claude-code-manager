@@ -14,7 +14,9 @@ contextBridge.exposeInMainWorld('miaodaAPI', {
   // 环境检测
   env: {
     check: () => ipcRenderer.invoke('env:check'),
-    install: (dependency) => ipcRenderer.invoke('env:install', dependency)
+    install: (dependency) => ipcRenderer.invoke('env:install', dependency),
+    diagnostics: () => ipcRenderer.invoke('env:diagnostics'),
+    fixClaudePath: () => ipcRenderer.invoke('env:fix-claude-path')
   },
 
   // 终端管理
@@ -47,16 +49,24 @@ contextBridge.exposeInMainWorld('miaodaAPI', {
   claude: {
     start: (config) => ipcRenderer.invoke('claude:start', config),
     stop: () => ipcRenderer.invoke('claude:stop'),
-    getStatus: () => ipcRenderer.invoke('claude:status')
+    restart: () => ipcRenderer.invoke('claude:restart'),
+    getStatus: () => ipcRenderer.invoke('claude:status'),
+    sendInput: (input) => ipcRenderer.invoke('claude:send-input', input)
   },
 
   // 配置管理
   config: {
     getAll: () => ipcRenderer.invoke('config:get-all'),
     save: (config) => ipcRenderer.invoke('config:save', config),
+    add: (config) => ipcRenderer.invoke('config:add', config),
+    update: (id, config) => ipcRenderer.invoke('config:update', id, config),
     delete: (configId) => ipcRenderer.invoke('config:delete', configId),
     getCurrent: () => ipcRenderer.invoke('config:get-current'),
-    setCurrent: (configId) => ipcRenderer.invoke('config:set-current', configId)
+    setCurrent: (configId) => ipcRenderer.invoke('config:set-current', configId),
+    duplicate: (configId) => ipcRenderer.invoke('config:duplicate', configId),
+    export: (configId) => ipcRenderer.invoke('config:export', configId),
+    test: (config) => ipcRenderer.invoke('config:test', config),
+    validate: (config) => ipcRenderer.invoke('config:validate', config)
   },
 
   // 系统操作
@@ -146,4 +156,40 @@ window.addEventListener('drop', (e) => {
 window.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   ipcRenderer.send('show-context-menu');
+});
+
+// 为了兼容性，也暴露 electronAPI（ConfigManager 组件使用）
+contextBridge.exposeInMainWorld('electronAPI', {
+  // 基本操作
+  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+  on: (channel, callback) => ipcRenderer.on(channel, callback),
+  
+  // 配置管理
+  getAllConfigs: () => ipcRenderer.invoke('config:get-all'),
+  getCurrentConfig: () => ipcRenderer.invoke('config:get-current'),
+  addConfig: (config) => ipcRenderer.invoke('config:add', config),
+  updateConfig: (id, config) => ipcRenderer.invoke('config:update', id, config),
+  deleteConfig: (id) => ipcRenderer.invoke('config:delete', id),
+  setCurrentConfig: (id) => ipcRenderer.invoke('config:set-current', id),
+  duplicateConfig: (id) => ipcRenderer.invoke('config:duplicate', id),
+  exportConfig: (id) => ipcRenderer.invoke('config:export', id),
+  validateConfig: (config) => ipcRenderer.invoke('config:validate', config),
+  
+  // Claude 管理
+  startClaude: (config) => ipcRenderer.invoke('claude:start', config),
+  stopClaude: () => ipcRenderer.invoke('claude:stop'),
+  getClaudeStatus: () => ipcRenderer.invoke('claude:status'),
+  
+  // 对话框
+  showConfirm: async (title, message) => {
+    // TODO: 实现 Windows 版本的确认对话框
+    return confirm(`${title}\n\n${message}`);
+  },
+  showError: (title, message) => {
+    alert(`❌ ${title}\n\n${message}`);
+  },
+  showInfo: (title, message) => {
+    alert(`ℹ️ ${title}\n\n${message}`);
+  }
 });

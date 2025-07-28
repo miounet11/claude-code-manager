@@ -392,3 +392,56 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-disabled);
 }
+
+/* 确认对话框 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.confirm-dialog {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-dialog h3 {
+  margin: 0 0 var(--spacing-md);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.confirm-dialog p {
+  margin: 0 0 var(--spacing-lg);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+/* 警告按钮 */
+.btn.btn-warning {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--bg-primary);
+}
+
+.btn.btn-warning:hover {
+  background: #c9c907;
+  border-color: #c9c907;
+}

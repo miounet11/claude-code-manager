@@ -17,11 +17,18 @@ npm run dev             # 开发模式运行（自动开启 DevTools）
 npm run build           # 构建 macOS 应用（所有架构）
 npm run dist            # 同上，构建并生成分发包
 
+# Windows 构建
+npm run build:windows   # 构建 Windows 版本
+npm run dev:windows     # Windows 开发模式
+# 注：Windows 版本已同步到 v4.2.0，包含所有最新功能
+
 # 代码质量
 npm run lint            # ESLint 检查（src/**/*.js）
 
 # 测试新功能
 node test/test-new-features.js    # 测试 v4.1.0 新功能
+node test/test-update-flow.js     # 测试更新流程
+node test/test-update-logic.js    # 测试更新逻辑
 
 # Git Flow 分支管理
 ./scripts/init-git-flow.sh        # 初始化分支结构
@@ -42,8 +49,11 @@ node test/test-new-features.js    # 测试 v4.1.0 新功能
 │   ├── claude-service.js      # Claude CLI 进程管理
 │   ├── config-service.js      # 配置存储管理（electron-store）
 │   ├── environment-service.js # 环境检测（PATH、依赖）
+│   ├── analytics-integration.js # 使用统计和分析服务（v4.2.1）
 │   └── ipc-controller-simple.js # IPC 通信中心
-└── pty-manager.js             # 终端会话管理（node-pty）
+├── pty-manager.js             # 终端会话管理（node-pty）
+├── updater.js                 # 自动更新管理（v4.2.1）
+└── analytics.js               # 智能分析系统（v4.2.1）
 
 渲染进程 (src/renderer/)
 ├── xterm-terminal.js          # 终端 UI（xterm.js）
@@ -86,6 +96,8 @@ Claude CLI → 本地代理服务器(:8118) → 配置的 API
   - `proxy:*` - 代理服务器
   - `terminal:*` - 终端管理
   - `local-models:*` - 本地模型（v4.1.0 新增）
+  - `analytics:*` - 使用统计（v4.2.1 新增）
+  - `update:*` - 自动更新（v4.2.1 新增）
 
 ## 关键实现
 
@@ -112,29 +124,39 @@ Claude CLI → 本地代理服务器(:8118) → 配置的 API
 - **服务预设**：内置 7+ AI 服务的预配置
 - **配置服务**：src/main/services/config-service.js:15 管理所有配置
 
-## 新增功能说明（v4.1.0）
+### 智能分析系统（v4.2.1）
+- **使用分析**：跟踪 API 调用、模型使用、Token 消耗
+- **智能报告**：生成每日/每周/每月使用报告
+- **成本优化**：基于使用模式的成本优化建议
+- **实现位置**：src/main/analytics.js:25
 
-### 服务注册表 (src/main/services/service-registry.js)
-- 预设 OpenAI、Claude、Gemini、Groq、Ollama 等服务
-- 统一的服务发现和认证接口
-- 支持自定义服务添加
-- 动态 URL 构建和认证头生成
+### 自动更新系统（v4.2.1）
+- **智能检查**：根据使用频率调整检查间隔
+- **静默更新**：后台下载，提示重启安装
+- **版本管理**：支持稳定版和测试版通道
+- **实现位置**：src/main/updater.js:35
 
-### 格式转换器 (src/main/services/format-converter.js)
-- 自动检测 API 请求/响应格式
-- 支持双向转换（如 Claude ↔ OpenAI）
-- 可扩展的转换器架构
-- 处理流式响应和错误转换
+## 新增功能说明
 
-### 本地模型支持 (src/main/services/local-model-service.js)
-- Ollama：自动检测、模型拉取/删除
-- LM Studio：通过 OpenAI 兼容接口
-- LocalAI：Docker 或二进制部署
-- 服务健康检查和模型列表管理
+### v4.2.0 - 配置管理增强（2024-01-28）
+- **保存并启用**：配置管理中一键保存、切换配置并启动 Claude
+- **恢复默认配置**：快速恢复官方 Claude Code 默认设置
+- **动态路径检测**：移除用户特定路径，使用动态检测
+- **跨架构支持**：完美支持 Intel 和 Apple Silicon (M1-M4) Mac
+- **Windows 同步更新**：Windows 版本已同步所有新功能
 
-### UI 组件
-- **配置向导** (src/renderer/components/ConfigWizard.js): 4步引导配置
-- **本地模型管理** (src/renderer/components/LocalModelManager.js): 可视化管理界面
+### v4.2.1 - 智能分析与自动更新
+- **智能分析**：收集使用数据，生成优化建议
+- **自动更新**：后台检查和下载更新
+- **性能优化**：基于使用模式的性能调优
+- **统计面板**：可视化的使用统计展示
+
+### v4.1.0 - Universal Bridge
+- **服务注册表** (src/main/services/service-registry.js)
+- **格式转换器** (src/main/services/format-converter.js)
+- **本地模型支持** (src/main/services/local-model-service.js)
+- **配置向导** (src/renderer/components/ConfigWizard.js)
+- **本地模型管理** (src/renderer/components/LocalModelManager.js)
 
 ## 开发注意事项
 
@@ -154,14 +176,22 @@ Claude CLI → 本地代理服务器(:8118) → 配置的 API
 - 紧急修复使用 `hotfix/*` 分支
 - 版本发布通过 `release/*` 分支
 - Windows 版本使用独立分支 `feature/windows-support`
+- Windows 版本已同步至 v4.2.0 功能（2024-01-28）
 
 ### 调试技巧
 - 终端问题：检查 `pty-manager.js` 和 `xterm-terminal.js` 的日志
 - IPC 问题：在 `ipc-controller-simple.js` 添加日志
 - 代理问题：访问 `http://localhost:8118/health` 检查状态
 - 格式转换：在 format-converter.js 中启用详细日志
+- 更新问题：检查 updater.js 的日志输出
 
 ### GitHub Actions
 - macOS 构建：`.github/workflows/build-macos.yml`
 - Windows 构建：`.github/workflows/build-windows.yml`
 - 触发方式：创建标签 (v* 或 windows-v*) 或手动触发
+
+### Windows 版本特殊处理
+- 使用独立配置文件 `package-windows.json`
+- 专用源码目录 `src-windows/`
+- ConPTY 支持：`src-windows/main/services/conpty.js`
+- 环境适配：`src-windows/main/services/windows-env.js`

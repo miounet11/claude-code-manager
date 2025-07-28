@@ -5,6 +5,7 @@ on:
     tags:
       - '*-windows*'
       - 'windows-v*'
+      - 'v*'  # 支持通用版本标签
     branches:
       - feature/windows-support
     paths:
