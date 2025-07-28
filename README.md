@@ -3,8 +3,8 @@
 <div align="center">
   <img src="assets/logo.png" alt="Miaoda Logo" width="128">
   
-  [![Version](https://img.shields.io/badge/version-4.1.0-blue.svg)](https://github.com/yourusername/miaoda/releases)
-  [![Platform](https://img.shields.io/badge/platform-macOS-blue.svg)](https://github.com/yourusername/miaoda/releases)
+  [![Version](https://img.shields.io/badge/version-4.5.1-blue.svg)](https://github.com/miounet11/claude-code-manager/releases)
+  [![Platform](https://img.shields.io/badge/platform-macOS-blue.svg)](https://github.com/miounet11/claude-code-manager/releases)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 </div>
 
@@ -33,10 +33,10 @@ Miaoda 是一个通用的 AI 服务聚合平台，最初为 Claude Code (claude.
 
 ### 下载预编译版本
 
-从 [Releases](https://github.com/yourusername/miaoda/releases) 页面下载 macOS 安装包：
+从 [Releases](https://github.com/miounet11/claude-code-manager/releases) 页面下载最新版本的 macOS 安装包：
 
-- **macOS (Intel)**: `Miaoda-3.0.1-x64.dmg`
-- **macOS (Apple Silicon)**: `Miaoda-3.0.1-arm64.dmg`
+- **macOS (Intel)**: `Miaoda-4.5.1-x64.dmg`
+- **macOS (Apple Silicon)**: `Miaoda-4.5.1-arm64.dmg`
 
 ### 从源码构建
 
