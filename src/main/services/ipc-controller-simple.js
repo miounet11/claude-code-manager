@@ -37,6 +37,50 @@ class IPCControllerSimple {
     this.registerHandler('app:version', () => {
       return require('electron').app.getVersion();
     });
+    
+    // 对话框处理器
+    this.registerHandler('app:show-error', async (event, title, message) => {
+      const { dialog } = require('electron');
+      dialog.showErrorBox(title, message);
+      return { success: true };
+    });
+    
+    this.registerHandler('app:show-success', async (event, title, message) => {
+      const { dialog } = require('electron');
+      await dialog.showMessageBox(this.mainWindow, {
+        type: 'info',
+        title: title,
+        message: message,
+        buttons: ['确定'],
+        defaultId: 0
+      });
+      return { success: true };
+    });
+    
+    this.registerHandler('app:show-info', async (event, title, message) => {
+      const { dialog } = require('electron');
+      await dialog.showMessageBox(this.mainWindow, {
+        type: 'info',
+        title: title,
+        message: message,
+        buttons: ['确定'],
+        defaultId: 0
+      });
+      return { success: true };
+    });
+    
+    this.registerHandler('app:show-confirm', async (event, title, message) => {
+      const { dialog } = require('electron');
+      const result = await dialog.showMessageBox(this.mainWindow, {
+        type: 'question',
+        title: title,
+        message: message,
+        buttons: ['取消', '确定'],
+        defaultId: 1,
+        cancelId: 0
+      });
+      return result.response === 1;
+    });
 
     // 窗口控制
     this.registerListener('window:minimize', () => {
@@ -81,6 +125,89 @@ class IPCControllerSimple {
       const configStore = new Store({ name: 'claude-configs' });
       configStore.set('currentConfigId', config.id);
       
+      return { success: true };
+    });
+    
+    this.registerHandler('config:add', async (event, config) => {
+      const newConfig = {
+        ...config,
+        id: Date.now().toString()
+      };
+      await this.saveConfig(newConfig);
+      return newConfig;
+    });
+    
+    this.registerHandler('config:update', async (event, id, updates) => {
+      const config = this.configs.find(c => c.id === id);
+      if (config) {
+        const updatedConfig = { ...config, ...updates };
+        await this.saveConfig(updatedConfig);
+        return { success: true };
+      }
+      throw new Error('配置不存在');
+    });
+    
+    this.registerHandler('config:duplicate', async (event, id) => {
+      const config = this.configs.find(c => c.id === id);
+      if (config) {
+        const newConfig = {
+          ...config,
+          id: Date.now().toString(),
+          name: `${config.name} (副本)`
+        };
+        await this.saveConfig(newConfig);
+        return { success: true };
+      }
+      throw new Error('配置不存在');
+    });
+    
+    this.registerHandler('config:validate', async (event, config) => {
+      const errors = [];
+      
+      if (!config.name || config.name.trim() === '') {
+        errors.push('配置名称不能为空');
+      }
+      
+      if (!config.apiUrl || config.apiUrl.trim() === '') {
+        errors.push('API 地址不能为空');
+      } else if (!config.apiUrl.match(/^https?:\/\/.+/)) {
+        errors.push('API 地址格式不正确');
+      }
+      
+      if (!config.apiKey || config.apiKey.trim() === '') {
+        errors.push('API Key 不能为空');
+      }
+      
+      if (!config.model) {
+        errors.push('请选择模型');
+      }
+      
+      return {
+        valid: errors.length === 0,
+        errors
+      };
+    });
+    
+    this.registerHandler('config:export', async (event, id) => {
+      const config = this.configs.find(c => c.id === id);
+      if (config) {
+        // 移除敏感信息的选项
+        return {
+          ...config,
+          id: undefined,
+          exportedAt: new Date().toISOString()
+        };
+      }
+      throw new Error('配置不存在');
+    });
+    
+    this.registerHandler('config:import', async (event, configData) => {
+      const newConfig = {
+        ...configData,
+        id: Date.now().toString(),
+        importedAt: new Date().toISOString()
+      };
+      await this.saveConfig(newConfig);
       return { success: true };
     });
 

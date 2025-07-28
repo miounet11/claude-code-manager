@@ -84,12 +84,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSystemInfo: () => ipcRenderer.invoke('app:system-info'),
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
   showError: (title, message) => ipcRenderer.invoke('app:show-error', title, message),
+  showSuccess: (title, message) => ipcRenderer.invoke('app:show-success', title, message),
   showInfo: (title, message) => {
-    ipcRenderer.invoke('app:show-error', title, message); // 临时使用 error box
+    ipcRenderer.invoke('app:show-info', title, message);
   },
   showConfirm: async (title, message) => {
-    // 简单实现
-    return confirm(`${title}\n\n${message}`);
+    // 使用 Electron 的对话框
+    return ipcRenderer.invoke('app:show-confirm', title, message);
   },
   
   // 文件操作

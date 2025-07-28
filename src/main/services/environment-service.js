@@ -100,9 +100,35 @@ class EnvironmentService {
    */
   async getNpmPrefix() {
     try {
-      const result = await this.executeCommand('npm', ['config', 'get', 'prefix']);
-      return result.success ? result.stdout.trim() : null;
-    } catch {
+      const { execSync } = require('child_process');
+      
+      // 使用 npm config get prefix 替代已废弃的 npm bin -g
+      const npmPrefix = execSync('npm config get prefix', {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'ignore']
+      }).trim();
+      
+      return npmPrefix;
+    } catch (error) {
+      console.error('获取 npm prefix 失败:', error.message);
+      
+      // 尝试常见的默认路径
+      const defaultPaths = [
+        '/usr/local',
+        `${process.env.HOME}/.npm-global`,
+        `${process.env.HOME}/Documents/claude code/node-v20.10.0-darwin-arm64`
+      ];
+      
+      for (const path of defaultPaths) {
+        try {
+          const fs = require('fs');
+          fs.accessSync(`${path}/bin`, fs.constants.R_OK);
+          return path;
+        } catch {
+          // 继续尝试下一个
+        }
+      }
+      
       return null;
     }
   }
@@ -143,10 +169,76 @@ class EnvironmentService {
    * 检查 Claude
    */
   async checkClaude() {
+    console.log('开始检查 Claude Code...');
+    
+    // 首先尝试通过 npm 检测已安装的包
+    try {
+      const { execSync } = require('child_process');
+      
+      // 获取 npm prefix
+      const npmPrefix = execSync('npm config get prefix', {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'ignore']
+      }).trim();
+      
+      // 检查 @anthropic-ai/claude-code 包
+      const npmListResult = execSync(`npm list -g @anthropic-ai/claude-code 2>&1`, {
+        encoding: 'utf8'
+      });
+      
+      if (npmListResult.includes('@anthropic-ai/claude-code')) {
+        // 包已安装，构建可能的路径
+        const possiblePaths = [
+          `${npmPrefix}/bin/claude`,
+          `${process.env.HOME}/Documents/claude code/node-v20.10.0-darwin-arm64/bin/claude`,
+          '/usr/local/bin/claude',
+          `${process.env.HOME}/.npm-global/bin/claude`
+        ];
+        
+        // 尝试找到可执行文件
+        for (const path of possiblePaths) {
+          try {
+            const fs = require('fs');
+            fs.accessSync(path, fs.constants.X_OK);
+            
+            // 获取版本信息
+            let version = '已安装';
+            try {
+              version = execSync(`"${path}" --version 2>&1`, {
+                encoding: 'utf8',
+                timeout: 3000
+              }).trim();
+            } catch (e) {
+              // 某些版本可能不支持 --version
+              version = '已安装 (版本未知)';
+            }
+            
+            console.log(`找到 Claude Code: ${path}`);
+            return {
+              installed: true,
+              command: 'claude',
+              version: version,
+              path: path,
+              displayName: 'Claude Code CLI'
+            };
+          } catch (e) {
+            // 继续尝试下一个路径
+          }
+        }
+      }
+    } catch (e) {
+      console.log('npm 检测失败，使用备用方法');
+    }
+    
+    // 如果 npm 方法失败，使用原有的检测方法
     const result = await this.checkCommand('claude', '--version');
     
     if (result.installed) {
       result.displayName = 'Claude Code CLI';
+    } else {
+      // 提供更详细的错误信息
+      result.error = '未检测到 Claude Code CLI。请确保已通过 npm install -g @anthropic-ai/claude-code 安装';
+      result.helpUrl = 'https://claude.ai/code';
     }
     
     return result;
@@ -174,6 +266,11 @@ class EnvironmentService {
     const { execSync } = require('child_process');
     
     try {
+      // 特殊处理 Claude 命令
+      if (command === 'claude') {
+        return await this.checkClaude();
+      }
+      
       // 使用与 Claude_code_proxy.sh 相同的检测方法
       let isInstalled = false;
       let commandPath = '';

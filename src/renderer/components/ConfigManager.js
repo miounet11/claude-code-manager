@@ -214,13 +214,17 @@ class ConfigManager {
         </div>
         
         <div class="form-actions">
-          <button class="btn btn-primary" id="btn-save-config">
+          <button class="btn btn-primary" id="btn-save-and-apply-config">
             <i class="icon icon-save"></i>
-            保存
+            保存并启动配置
           </button>
           <button class="btn btn-secondary" id="btn-test-config">
             <i class="icon icon-test"></i>
             测试连接
+          </button>
+          <button class="btn btn-secondary" id="btn-save-only-config">
+            <i class="icon icon-save"></i>
+            仅保存
           </button>
           <button class="btn btn-secondary" id="btn-cancel-edit">
             取消
@@ -231,6 +235,13 @@ class ConfigManager {
               使用此配置
             </button>
           ` : ''}
+        </div>
+        
+        <div class="form-actions" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
+          <button class="btn btn-warning" id="btn-restore-default-config">
+            <i class="icon icon-restore"></i>
+            还原 Claude Code 官方配置
+          </button>
         </div>
         
         <div id="test-result" class="test-result" style="display: none; margin-top: 20px; padding: 15px; border-radius: 5px;"></div>
@@ -272,10 +283,22 @@ class ConfigManager {
    * 绑定表单事件
    */
   bindFormEvents() {
-    // 保存配置
-    const saveBtn = this.modalElement.querySelector('#btn-save-config');
-    if (saveBtn) {
-      saveBtn.addEventListener('click', () => this.saveConfig());
+    // 保存并启动配置
+    const saveAndApplyBtn = this.modalElement.querySelector('#btn-save-and-apply-config');
+    if (saveAndApplyBtn) {
+      saveAndApplyBtn.addEventListener('click', () => this.saveConfig(true));
+    }
+    
+    // 仅保存配置
+    const saveOnlyBtn = this.modalElement.querySelector('#btn-save-only-config');
+    if (saveOnlyBtn) {
+      saveOnlyBtn.addEventListener('click', () => this.saveConfig(false));
+    }
+    
+    // 还原默认配置
+    const restoreBtn = this.modalElement.querySelector('#btn-restore-default-config');
+    if (restoreBtn) {
+      restoreBtn.addEventListener('click', () => this.restoreDefaultConfig());
     }
     
     // 测试连接
@@ -424,7 +447,7 @@ class ConfigManager {
   /**
    * 保存配置
    */
-  async saveConfig() {
+  async saveConfig(applyConfig = false) {
     // 收集表单数据
     const formData = {
       name: this.modalElement.querySelector('#config-name').value.trim(),
@@ -444,22 +467,96 @@ class ConfigManager {
     }
     
     try {
+      let savedConfig;
       if (this.editingConfig.id) {
         // 更新配置
         await window.electronAPI.updateConfig(this.editingConfig.id, formData);
+        savedConfig = { ...formData, id: this.editingConfig.id };
       } else {
         // 新建配置
-        await window.electronAPI.addConfig(formData);
+        savedConfig = await window.electronAPI.addConfig(formData);
       }
       
       // 重新加载配置
       await this.loadConfigs();
+      
+      // 如果需要应用配置
+      if (applyConfig) {
+        await this.applyConfigAndStart(savedConfig);
+      }
+      
       this.editingConfig = null;
       this.updateView();
+      
+      // 显示成功消息
+      if (applyConfig) {
+        window.electronAPI.showSuccess('配置已保存并启动', '配置已成功保存，正在启动终端...');
+      } else {
+        window.electronAPI.showSuccess('配置已保存', '配置已成功保存');
+      }
       
     } catch (error) {
       window.electronAPI.showError('保存失败', error.message);
     }
+  }
+  
+  /**
+   * 应用配置并启动
+   */
+  async applyConfigAndStart(config) {
+    try {
+      // 设置为当前配置
+      await window.electronAPI.setCurrentConfig(config.id);
+      this.currentConfig = config;
+      
+      // 启动 Claude
+      await window.electronAPI.startClaude(config);
+      
+      // 关闭配置管理器
+      setTimeout(() => {
+        this.close();
+      }, 1000);
+      
+    } catch (error) {
+      window.electronAPI.showError('启动失败', error.message);
+    }
+  }
+  
+  /**
+   * 还原默认配置
+   */
+  async restoreDefaultConfig() {
+    const confirm = await window.electronAPI.showConfirm(
+      '还原默认配置',
+      '确定要还原为 Claude Code 官方默认配置吗？\n\n这将覆盖当前编辑的内容。'
+    );
+    
+    if (!confirm) return;
+    
+    // 设置默认配置
+    const defaultConfig = {
+      name: 'Claude Code 默认配置',
+      apiUrl: 'https://api.anthropic.com',
+      apiKey: '',  // 用户需要自己填写
+      model: 'claude-3-5-sonnet-20241022',
+      maxTokens: 4096,
+      temperature: 0,
+      proxy: ''
+    };
+    
+    // 如果正在编辑的配置有 ID，保留 ID
+    if (this.editingConfig.id) {
+      defaultConfig.id = this.editingConfig.id;
+    }
+    
+    // 更新编辑的配置
+    this.editingConfig = defaultConfig;
+    
+    // 更新表单显示
+    this.updateView();
+    
+    // 显示提示
+    window.electronAPI.showInfo('已还原', '已还原为 Claude Code 官方默认配置，请填写您的 API Key');
   }
 
   /**
