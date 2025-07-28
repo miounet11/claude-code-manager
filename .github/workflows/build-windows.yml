@@ -43,7 +43,13 @@ jobs:
     
     - name: Install dependencies
       run: |
-        npm ci
+        # 检查 package-lock.json 是否存在
+        if (Test-Path "package-lock.json") {
+          npm ci
+        } else {
+          Write-Output "package-lock.json not found, using npm install"
+          npm install
+        }
         npm install -g electron-builder
     
     - name: Prepare Windows build

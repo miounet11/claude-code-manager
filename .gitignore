@@ -56,6 +56,9 @@ private-*
 内部文档/
 internal-docs/
 
+# Qdrant storage
+qdrant_storage/
+
 # Generated icons (keep only the final ones)
 assets/icon-*.png
 !assets/icon.png

@@ -36,6 +36,7 @@ jobs:
     
     - name: Install dependencies
       run: |
+        # 使用 npm ci 安装依赖（现在有 package-lock.json）
         npm ci
         npm install -g electron-builder
     
