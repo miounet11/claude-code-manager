@@ -271,6 +271,41 @@ class IPCControllerSimple {
       return this.openSystemTerminal(config);
     });
 
+    // 代理服务器管理
+    this.registerHandler('proxy:start', async (event, config) => {
+      try {
+        const proxyServer = require('./proxy-server');
+        await proxyServer.start(config);
+        return { success: true, port: proxyServer.port };
+      } catch (error) {
+        console.error('启动代理服务器失败:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    this.registerHandler('proxy:stop', async () => {
+      try {
+        const proxyServer = require('./proxy-server');
+        await proxyServer.stop();
+        return { success: true };
+      } catch (error) {
+        console.error('停止代理服务器失败:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    this.registerHandler('proxy:status', async () => {
+      try {
+        const proxyServer = require('./proxy-server');
+        return {
+          isRunning: proxyServer.isRunning,
+          port: proxyServer.port
+        };
+      } catch (error) {
+        return { isRunning: false };
+      }
+    });
+
     // 代理服务器统计
     this.registerHandler('proxy:stats', async () => {
       try {

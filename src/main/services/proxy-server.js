@@ -107,105 +107,121 @@ class ProxyServer extends EventEmitter {
       
       // 兼容旧路由
       this.app.use('/v1/*', this.handleLegacyRoute.bind(this));
-    }
-
-    // Claude API 代理配置
-    const proxyOptions = {
-      target: config.apiUrl,
-      changeOrigin: true,
-      secure: true,
-      timeout: 120000, // 2分钟超时
-      proxyTimeout: 120000,
-      
-      // 请求预处理
-      onProxyReq: (proxyReq, req, res) => {
-        // 移除原始认证头
-        proxyReq.removeHeader('authorization');
-        proxyReq.removeHeader('x-api-key');
+    } else {
+      // 传统代理模式 - 只在非动态模式下创建代理中间件
+      const proxyOptions = {
+        target: config.apiUrl,
+        changeOrigin: true,
+        secure: true,
+        timeout: 120000, // 2分钟超时
+        proxyTimeout: 120000,
         
-        // 设置新的认证信息
-        if (config.apiKey.startsWith('Bearer ')) {
-          proxyReq.setHeader('Authorization', config.apiKey);
-        } else if (config.apiKey.startsWith('sk-')) {
-          proxyReq.setHeader('x-api-key', config.apiKey);
-        } else {
-          proxyReq.setHeader('Authorization', `Bearer ${config.apiKey}`);
-        }
-
-        // 设置其他必要的头
-        proxyReq.setHeader('Content-Type', 'application/json');
-        proxyReq.setHeader('Accept', 'application/json');
+        // 配置请求体重写
+        selfHandleResponse: false,
         
-        // 如果配置了自定义模型，修改请求体
-        if (config.model && req.body) {
-          try {
-            const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-            if (body && typeof body === 'object') {
-              body.model = config.model;
-              const newBodyStr = JSON.stringify(body);
-              proxyReq.setHeader('Content-Length', Buffer.byteLength(newBodyStr));
-              proxyReq.write(newBodyStr);
+        // 请求预处理
+        onProxyReq: (proxyReq, req, res) => {
+          // 移除原始认证头
+          proxyReq.removeHeader('authorization');
+          proxyReq.removeHeader('x-api-key');
+          
+          // 设置新的认证信息
+          if (config.apiKey.startsWith('Bearer ')) {
+            proxyReq.setHeader('Authorization', config.apiKey);
+          } else if (config.apiKey.startsWith('sk-')) {
+            proxyReq.setHeader('x-api-key', config.apiKey);
+          } else {
+            proxyReq.setHeader('Authorization', `Bearer ${config.apiKey}`);
+          }
+
+          // 设置其他必要的头
+          proxyReq.setHeader('Content-Type', 'application/json');
+          proxyReq.setHeader('Accept', 'application/json');
+          
+          // 如果有请求体，需要重写
+          if (req.body) {
+            try {
+              let bodyData = req.body;
+              
+              // 如果配置了自定义模型，修改请求体
+              if (config.model) {
+                const body = typeof bodyData === 'string' ? JSON.parse(bodyData) : bodyData;
+                if (body && typeof body === 'object') {
+                  body.model = config.model;
+                  bodyData = body;
+                }
+              }
+              
+              // 将请求体写入代理请求
+              const bodyStr = typeof bodyData === 'string' ? bodyData : JSON.stringify(bodyData);
+              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyStr));
+              proxyReq.write(bodyStr);
+              proxyReq.end();
+            } catch (e) {
+              console.error('修改请求体失败:', e);
+              // 如果失败，仍然转发原始请求体
+              const originalBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+              proxyReq.setHeader('Content-Length', Buffer.byteLength(originalBody));
+              proxyReq.write(originalBody);
               proxyReq.end();
             }
-          } catch (e) {
-            console.error('修改请求体失败:', e);
           }
-        }
 
-        // 记录请求详情
-        this.logRequest(req, config);
-      },
+          // 记录请求详情
+          this.logRequest(req, config);
+        },
 
-      // 响应预处理
-      onProxyRes: (proxyRes, req, res) => {
-        // 记录响应
-        let responseData = '';
-        proxyRes.on('data', (chunk) => {
-          responseData += chunk.toString();
-        });
+        // 响应预处理
+        onProxyRes: (proxyRes, req, res) => {
+          // 记录响应
+          let responseData = '';
+          proxyRes.on('data', (chunk) => {
+            responseData += chunk.toString();
+          });
 
-        proxyRes.on('end', () => {
-          try {
-            const data = JSON.parse(responseData);
-            // 统计 token 使用
-            if (data.usage) {
-              this.updateTokenUsage(data.usage, config);
+          proxyRes.on('end', () => {
+            try {
+              const data = JSON.parse(responseData);
+              // 统计 token 使用
+              if (data.usage) {
+                this.updateTokenUsage(data.usage, config);
+              }
+            } catch (e) {
+              // 忽略解析错误
             }
-          } catch (e) {
-            // 忽略解析错误
-          }
-        });
+          });
 
-        // 添加自定义响应头
-        proxyRes.headers['X-Proxy-By'] = 'Miaoda';
-        proxyRes.headers['X-Request-Id'] = req.requestId;
-      },
+          // 添加自定义响应头
+          proxyRes.headers['X-Proxy-By'] = 'Miaoda';
+          proxyRes.headers['X-Request-Id'] = req.requestId;
+        },
 
-      // 错误处理
-      onError: (err, req, res) => {
-        console.error('代理错误:', err);
-        this.emit('error', {
-          id: req.requestId,
-          error: err.message,
-          timestamp: new Date()
-        });
+        // 错误处理
+        onError: (err, req, res) => {
+          console.error('代理错误:', err);
+          this.emit('error', {
+            id: req.requestId,
+            error: err.message,
+            timestamp: new Date()
+          });
 
-        res.status(502).json({
-          error: '代理服务器错误',
-          message: err.message,
-          requestId: req.requestId
-        });
-      }
-    };
+          res.status(502).json({
+            error: '代理服务器错误',
+            message: err.message,
+            requestId: req.requestId
+          });
+        }
+      };
 
-    // 创建代理中间件
-    const proxy = createProxyMiddleware(proxyOptions);
+      // 创建代理中间件
+      const proxy = createProxyMiddleware(proxyOptions);
 
-    // 应用代理到所有 /v1/* 路径
-    this.app.use('/v1', proxy);
-    
-    // 捕获所有其他请求
-    this.app.use('*', proxy);
+      // 应用代理到所有 /v1/* 路径
+      this.app.use('/v1', proxy);
+      
+      // 捕获所有其他请求
+      this.app.use('*', proxy);
+    }
 
     // 启动服务器
     return new Promise((resolve, reject) => {
@@ -352,6 +368,7 @@ class ProxyServer extends EventEmitter {
       : 0;
 
     return {
+      totalRequests: this.requestCount,  // 使用 totalRequests 以保持向后兼容
       requestCount: this.requestCount,
       totalTokens: this.totalTokens,
       totalCost: this.statistics.totalCost.toFixed(4),
@@ -402,6 +419,7 @@ class ProxyServer extends EventEmitter {
       }
 
       // 记录请求
+      this.requestCount++;  // 增加请求计数
       this.emit('dynamic-request', {
         service: serviceId,
         model,

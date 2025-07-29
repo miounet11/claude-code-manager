@@ -168,10 +168,13 @@ class PtyManager {
     if (this.ptyProcess && this.ptyProcess.resize) {
       try {
         this.ptyProcess.resize(cols, rows);
+        return { success: true };
       } catch (error) {
         console.error('调整大小失败:', error);
+        return { success: false, error: error.message };
       }
     }
+    return { success: false, error: '进程不支持调整大小' };
   }
 
   /**
@@ -193,6 +196,13 @@ class PtyManager {
     }
     
     this.ptyProcess = null;
+  }
+
+  /**
+   * 销毁 PTY 进程（kill 的别名）
+   */
+  destroy() {
+    this.kill();
   }
 
   /**

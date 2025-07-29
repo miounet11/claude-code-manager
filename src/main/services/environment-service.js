@@ -12,19 +12,86 @@ class EnvironmentService {
     this.lastCheckResult = null;
     this.isChecking = false;
     this.checkInterval = null;
+    this.debugMode = process.env.NODE_ENV === 'development';
+    this.logs = []; // 存储检测日志用于调试
+  }
+
+  /**
+   * 结构化日志记录
+   */
+  log(level, message, details = null) {
+    const timestamp = new Date().toISOString();
+    const logEntry = {
+      timestamp,
+      level,
+      message,
+      details,
+      context: 'EnvironmentService'
+    };
+    
+    this.logs.push(logEntry);
+    
+    // 保持最近100条日志
+    if (this.logs.length > 100) {
+      this.logs = this.logs.slice(-100);
+    }
+    
+    // 根据级别输出到控制台
+    const consoleMsg = `[${timestamp}] [ENV-${level}] ${message}`;
+    switch (level) {
+      case 'ERROR':
+        console.error(consoleMsg, details || '');
+        break;
+      case 'WARN':
+        console.warn(consoleMsg, details || '');
+        break;
+      case 'INFO':
+        if (this.debugMode) console.log(consoleMsg, details || '');
+        break;
+      case 'DEBUG':
+        if (this.debugMode) console.debug(consoleMsg, details || '');
+        break;
+    }
+  }
+
+  /**
+   * 获取检测日志
+   */
+  getLogs() {
+    return this.logs;
   }
 
   /**
    * 启动定期检测
    */
   startPeriodicCheck(callback, interval = 30000) {
+    if (this.checkInterval) {
+      this.log('WARN', '定期检测已在运行，先停止现有检测');
+      this.stopPeriodicCheck();
+    }
+    
+    this.log('INFO', '启动定期环境检测', { interval });
+    
     // 立即执行一次检测
-    this.checkAll().then(callback);
+    this.checkAll().then(result => {
+      try {
+        callback(result);
+      } catch (callbackError) {
+        this.log('ERROR', '检测回调函数执行失败', { error: callbackError.message });
+      }
+    }).catch(error => {
+      this.log('ERROR', '初始环境检测失败', { error: error.message });
+    });
     
     // 设置定期检测
     this.checkInterval = setInterval(async () => {
-      const result = await this.checkAll();
-      callback(result);
+      try {
+        const result = await this.checkAll();
+        callback(result);
+      } catch (error) {
+        this.log('ERROR', '定期检测失败', { error: error.message });
+        callback({ error: '定期检测失败', timestamp: new Date().toISOString() });
+      }
     }, interval);
   }
 
@@ -35,6 +102,7 @@ class EnvironmentService {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
+      this.log('INFO', '定期环境检测已停止');
     }
   }
 
@@ -42,41 +110,91 @@ class EnvironmentService {
    * 检查所有环境
    */
   async checkAll() {
+    const checkId = `check-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 使用更安全的并发控制
     if (this.isChecking) {
-      return this.lastCheckResult;
+      this.log('INFO', '环境检测正在进行中，返回缓存结果', {
+        requestId: checkId,
+        cachedTimestamp: this.lastCheckResult?.timestamp
+      });
+      return this.lastCheckResult || { error: '检测正在进行中' };
     }
 
     this.isChecking = true;
-    console.log('====== 开始环境检测 ======');
+    const startTime = Date.now();
     
-    // 在打包应用中增强 PATH
-    await this.enhanceEnvironmentPath();
-    console.log('增强后的 PATH:', process.env.PATH);
-
+    this.log('INFO', '开始环境检测', { requestId: checkId });
+    
     try {
+      // 在打包应用中增强 PATH
+      await this.enhanceEnvironmentPath();
+      this.log('DEBUG', 'PATH环境增强完成', {
+        pathLength: process.env.PATH?.split(':').length || 0
+      });
+
+      // 并行检测所有依赖（提高效率）
+      const [systemInfo, dependencies] = await Promise.all([
+        this.getSystemInfo(),
+        Promise.all([
+          this.checkNodejs().catch(err => ({ installed: false, error: err.message, command: 'nodejs' })),
+          this.checkGit().catch(err => ({ installed: false, error: err.message, command: 'git' })),
+          this.checkClaude().catch(err => ({ installed: false, error: err.message, command: 'claude' })),
+          this.checkUV().catch(err => ({ installed: false, error: err.message, command: 'uv' }))
+        ])
+      ]);
+
       const result = {
         timestamp: new Date().toISOString(),
-        system: await this.getSystemInfo(),
+        requestId: checkId,
+        system: systemInfo,
         dependencies: {
-          nodejs: await this.checkNodejs(),
-          git: await this.checkGit(),
-          claude: await this.checkClaude(),
-          uv: await this.checkUV()
+          nodejs: dependencies[0],
+          git: dependencies[1],
+          claude: dependencies[2],
+          uv: dependencies[3]
         },
-        summary: null
+        summary: null,
+        logs: this.debugMode ? this.getLogs().slice(-20) : undefined // 包含最近的日志用于调试
       };
 
       // 生成摘要
       result.summary = this.generateSummary(result.dependencies);
       
-      console.log('====== 环境检测完成 ======');
-      console.log('检测结果:', JSON.stringify(result, null, 2));
+      const duration = Date.now() - startTime;
+      this.log('INFO', '环境检测完成', {
+        requestId: checkId,
+        duration,
+        ready: result.summary.ready,
+        installed: result.summary.installed.length,
+        missing: result.summary.missing.length
+      });
       
       this.lastCheckResult = result;
       return result;
+      
     } catch (error) {
-      console.error('环境检测出错:', error);
-      throw error;
+      const duration = Date.now() - startTime;
+      this.log('ERROR', '环境检测出错', {
+        requestId: checkId,
+        error: error.message,
+        stack: error.stack,
+        duration
+      });
+      
+      // 返回错误结果而不是抛出异常
+      const errorResult = {
+        timestamp: new Date().toISOString(),
+        requestId: checkId,
+        error: error.message,
+        system: null,
+        dependencies: {},
+        summary: { ready: false, installed: [], missing: [], issues: ['检测过程出错'], message: '检测失败' }
+      };
+      
+      this.lastCheckResult = errorResult;
+      return errorResult;
+      
     } finally {
       this.isChecking = false;
     }
@@ -311,151 +429,162 @@ class EnvironmentService {
    * 检查单个命令
    */
   async checkCommand(command, versionArg = '--version') {
-    console.log(`检查命令: ${command}`);
+    const startTime = Date.now();
+    this.log('INFO', `开始检查命令: ${command}`, { versionArg });
+    
     const { execSync } = require('child_process');
     const fs = require('fs');
+    const TIMEOUT = 5000; // 统一超时设置
     
     try {
       // 先增强 PATH 环境
       await this.enhanceEnvironmentPath();
       
-      // 使用与 Claude_code_proxy.sh 相同的检测方法
       let isInstalled = false;
       let commandPath = '';
       let version = '';
+      let detectionMethod = '';
+      
+      const execOptions = {
+        encoding: 'utf8',
+        timeout: TIMEOUT,
+        env: process.env
+      };
       
       // 方法1: 直接使用 command -v 检测
-      try {
-        const testCmd = `command -v ${command}`;
-        
-        commandPath = execSync(testCmd, {
-          encoding: 'utf8',
-          shell: '/bin/bash',
-          env: process.env
-        }).trim();
-        
-        if (commandPath) {
-          isInstalled = true;
-          console.log(`通过 command -v 找到 ${command}: ${commandPath}`);
+      if (!isInstalled) {
+        try {
+          this.log('DEBUG', `尝试 command -v 检测 ${command}`);
+          const testCmd = `command -v ${command}`;
+          
+          commandPath = execSync(testCmd, {
+            ...execOptions,
+            shell: '/bin/bash'
+          }).trim();
+          
+          if (commandPath && commandPath !== '' && !commandPath.includes('not found')) {
+            isInstalled = true;
+            detectionMethod = 'command -v';
+            this.log('INFO', `通过 command -v 找到 ${command}`, { path: commandPath });
+          }
+        } catch (e) {
+          this.log('DEBUG', `command -v 检测失败`, { error: e.message });
         }
-      } catch (e) {
-        // 继续尝试其他方法
       }
       
       // 方法2: 尝试 which
       if (!isInstalled) {
         try {
+          this.log('DEBUG', `尝试 which 检测 ${command}`);
           commandPath = execSync(`which ${command}`, {
-            encoding: 'utf8',
-            stdio: ['pipe', 'pipe', 'ignore'],
-            env: process.env
+            ...execOptions,
+            stdio: ['pipe', 'pipe', 'ignore']
           }).trim();
           
-          if (commandPath) {
+          if (commandPath && commandPath !== '' && !commandPath.includes('not found')) {
             isInstalled = true;
-            console.log(`通过 which 找到 ${command}: ${commandPath}`);
+            detectionMethod = 'which';
+            this.log('INFO', `通过 which 找到 ${command}`, { path: commandPath });
           }
-        } catch (e2) {
-          // 继续尝试下一个方法
+        } catch (e) {
+          this.log('DEBUG', `which 检测失败`, { error: e.message });
         }
       }
       
       // 方法3: 直接尝试执行命令
       if (!isInstalled) {
         try {
-          const output = execSync(`${command} ${versionArg} 2>&1`, {
-            encoding: 'utf8',
-            timeout: 3000,
-            env: process.env
-          });
-          isInstalled = true;
-          commandPath = command;
-          version = output.trim().split('\n')[0];
-          console.log(`直接执行找到 ${command}, 版本: ${version}`);
-        } catch (e3) {
-          // 继续尝试下一个方法
+          this.log('DEBUG', `尝试直接执行 ${command}`);
+          const output = execSync(`${command} ${versionArg} 2>&1`, execOptions);
+          const outputStr = output.trim();
+          
+          if (outputStr && !outputStr.toLowerCase().includes('command not found') &&
+              !outputStr.toLowerCase().includes('not recognized')) {
+            isInstalled = true;
+            commandPath = command;
+            version = outputStr.split('\n')[0];
+            detectionMethod = 'direct execution';
+            this.log('INFO', `直接执行找到 ${command}`, { version });
+          }
+        } catch (e) {
+          this.log('DEBUG', `直接执行失败`, { error: e.message });
         }
       }
       
       // 方法4: 在常见路径中查找
       if (!isInstalled) {
-        const pathsToCheck = await this.getSearchPaths(command);
-        console.log(`在 ${pathsToCheck.length} 个路径中查找 ${command}...`);
-        
-        for (const fullPath of pathsToCheck) {
-          try {
-            // 检查文件是否存在
-            await fs.promises.access(fullPath, fs.constants.F_OK);
-            
-            // 检查是否可执行
+        try {
+          const pathsToCheck = await this.getSearchPaths(command);
+          this.log('DEBUG', `在路径中搜索 ${command}`, { pathCount: pathsToCheck.length });
+          
+          for (const fullPath of pathsToCheck) {
             try {
-              await fs.promises.access(fullPath, fs.constants.X_OK);
-              console.log(`找到可执行文件: ${fullPath}`);
+              // 检查文件是否存在和可执行
+              await fs.promises.access(fullPath, fs.constants.F_OK | fs.constants.X_OK);
               
               // 尝试获取版本
               try {
-                const versionOutput = execSync(`"${fullPath}" ${versionArg} 2>&1`, {
-                  encoding: 'utf8',
-                  timeout: 3000,
-                  env: process.env
-                }).trim();
+                const versionOutput = execSync(`"${fullPath}" ${versionArg} 2>&1`, execOptions).trim();
                 
-                isInstalled = true;
-                commandPath = fullPath;
-                version = versionOutput.split('\n')[0];
-                console.log(`${command} 版本: ${version}`);
-                break;
+                if (versionOutput && !versionOutput.toLowerCase().includes('command not found')) {
+                  isInstalled = true;
+                  commandPath = fullPath;
+                  version = versionOutput.split('\n')[0];
+                  detectionMethod = 'path search';
+                  this.log('INFO', `在路径中找到可执行的 ${command}`, { path: fullPath, version });
+                  break;
+                }
               } catch (execError) {
-                // 某些命令可能不支持版本参数，但文件存在就认为已安装
-                if (command === 'node' || command === 'npm' || command === 'git') {
-                  // 尝试其他版本参数
+                // 尝试其他版本参数
+                if (['node', 'npm', 'git'].includes(command)) {
                   const altVersionArgs = ['-v', 'version', '-version'];
                   for (const altArg of altVersionArgs) {
                     try {
-                      const altOutput = execSync(`"${fullPath}" ${altArg} 2>&1`, {
-                        encoding: 'utf8',
-                        timeout: 3000,
-                        env: process.env
-                      }).trim();
-                      version = altOutput.split('\n')[0];
-                      break;
+                      const altOutput = execSync(`"${fullPath}" ${altArg} 2>&1`, execOptions).trim();
+                      if (altOutput && !altOutput.toLowerCase().includes('command not found')) {
+                        version = altOutput.split('\n')[0];
+                        break;
+                      }
                     } catch (e) {
-                      // 继续尝试
+                      // 继续尝试下一个参数
                     }
                   }
                 }
                 
-                // 即使无法获取版本，文件存在也算已安装
+                // 即使无法获取版本，文件存在且可执行也算已安装
                 isInstalled = true;
                 commandPath = fullPath;
+                detectionMethod = 'path search (no version)';
                 if (!version) {
                   version = '已安装（版本未知）';
                 }
+                this.log('INFO', `在路径中找到 ${command} 但无法获取版本`, { path: fullPath });
                 break;
               }
             } catch (e) {
-              console.log(`文件存在但不可执行: ${fullPath}`);
+              // 文件不存在或不可执行，继续下一个
             }
-          } catch (e) {
-            // 文件不存在，继续下一个
           }
+        } catch (e) {
+          this.log('WARN', `路径搜索失败`, { error: e.message });
         }
       }
       
+      // 检测失败的情况
       if (!isInstalled) {
-        console.log(`未找到命令 ${command}`);
+        const errorMessages = {
+          'claude': '未安装 Claude CLI。请运行: npm install -g @anthropic-ai/claude-code',
+          'node': '未安装 Node.js。请访问 nodejs.org 安装',
+          'git': '未安装 Git。请通过 Homebrew 或访问 git-scm.com 安装',
+          'uv': '未安装 UV。这是可选依赖，用于 Python 包管理'
+        };
         
-        // 对于特定命令提供更详细的错误信息
-        let errorMessage = '未找到可执行文件';
-        if (command === 'claude') {
-          errorMessage = '未安装 Claude CLI。请运行: npm install -g @anthropic-ai/claude-code';
-        } else if (command === 'node') {
-          errorMessage = '未安装 Node.js。请访问 nodejs.org 安装';
-        } else if (command === 'git') {
-          errorMessage = '未安装 Git。请通过 Homebrew 或访问 git-scm.com 安装';
-        } else if (command === 'uv') {
-          errorMessage = '未安装 UV。这是可选依赖，用于 Python 包管理';
-        }
+        const errorMessage = errorMessages[command] || '未找到可执行文件';
+        
+        this.log('WARN', `未找到命令 ${command}`, {
+          error: errorMessage,
+          duration: Date.now() - startTime
+        });
         
         return {
           installed: false,
@@ -464,42 +593,48 @@ class EnvironmentService {
         };
       }
 
-      console.log(`找到 ${command} 位于: ${commandPath}`);
-
       // 获取版本信息（如果还没有获取到）
       if (!version) {
         try {
-          // 使用完整路径执行版本命令
           const versionCommand = commandPath.includes('/') ? `"${commandPath}"` : command;
-          const versionOutput = execSync(`${versionCommand} ${versionArg} 2>&1`, {
-            encoding: 'utf8',
-            timeout: 3000,
-            env: process.env
-          }).trim();
+          const versionOutput = execSync(`${versionCommand} ${versionArg} 2>&1`, execOptions).trim();
           
           if (versionOutput) {
             version = versionOutput.split('\n')[0];
           }
-          console.log(`${command} 版本: ${version}`);
         } catch (e) {
-          // 对于 node 和 claude，即使无法获取版本也认为已安装
-          if (command === 'node' || command === 'claude' || command === 'npm') {
+          // 对于关键命令，即使无法获取版本也认为已安装
+          if (['node', 'claude', 'npm', 'git'].includes(command)) {
             version = '已安装';
           } else {
             version = '已安装（版本未知）';
           }
+          this.log('WARN', `无法获取 ${command} 版本信息`, { error: e.message });
         }
       }
 
-      return {
+      const result = {
         installed: true,
         command: command,
         version: version || '已安装',
-        path: commandPath
+        path: commandPath,
+        detectionMethod
       };
       
+      this.log('INFO', `成功检测到命令 ${command}`, {
+        ...result,
+        duration: Date.now() - startTime
+      });
+      
+      return result;
+      
     } catch (error) {
-      console.error(`检查命令 ${command} 时出错:`, error);
+      this.log('ERROR', `检查命令 ${command} 时出错`, {
+        error: error.message,
+        stack: error.stack,
+        duration: Date.now() - startTime
+      });
+      
       return {
         installed: false,
         command: command,
@@ -930,91 +1065,99 @@ class EnvironmentService {
    * 增强环境 PATH（专门为打包应用优化）
    */
   async enhanceEnvironmentPath() {
+    const startTime = Date.now();
+    this.log('INFO', '开始PATH环境增强', { platform: process.platform, originalPathLength: process.env.PATH?.split(':').length || 0 });
+    
     try {
+      const originalPath = process.env.PATH || '';
+      let pathEnhanced = false;
+      
       // 如果是 macOS 打包应用，PATH 可能被限制
       if (process.platform === 'darwin') {
         const { execSync } = require('child_process');
+        const execOptions = { encoding: 'utf8', timeout: 3000 }; // 统一超时设置
         
         // 方法1: 使用 launchctl 获取用户环境变量
-        try {
-          const userPath = execSync('launchctl getenv PATH', {
-            encoding: 'utf8'
-          }).trim();
-          if (userPath) {
-            process.env.PATH = userPath;
-            console.log('通过 launchctl 获取到 PATH');
+        if (!pathEnhanced) {
+          try {
+            this.log('DEBUG', '尝试通过 launchctl 获取 PATH');
+            const userPath = execSync('launchctl getenv PATH', execOptions).trim();
+            if (userPath && userPath !== 'PATH not set' && userPath.length > originalPath.length) {
+              process.env.PATH = userPath;
+              pathEnhanced = true;
+              this.log('INFO', '通过 launchctl 成功获取到 PATH', { pathLength: userPath.split(':').length });
+            }
+          } catch (e) {
+            this.log('WARN', 'launchctl 获取 PATH 失败', { error: e.message });
           }
-        } catch (e) {
-          console.log('launchctl 获取 PATH 失败');
         }
         
         // 方法2: 使用 path_helper
-        if (!process.env.PATH || process.env.PATH.split(':').length < 5) {
+        if (!pathEnhanced && (!process.env.PATH || process.env.PATH.split(':').length < 5)) {
           try {
-            const systemPath = execSync('/usr/libexec/path_helper -s', { 
-              encoding: 'utf8',
+            this.log('DEBUG', '尝试通过 path_helper 获取 PATH');
+            const systemPath = execSync('/usr/libexec/path_helper -s', {
+              ...execOptions,
               shell: '/bin/bash'
             });
             const pathMatch = systemPath.match(/PATH="([^"]+)"/);
             if (pathMatch && pathMatch[1]) {
               process.env.PATH = pathMatch[1];
-              console.log('通过 path_helper 获取到 PATH');
+              pathEnhanced = true;
+              this.log('INFO', '通过 path_helper 成功获取到 PATH', { pathLength: pathMatch[1].split(':').length });
             }
           } catch (e) {
-            console.log('path_helper 失败');
+            this.log('WARN', 'path_helper 获取 PATH 失败', { error: e.message });
           }
         }
         
-        // 方法3: 从用户默认 shell 获取
-        if (!process.env.PATH || process.env.PATH.split(':').length < 5) {
-          try {
-            // 获取用户默认 shell
-            const userShell = execSync('dscl . -read /Users/$USER UserShell', {
-              encoding: 'utf8'
-            }).match(/UserShell: (.+)/)?.[1] || '/bin/zsh';
-            
-            // 从 shell 配置文件读取 PATH
-            const shellConfigs = {
-              '/bin/zsh': ['~/.zshrc', '~/.zprofile'],
-              '/bin/bash': ['~/.bashrc', '~/.bash_profile', '~/.profile'],
-              '/bin/sh': ['~/.profile']
-            };
-            
-            const configs = shellConfigs[userShell] || shellConfigs['/bin/zsh'];
-            for (const config of configs) {
-              try {
-                const expandedConfig = config.replace('~', process.env.HOME);
-                const configContent = require('fs').readFileSync(expandedConfig, 'utf8');
-                const pathExports = configContent.match(/export\s+PATH=["']?([^"'\n]+)["']?/g);
-                if (pathExports) {
-                  console.log(`从 ${config} 找到 PATH 配置`);
-                  // 这里简化处理，实际可能需要更复杂的解析
-                }
-              } catch (e) {
-                // 配置文件不存在或无法读取
-              }
+        // 方法3: 手动构建完整 PATH（始终执行以确保包含所有必要路径）
+        try {
+          this.log('DEBUG', '开始手动构建 PATH');
+          const dynamicPaths = await this.getDynamicPaths();
+          const currentPaths = (process.env.PATH || '').split(':').filter(p => p && p.trim());
+          const allPaths = [...new Set([...currentPaths, ...dynamicPaths])];
+          
+          // 确保 PATH 至少包含基本路径
+          const minimalPaths = ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+          for (const minPath of minimalPaths) {
+            if (!allPaths.includes(minPath)) {
+              allPaths.push(minPath);
             }
-          } catch (e) {
-            console.log('从 shell 配置获取 PATH 失败');
           }
-        }
-        
-        // 方法4: 手动构建完整 PATH
-        const dynamicPaths = await this.getDynamicPaths();
-        const currentPaths = (process.env.PATH || '').split(':').filter(p => p);
-        const allPaths = [...new Set([...currentPaths, ...dynamicPaths])];
-        process.env.PATH = allPaths.join(':');
-        
-        // 确保 PATH 至少包含基本路径
-        const minimalPaths = ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
-        for (const path of minimalPaths) {
-          if (!process.env.PATH.includes(path)) {
-            process.env.PATH = `${process.env.PATH}:${path}`;
-          }
+          
+          process.env.PATH = allPaths.join(':');
+          this.log('INFO', 'PATH 手动构建完成', {
+            totalPaths: allPaths.length,
+            addedPaths: allPaths.length - currentPaths.length
+          });
+        } catch (e) {
+          this.log('ERROR', '手动构建 PATH 失败', { error: e.message });
         }
       }
+      
+      const endTime = Date.now();
+      const finalPathLength = process.env.PATH?.split(':').length || 0;
+      
+      this.log('INFO', 'PATH环境增强完成', {
+        duration: endTime - startTime,
+        originalLength: originalPath.split(':').length,
+        finalLength: finalPathLength,
+        enhanced: pathEnhanced || finalPathLength > originalPath.split(':').length
+      });
+      
     } catch (error) {
-      console.error('增强 PATH 失败:', error);
+      this.log('ERROR', 'PATH环境增强失败', {
+        error: error.message,
+        stack: error.stack,
+        duration: Date.now() - startTime
+      });
+      
+      // 确保至少有基本的 PATH
+      if (!process.env.PATH || process.env.PATH.length < 20) {
+        process.env.PATH = '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
+        this.log('WARN', '设置了最小 PATH 作为回退');
+      }
     }
   }
 }

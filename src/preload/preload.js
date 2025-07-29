@@ -58,6 +58,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   restartClaude: () => ipcRenderer.invoke('claude:restart'),
   getClaudeStatus: () => ipcRenderer.invoke('claude:status'),
   sendClaudeInput: (data) => ipcRenderer.send('claude:input', data),
+  
+  // 代理服务器管理
+  startProxy: (config) => ipcRenderer.invoke('proxy:start', config),
+  stopProxy: () => ipcRenderer.invoke('proxy:stop'),
+  getProxyStatus: () => ipcRenderer.invoke('proxy:status'),
   onClaudeOutput: (callback) => {
     ipcRenderer.on('claude:output', (event, data) => callback(data));
   },
@@ -87,6 +92,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPath: (path) => ipcRenderer.invoke('app:open-path', path),
   showError: (title, message) => ipcRenderer.invoke('app:show-error', title, message),
   showInfo: (title, message) => {
+    ipcRenderer.invoke('app:show-error', title, message); // 临时使用 error box
+  },
+  showSuccess: (title, message) => {
     ipcRenderer.invoke('app:show-error', title, message); // 临时使用 error box
   },
   showConfirm: async (title, message) => {

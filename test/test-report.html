@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miaoda 测试报告 - 2025/7/29 10:34:30</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            margin: 0;
+            color: #333;
+        }
+        .summary {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .summary-item {
+            flex: 1;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary-item.passed { background: #d4edda; color: #155724; }
+        .summary-item.failed { background: #f8d7da; color: #721c24; }
+        .summary-item.skipped { background: #fff3cd; color: #856404; }
+        .test-results {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .status-pass { color: #28a745; }
+        .status-fail { color: #dc3545; }
+        .status-skip { color: #ffc107; }
+        .details {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 Miaoda 测试报告</h1>
+        <p>生成时间：2025/7/29 10:34:30</p>
+        <div class="summary">
+            <div class="summary-item">
+                <h3>11</h3>
+                <p>总测试数</p>
+            </div>
+            <div class="summary-item passed">
+                <h3>8</h3>
+                <p>通过</p>
+            </div>
+            <div class="summary-item failed">
+                <h3>3</h3>
+                <p>失败</p>
+            </div>
+            <div class="summary-item skipped">
+                <h3>0</h3>
+                <p>跳过</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-results">
+        <h2>测试详情</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>测试文件</th>
+                    <th>状态</th>
+                    <th>耗时</th>
+                    <th>统计</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>test-new-features.js</td>
+                    <td class="status-pass">
+                        ✅ 通过
+                    </td>
+                    <td>46ms</td>
+                    <td>✅:11 ❌:0 ⚠️:1</td>
+                </tr>
+                <tr>
+                    <td>test-config-save-and-apply.js</td>
+                    <td class="status-pass">
+                        ✅ 通过
+                    </td>
+                    <td>859ms</td>
+                    <td>✅:5 ❌:6 ⚠️:0</td>
+                </tr>
+                <tr>
+                    <td>test-claude-detection.js</td>
+                    <td class="status-pass">
+                        ✅ 通过
+                    </td>
+                    <td>4240ms</td>
+                    <td>✅:2 ❌:0 ⚠️:0</td>
+                </tr>
+                <tr>
+                    <td>test-environment-detection.js</td>
+                    <td class="status-pass">
+                        ✅ 通过
+                    </td>
+                    <td>5587ms</td>
+                    <td>✅:1 ❌:0 ⚠️:0</td>
+                </tr>
+                <tr>
+                    <td>test-dynamic-path-finding.js</td>
+                    <td class="status-pass">
+                        ✅ 通过
+                    </td>
+                    <td>1619ms</td>
+                    <td>✅:8 ❌:0 ⚠️:0</td>
+                </tr>
+                <tr>
+                    <td>test-restore-default-config.js</td>
+                    <td class="status-pass">
+                        ✅ 通过
+                    </td>
+                    <td>90ms</td>
+                    <td>✅:2 ❌:0 ⚠️:0</td>
+                </tr>
+                <tr>
+                    <td>test-update-flow.js</td>
+                    <td class="status-pass">
+                        ✅ 通过
+                    </td>
+                    <td>148ms</td>
+                    <td>✅:1 ❌:0 ⚠️:0</td>
+                </tr>
+                <tr>
+                    <td>test-update-logic.js</td>
+                    <td class="status-pass">
+                        ✅ 通过
+                    </td>
+                    <td>48ms</td>
+                    <td>✅:7 ❌:2 ⚠️:1</td>
+                </tr>
+                <tr>
+                    <td>test-proxy-server.js</td>
+                    <td class="status-fail">
+                        ❌ 失败
+                    </td>
+                    <td>105ms</td>
+                    <td>✅:5 ❌:0 ⚠️:2</td>
+                </tr>
+                <tr>
+                    <td>test-terminal-module.js</td>
+                    <td class="status-fail">
+                        ❌ 失败
+                    </td>
+                    <td>41ms</td>
+                    <td>✅:2 ❌:0 ⚠️:0</td>
+                </tr>
+                <tr>
+                    <td>test-integration.js</td>
+                    <td class="status-fail">
+                        ❌ 失败
+                    </td>
+                    <td>111ms</td>
+                    <td>✅:0 ❌:0 ⚠️:0</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    
+    <div class="test-results" style="margin-top: 20px;">
+        <h2>❌ 失败测试详情</h2>
+        
+        <div style="margin-bottom: 20px;">
+            <h3>test-proxy-server.js</h3>
+            <p>退出码: 1</p>
+            
+            <div class="details">
+                <pre>
+❌ 测试失败: Error: [HPM] Missing "target" option. Example: {target: "http://www.example.org"}
+    at createConfig (/Users/lu/Documents/claude code/newcode/node_modules/http-proxy-middleware/dist/config-factory.js:38:15)
+    at new HttpProxyMiddleware (/Users/lu/Documents/claude code/newcode/node_modules/http-proxy-middleware/dist/http-proxy-middleware.js:144:57)
+    at createProxyMiddleware (/Users/lu/Documents/claude code/newcode/node_modules/http-proxy-middleware/dist/index.js:16:28)
+    at ProxyServer.start (/Users/lu/Documents/claude code/newcode/src/main/services/proxy-server.js:202:19)
+    at testDynamicRouting (/Users/lu/Documents/claude code/newcode/test/test-proxy-server.js:243:21)
+    at runTests (/Users/lu/Documents/claude code/newcode/test/test-proxy-server.js:383:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+</pre>
+            </div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <h3>test-terminal-module.js</h3>
+            <p>退出码: 1</p>
+            
+            <div class="details">
+                <pre>innerError Error: Cannot find module '../build/Debug/pty.node'
+Require stack:
+- /Users/lu/Documents/claude code/newcode/node_modules/node-pty/lib/unixTerminal.js
+- /Users/lu/Documents/claude code/newcode/node_modules/node-pty/lib/index.js
+- /Users/lu/Documents/claude code/newcode/src/main/pty-manager.js
+- /Users/lu/Documents/claude code/newcode/test/test-terminal-module.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1144:15)
+    at Module._load (node:internal/modules/cjs/loader:985:27)
+    at Module.require (node:internal/modules/cjs/loader:1235:19)
+    at require (node:internal/modules/helpers:176:18)
+    at Object.<anonymous> (/Users/lu/Documents/claude code/newcode/node_modules/node-pty/lib/unixTerminal.js:34:15)
+    at Module._compile (node:internal/modules/cjs/loader:1376:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+    at Module.load (node:internal/modules/cjs/loader:1207:32)
+    at Module._load (node:internal/modules/cjs/loader:1023:12)
+    at Module.require (node:internal/modules/cjs/loader:1235:19) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/lu/Documents/claude code/newcode/node_modules/node-pty/lib/unixTerminal.js',
+    '/Users/lu/Documents/claude code/newcode/node_modules/node-pty/lib/index.js',
+    '/Users/lu/Documents/claude code/newcode/src/main/pty-manager.js',
+    '/Users/lu/Documents/claude code/newcode/test/test-terminal-module.js'
+  ]
+}
+
+❌ 测试失败: TypeError: Cannot read properties of undefined (reading 'success')
+    at testPtyManager (/Users/lu/Documents/claude code/newcode/test/test-terminal-module.js:78:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async runTests (/Users/lu/Documents/claude code/newcode/test/test-terminal-module.js:299:5)
+</pre>
+            </div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <h3>test-integration.js</h3>
+            <p>退出码: 1</p>
+            
+            <div class="details">
+                <pre>(node:34604) Warning: Accessing non-existent property 'session' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:34604) Warning: Accessing non-existent property 'ipcRenderer' of module exports inside circular dependency
+
+❌ 集成测试失败: TypeError: IPCControllerSimple is not a constructor
+    at testIPCCommunication (/Users/lu/Documents/claude code/newcode/test/test-integration.js:102:25)
+    at runTests (/Users/lu/Documents/claude code/newcode/test/test-integration.js:390:11)
+    at Object.<anonymous> (/Users/lu/Documents/claude code/newcode/test/test-integration.js:417:1)
+    at Module._compile (node:internal/modules/cjs/loader:1376:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+    at Module.load (node:internal/modules/cjs/loader:1207:32)
+    at Module._load (node:internal/modules/cjs/loader:1023:12)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:135:12)
+    at node:internal/main/run_main_module:28:49
+</pre>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
