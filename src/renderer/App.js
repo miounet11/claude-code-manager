@@ -263,6 +263,18 @@ class App {
    */
   showConfigManager() {
     const modalContainer = document.getElementById('modal-container');
+    
+    // 验证 modal-container 是否存在
+    if (!modalContainer) {
+      console.error('[App] modal-container 元素未找到');
+      // 尝试创建一个临时的模态容器
+      const tempContainer = document.createElement('div');
+      tempContainer.id = 'modal-container';
+      document.body.appendChild(tempContainer);
+      this.components.configManager.show(tempContainer);
+      return;
+    }
+    
     this.components.configManager.show(modalContainer);
   }
 

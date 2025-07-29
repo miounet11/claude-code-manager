@@ -1,6 +1,6 @@
 {
   "name": "miaoda",
-  "version": "4.7.1",
+  "version": "4.7.2",
   "description": "通用 AI 服务聚合平台 - 支持 Claude、OpenAI、Gemini 等多种 AI 服务，智能格式转换，本地模型集成",
   "main": "src/main/index.js",
   "scripts": {
@@ -106,8 +106,8 @@
     }
   },
   "buildInfo": {
-    "number": 3,
-    "time": "2025-07-28T13:31:21.585Z",
-    "timestamp": 1753709481586
+    "number": 4,
+    "time": "2025-07-29T03:43:31.505Z",
+    "timestamp": 1753760611506
   }
 }

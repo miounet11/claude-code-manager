@@ -16,6 +16,18 @@ class ConfigManager {
    * 显示配置管理器
    */
   async show(container) {
+    // 添加参数验证
+    if (!container) {
+      console.error('[ConfigManager] show() 方法需要一个有效的容器元素');
+      return;
+    }
+    
+    // 验证容器是否为 DOM 元素
+    if (!(container instanceof HTMLElement)) {
+      console.error('[ConfigManager] 容器必须是一个有效的 DOM 元素');
+      return;
+    }
+    
     this.container = container;
     
     // 加载配置

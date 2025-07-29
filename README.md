@@ -3,7 +3,7 @@
 <div align="center">
   <img src="assets/logo.png" alt="Miaoda Logo" width="128">
   
-  [![Version](https://img.shields.io/badge/version-4.7.1-blue.svg)](https://github.com/miounet11/claude-code-manager/releases)
+  [![Version](https://img.shields.io/badge/version-4.7.2-blue.svg)](https://github.com/miounet11/claude-code-manager/releases)
   [![Platform](https://img.shields.io/badge/platform-macOS-blue.svg)](https://github.com/miounet11/claude-code-manager/releases)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 </div>
@@ -12,12 +12,11 @@
 
 Miaoda 是一个通用的 AI 服务聚合平台，最初为 Claude Code (claude.ai/code) 设计，现已升级支持多种 AI 服务提供商。通过智能的 API 格式转换和动态路由，您可以使用统一的接口访问不同的 AI 服务。
 
-### 🆕 v4.7.1 更新亮点
-- **🐛 稳定性提升** - 修复了所有测试中发现的关键问题
-- **🚀 代理服务器优化** - 修复动态路由请求转发错误
-- **💻 终端改进** - 增强内存管理，防止泄漏
-- **🧪 完整测试覆盖** - 新增测试套件，覆盖率达 72.73%
-- **📚 文档完善** - 添加架构设计和构建指南
+### 🆕 v4.7.2 更新亮点
+- **🐛 紧急修复** - 解决配置保存时的 appendChild 错误
+- **🔧 错误处理改进** - 替换所有 alert 为 Electron 对话框
+- **✅ 功能恢复** - 配置保存和启动功能已完全修复
+- **📝 文档更新** - 添加修复文档和产品分析报告
 
 ### ✨ 主要特性
 
@@ -42,8 +41,8 @@ Miaoda 是一个通用的 AI 服务聚合平台，最初为 Claude Code (claude.
 
 从 [Releases](https://github.com/miounet11/claude-code-manager/releases) 页面下载最新版本的 macOS 安装包：
 
-- **macOS (Intel)**: `Miaoda-4.7.1-x64.dmg`
-- **macOS (Apple Silicon)**: `Miaoda-4.7.1-arm64.dmg`
+- **macOS (Intel)**: `Miaoda-4.7.2-x64.dmg`
+- **macOS (Apple Silicon)**: `Miaoda-4.7.2-arm64.dmg`
 
 ### 从源码构建
 

@@ -1,5 +1,25 @@
 # 更新日志
 
+## [4.7.2] - 2025-07-29 - "Critical Bug Fix"
+
+### 🎯 主要更新
+紧急修复用户反馈的严重问题，确保配置管理功能正常使用。
+
+### 🐛 修复
+- **修复 appendChild 错误**：
+  - 替换 app-full.html 中所有的 alert() 调用为 Electron API
+  - 解决"Cannot read properties of null (reading 'appendChild')"错误
+  - 确保配置保存和启动功能正常工作
+
+### 📝 文档改进
+- 添加错误修复文档（agentdocs/fix-appendchild-error.md）
+- 创建产品分析报告（agentdocs/product-analysis-v471.md）
+- 完善开发流程文档
+
+### 🧪 测试
+- 添加配置保存修复验证测试
+- 所有关键功能测试通过
+
 ## [4.7.1] - 2025-07-29 - "Quality Assurance & Bug Fixes"
 
 ### 🎯 主要更新

@@ -1282,10 +1282,10 @@
         
         // 重新加载配置列表
         await loadConfigs();
-        alert('配置已保存！');
+        window.electronAPI.showSuccess('成功', '配置已保存！');
       } catch (error) {
         console.error('保存配置失败:', error);
-        alert('保存失败: ' + error.message);
+        window.electronAPI.showError('保存失败', error.message);
       }
     }
     
@@ -1318,13 +1318,13 @@
         
       } catch (error) {
         console.error('保存并启动失败:', error);
-        alert('操作失败: ' + error.message);
+        window.electronAPI.showError('操作失败', error.message);
       }
     }
     
     async function testConfig() {
       if (!currentConfig || !currentConfig.apiKey) {
-        alert('请先配置 API Key！');
+        window.electronAPI.showError('错误', '请先配置 API Key！');
         return;
       }
       
@@ -1342,16 +1342,16 @@
         const success = currentConfig.apiKey.startsWith('sk-');
         
         if (success) {
-          alert('配置测试成功！API Key 有效。');
+          window.electronAPI.showSuccess('测试成功', 'API Key 有效，配置正确！');
         } else {
-          alert('配置测试失败！请检查 API Key 是否正确。');
+          window.electronAPI.showError('测试失败', '请检查 API Key 是否正确。');
         }
         
         testBtn.disabled = false;
         testBtn.textContent = originalText;
       } catch (error) {
         console.error('测试配置失败:', error);
-        alert('测试失败: ' + error.message);
+        window.electronAPI.showError('测试失败', error.message);
       }
     }
     
@@ -1360,7 +1360,7 @@
       
       // 不允许删除免费体验配置
       if (currentConfig.isFreeAccount) {
-        alert('免费体验配置不能删除');
+        window.electronAPI.showError('无法删除', '免费体验配置不能删除');
         return;
       }
       
@@ -1371,7 +1371,7 @@
         await loadConfigs();
       } catch (error) {
         console.error('删除配置失败:', error);
-        alert('删除失败: ' + error.message);
+        window.electronAPI.showError('删除失败', error.message);
       }
     }
     
@@ -1416,13 +1416,13 @@
     // 在系统终端中打开
     async function openInSystemTerminal() {
       if (!currentConfig) {
-        alert('请先选择一个配置！');
+        window.electronAPI.showError('错误', '请先选择一个配置！');
         showPanel('config');
         return;
       }
       
       if (!currentConfig.apiKey) {
-        alert('请先配置 API Key！');
+        window.electronAPI.showError('错误', '请先配置 API Key！');
         showPanel('config');
         return;
       }
@@ -1451,7 +1451,7 @@
     
     async function startClaude() {
       if (!currentConfig) {
-        alert('请先选择一个配置！');
+        window.electronAPI.showError('错误', '请先选择一个配置！');
         showPanel('config');
         return;
       }
