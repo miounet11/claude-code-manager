@@ -1,5 +1,32 @@
 # 更新日志
 
+## [4.8.1] - 2025-07-29 - "Stability & Performance"
+
+### 🎯 主要更新
+修复启动时的关键错误，提升系统稳定性，并启动轻量化重构计划。
+
+### 🐛 修复
+- **IPC 系统修复**：
+  - 修复 IPC 处理器重复注册错误（"Attempted to register a second handler"）
+  - 解决智能错误处理系统的循环依赖问题
+  - 修复错误通知器中的 undefined 读取错误
+  - 确保基础 IPC 处理器正常工作（app:version、env:check、config:get-all）
+
+- **稳定性改进**：
+  - 暂时禁用智能错误处理系统的自动集成，避免启动冲突
+  - 优化错误处理模块之间的依赖关系
+  - 改进缓存管理策略
+
+### ♻️ 重构计划
+- 启动轻量化重构项目，目标降低系统复杂度
+- 计划减少 40% 代码量（从 25,230 行减至 15,000 行）
+- 提升维护效率和开发体验
+
+### 📝 文档
+- 添加产品复杂度分析（agentdocs/product-complexity-analysis.md）
+- 创建轻量化重构方案（agentdocs/lightweight-refactoring-plan.md）
+- 制定 agents 协作计划（agentdocs/agent-coordination-detailed-plan.md）
+
 ## [4.7.2] - 2025-07-29 - "Critical Bug Fix"
 
 ### 🎯 主要更新

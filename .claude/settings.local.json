@@ -1,8 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node:*)",
-      "Bash(npm:*)"
+      "Bash(ls:*)"
     ],
     "deny": []
   },

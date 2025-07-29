@@ -6,6 +6,10 @@ const fs = require('fs').promises;
 const TerminalManager = require('../terminal-manager');
 const localModelService = require('./local-model-service');
 const cacheManager = require('./cache-manager');
+// 暂时禁用智能错误处理，防止循环依赖和启动问题
+// const { errorHandler, ErrorTypes, ErrorSeverity } = require('./error-handler');
+// const errorLogger = require('./error-logger');
+// const errorNotifier = require('./error-notifier');
 
 /**
  * 简化的 IPC 控制器
@@ -25,6 +29,9 @@ class IPCControllerSimple {
     
     // 清除之前的处理器（安全方式）
     this.cleanup();
+    
+    // 初始化错误处理系统 - 暂时禁用
+    // this.initializeErrorHandling();
     
     // 开始本地模型定期检测
     localModelService.startPeriodicDetection(30000);
@@ -695,6 +702,17 @@ class IPCControllerSimple {
       return { success: false, error: error.message };
     }
   }
+  
+  // 错误处理系统暂时禁用以解决循环依赖问题
+  /*
+  initializeErrorHandling() {
+    // 错误处理功能暂时禁用
+  }
+  
+  registerErrorHandlers() {
+    // 错误处理功能暂时禁用
+  }
+  */
 }
 
 module.exports = new IPCControllerSimple();

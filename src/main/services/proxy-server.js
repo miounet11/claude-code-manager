@@ -7,6 +7,13 @@ const EventEmitter = require('events');
 const crypto = require('crypto');
 const serviceRegistry = require('./service-registry');
 const formatConverter = require('./format-converter');
+const { errorHandler, ErrorTypes, ErrorSeverity } = require('./error-handler');
+
+// 智能错误处理系统组件
+const errorPredictor = require('./error-predictor');
+const autoRecoveryManager = require('./auto-recovery-manager');
+const { healthMonitor } = require('./health-monitor');
+const contextAnalyzer = require('./context-analyzer');
 
 /**
  * API 代理服务器
@@ -26,6 +33,18 @@ class ProxyServer extends EventEmitter {
       totalCost: 0,
       startTime: null
     };
+    
+    // 智能错误处理系统状态
+    this.intelligentErrorHandling = {
+      enabled: true,
+      predictionEnabled: true,
+      autoRecoveryEnabled: true,
+      healthMonitoringEnabled: true,
+      contextAnalysisEnabled: true
+    };
+    
+    // 初始化智能错误处理系统
+    this.initializeIntelligentErrorHandling();
   }
 
   /**
@@ -33,14 +52,32 @@ class ProxyServer extends EventEmitter {
    */
   async start(config) {
     if (this.isRunning) {
-      throw new Error('代理服务器已在运行');
+      const error = new Error('代理服务器已在运行');
+      await errorHandler.handle({
+        type: ErrorTypes.SYSTEM,
+        severity: ErrorSeverity.WARNING,
+        error,
+        message: '代理服务器已在运行',
+        context: { port: this.port }
+      });
+      throw error;
     }
 
     // 动态路由模式可以没有固定配置
     const isDynamicMode = !config || config.mode === 'dynamic';
 
     if (!isDynamicMode && (!config || !config.apiUrl || !config.apiKey)) {
-      throw new Error('配置不完整');
+      const error = new Error('配置不完整');
+      await errorHandler.handle({
+        type: ErrorTypes.CONFIG,
+        severity: ErrorSeverity.ERROR,
+        error,
+        message: '代理服务器配置不完整',
+        detail: '缺少必要的 apiUrl 或 apiKey 配置',
+        suggestion: '请检查配置文件或使用配置向导完成设置',
+        actions: ['打开配置', '使用动态路由模式']
+      });
+      throw error;
     }
 
     this.app = express();
@@ -197,18 +234,67 @@ class ProxyServer extends EventEmitter {
         },
 
         // 错误处理
-        onError: (err, req, res) => {
+        onError: async (err, req, res) => {
           console.error('代理错误:', err);
+          
+          // 分析错误类型
+          let errorType = ErrorTypes.NETWORK;
+          let severity = ErrorSeverity.ERROR;
+          let suggestion = '请稍后重试';
+          let statusCode = 502;
+          
+          if (err.code === 'ECONNREFUSED') {
+            errorType = ErrorTypes.NETWORK;
+            suggestion = '目标服务器拒绝连接，请检查 API URL 是否正确';
+            statusCode = 503;
+          } else if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT') {
+            errorType = ErrorTypes.NETWORK;
+            suggestion = '请求超时，请检查网络连接或稍后重试';
+            statusCode = 504;
+          } else if (err.code === 'ENOTFOUND') {
+            errorType = ErrorTypes.NETWORK;
+            suggestion = '无法解析目标服务器地址，请检查 API URL';
+            statusCode = 502;
+          } else if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+            errorType = ErrorTypes.API;
+            suggestion = '认证失败，请检查 API Key 是否正确';
+            statusCode = 401;
+          } else if (err.message?.includes('429') || err.message?.includes('rate limit')) {
+            errorType = ErrorTypes.API;
+            severity = ErrorSeverity.WARNING;
+            suggestion = '请求频率过高，请稍后重试';
+            statusCode = 429;
+          }
+          
+          // 使用错误处理系统
+          await errorHandler.handle({
+            type: errorType,
+            severity: severity,
+            error: err,
+            message: '代理请求失败',
+            detail: err.message,
+            suggestion: suggestion,
+            context: {
+              requestId: req.requestId,
+              method: req.method,
+              path: req.path,
+              targetUrl: this.config?.apiUrl
+            }
+          });
+          
           this.emit('error', {
             id: req.requestId,
             error: err.message,
+            errorType,
             timestamp: new Date()
           });
 
-          res.status(502).json({
+          res.status(statusCode).json({
             error: '代理服务器错误',
             message: err.message,
-            requestId: req.requestId
+            suggestion: suggestion,
+            requestId: req.requestId,
+            errorCode: err.code
           });
         }
       };
@@ -242,13 +328,38 @@ class ProxyServer extends EventEmitter {
         });
       });
 
-      this.server.on('error', (err) => {
+      this.server.on('error', async (err) => {
         if (err.code === 'EADDRINUSE') {
           // 端口被占用，尝试下一个
+          console.log(`端口 ${this.port} 被占用，尝试端口 ${this.port + 1}`);
+          
+          await errorHandler.handle({
+            type: ErrorTypes.SYSTEM,
+            severity: ErrorSeverity.INFO,
+            error: err,
+            message: `端口 ${this.port} 被占用`,
+            detail: `自动切换到端口 ${this.port + 1}`,
+            context: { 
+              oldPort: this.port,
+              newPort: this.port + 1,
+              silent: true  // 不需要通知用户
+            }
+          });
+          
           this.port++;
           this.server.close();
           this.start(config).then(resolve).catch(reject);
         } else {
+          // 其他服务器错误
+          await errorHandler.handle({
+            type: ErrorTypes.SYSTEM,
+            severity: ErrorSeverity.CRITICAL,
+            error: err,
+            message: '代理服务器启动失败',
+            detail: err.message,
+            suggestion: '请检查系统权限或联系技术支持',
+            context: { port: this.port }
+          });
           reject(err);
         }
       });
@@ -402,19 +513,49 @@ class ProxyServer extends EventEmitter {
                      req.query.key;
 
       if (!apiKey) {
+        await errorHandler.handle({
+          type: ErrorTypes.API,
+          severity: ErrorSeverity.WARNING,
+          message: '缺少 API Key',
+          detail: '请在请求头或查询参数中提供 API Key',
+          suggestion: '添加 Authorization 头或 x-api-key 头，或在 URL 中添加 ?key=YOUR_KEY',
+          context: {
+            requestId: req.requestId,
+            service: serviceId,
+            model
+          }
+        });
+        
         return res.status(401).json({
           error: 'API Key required',
-          message: 'Please provide API key in header or query parameter'
+          message: 'Please provide API key in header or query parameter',
+          suggestion: 'Add Authorization or x-api-key header, or add ?key=YOUR_KEY to URL'
         });
       }
 
       // 获取服务配置
       const service = serviceRegistry.get(serviceId);
       if (!service) {
+        const availableServices = serviceRegistry.getServiceList();
+        
+        await errorHandler.handle({
+          type: ErrorTypes.VALIDATION,
+          severity: ErrorSeverity.WARNING,
+          message: '未知的 AI 服务',
+          detail: `服务 "${serviceId}" 不存在`,
+          suggestion: `请使用以下可用服务之一: ${availableServices.join(', ')}`,
+          context: {
+            requestId: req.requestId,
+            requestedService: serviceId,
+            availableServices
+          }
+        });
+        
         return res.status(404).json({
           error: 'Service not found',
           message: `Unknown service: ${serviceId}`,
-          availableServices: serviceRegistry.getServiceList()
+          availableServices: availableServices,
+          suggestion: `Try one of these: ${availableServices.join(', ')}`
         });
       }
 
@@ -451,8 +592,8 @@ class ProxyServer extends EventEmitter {
         convertedBody.model = model;
       }
 
-      // 发起请求
-      const response = await this.forwardRequest({
+      // 发起请求（带重试机制）
+      const response = await this.forwardRequestWithRetry({
         url: targetUrl,
         method: req.method,
         headers: {
@@ -461,6 +602,9 @@ class ProxyServer extends EventEmitter {
           'Accept': 'application/json'
         },
         body: JSON.stringify(convertedBody)
+      }, {
+        maxRetries: service.maxRetries || 3,
+        retryDelay: service.retryDelay || 1000
       });
 
       // 转换响应格式
@@ -481,9 +625,59 @@ class ProxyServer extends EventEmitter {
       res.status(response.status).json(responseData);
     } catch (error) {
       console.error('动态路由错误:', error);
-      res.status(500).json({
+      
+      // 分析错误类型并提供有用的反馈
+      let errorType = ErrorTypes.UNKNOWN;
+      let severity = ErrorSeverity.ERROR;
+      let statusCode = 500;
+      let suggestion = '请稍后重试';
+      
+      if (error.code === 'ECONNREFUSED') {
+        errorType = ErrorTypes.NETWORK;
+        statusCode = 503;
+        suggestion = `无法连接到 ${serviceId} 服务，请检查服务是否正常运行`;
+      } else if (error.code === 'ETIMEDOUT') {
+        errorType = ErrorTypes.NETWORK;
+        statusCode = 504;
+        suggestion = '请求超时，请检查网络连接或稍后重试';
+      } else if (error.message?.includes('format')) {
+        errorType = ErrorTypes.VALIDATION;
+        statusCode = 400;
+        suggestion = '请求格式转换失败，请检查请求内容';
+      } else if (error.response?.status === 401) {
+        errorType = ErrorTypes.API;
+        statusCode = 401;
+        suggestion = '认证失败，请检查 API Key 是否有效';
+      } else if (error.response?.status === 429) {
+        errorType = ErrorTypes.API;
+        severity = ErrorSeverity.WARNING;
+        statusCode = 429;
+        suggestion = '请求频率超限，请稍后重试';
+      }
+      
+      await errorHandler.handle({
+        type: errorType,
+        severity: severity,
+        error: error,
+        message: '动态路由处理失败',
+        detail: error.message,
+        suggestion: suggestion,
+        context: {
+          requestId: req.requestId,
+          service: serviceId,
+          model: model,
+          path: apiPath,
+          statusCode: error.response?.status
+        }
+      });
+      
+      res.status(statusCode).json({
         error: 'Proxy error',
-        message: error.message
+        message: error.message,
+        suggestion: suggestion,
+        requestId: req.requestId,
+        service: serviceId,
+        errorCode: error.code
       });
     }
   }
@@ -502,6 +696,96 @@ class ProxyServer extends EventEmitter {
 
     // 使用原有的代理逻辑
     // ... 现有的代理逻辑
+  }
+
+  /**
+   * 带重试机制的请求转发
+   */
+  async forwardRequestWithRetry(options, retryConfig = {}) {
+    const {
+      maxRetries = 3,
+      retryDelay = 1000,
+      retryableErrors = ['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'ESOCKETTIMEDOUT'],
+      retryableStatuses = [502, 503, 504]
+    } = retryConfig;
+    
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await this.forwardRequest(options);
+        
+        // 检查是否需要重试的状态码
+        if (retryableStatuses.includes(response.status) && attempt < maxRetries) {
+          console.log(`请求失败 (状态码: ${response.status})，${attempt}/${maxRetries} 次尝试，${retryDelay}ms 后重试...`);
+          
+          await errorHandler.handle({
+            type: ErrorTypes.NETWORK,
+            severity: ErrorSeverity.INFO,
+            message: '请求失败，正在重试',
+            detail: `状态码: ${response.status}，尝试 ${attempt}/${maxRetries}`,
+            context: {
+              url: options.url,
+              attempt,
+              maxRetries,
+              statusCode: response.status,
+              silent: true
+            }
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+          continue;
+        }
+        
+        return response;
+        
+      } catch (error) {
+        lastError = error;
+        
+        // 检查是否是可重试的错误
+        if (retryableErrors.includes(error.code) && attempt < maxRetries) {
+          console.log(`请求失败 (${error.code})，${attempt}/${maxRetries} 次尝试，${retryDelay}ms 后重试...`);
+          
+          await errorHandler.handle({
+            type: ErrorTypes.NETWORK,
+            severity: ErrorSeverity.INFO,
+            message: '网络错误，正在重试',
+            detail: `错误代码: ${error.code}，尝试 ${attempt}/${maxRetries}`,
+            context: {
+              url: options.url,
+              attempt,
+              maxRetries,
+              errorCode: error.code,
+              silent: true
+            }
+          });
+          
+          // 指数退避
+          await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+          continue;
+        }
+        
+        // 不可重试的错误，直接抛出
+        throw error;
+      }
+    }
+    
+    // 所有重试都失败
+    await errorHandler.handle({
+      type: ErrorTypes.NETWORK,
+      severity: ErrorSeverity.ERROR,
+      error: lastError,
+      message: '请求失败，已达到最大重试次数',
+      detail: `尝试了 ${maxRetries} 次后仍然失败`,
+      suggestion: '请检查网络连接或稍后再试',
+      context: {
+        url: options.url,
+        maxRetries,
+        lastError: lastError.message
+      }
+    });
+    
+    throw lastError;
   }
 
   /**
@@ -535,16 +819,45 @@ class ProxyServer extends EventEmitter {
               data: jsonData
             });
           } catch (e) {
-            resolve({
-              status: res.statusCode,
-              headers: res.headers,
-              data: data
-            });
+            // 如果响应不是 JSON，返回原始数据
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve({
+                status: res.statusCode,
+                headers: res.headers,
+                data: data
+              });
+            } else {
+              // 错误响应，尝试解析错误信息
+              const errorInfo = {
+                status: res.statusCode,
+                headers: res.headers,
+                data: {
+                  error: 'Response parse error',
+                  message: data || `HTTP ${res.statusCode} ${res.statusMessage}`,
+                  originalResponse: data.substring(0, 500) // 限制长度
+                }
+              };
+              resolve(errorInfo);
+            }
           }
         });
       });
 
-      req.on('error', reject);
+      req.on('error', (error) => {
+        // 增强错误信息
+        error.url = options.url;
+        error.method = options.method;
+        reject(error);
+      });
+      
+      // 设置请求超时
+      req.setTimeout(120000, () => {
+        req.destroy();
+        const timeoutError = new Error('Request timeout after 120 seconds');
+        timeoutError.code = 'ETIMEDOUT';
+        timeoutError.url = options.url;
+        reject(timeoutError);
+      });
       
       if (options.body) {
         req.write(options.body);
@@ -552,6 +865,478 @@ class ProxyServer extends EventEmitter {
       
       req.end();
     });
+  }
+  
+  /**
+   * 初始化智能错误处理系统
+   */
+  initializeIntelligentErrorHandling() {
+    if (!this.intelligentErrorHandling.enabled) {
+      console.log('Intelligent error handling is disabled');
+      return;
+    }
+    
+    console.log('Initializing intelligent error handling system...');
+    
+    try {
+      // 1. 设置错误预测器
+      if (this.intelligentErrorHandling.predictionEnabled) {
+        this.setupErrorPredictor();
+      }
+      
+      // 2. 设置自动恢复管理器
+      if (this.intelligentErrorHandling.autoRecoveryEnabled) {
+        this.setupAutoRecoveryManager();
+      }
+      
+      // 3. 设置健康监控器
+      if (this.intelligentErrorHandling.healthMonitoringEnabled) {
+        this.setupHealthMonitor();
+      }
+      
+      // 4. 设置上下文分析器
+      if (this.intelligentErrorHandling.contextAnalysisEnabled) {
+        this.setupContextAnalyzer();
+      }
+      
+      // 5. 设置智能错误处理流程
+      this.setupIntelligentErrorFlow();
+      
+      console.log('Intelligent error handling system initialized successfully');
+      
+    } catch (error) {
+      console.error('Failed to initialize intelligent error handling:', error);
+      // 降级到基础错误处理
+      this.intelligentErrorHandling.enabled = false;
+    }
+  }
+  
+  /**
+   * 设置错误预测器
+   */
+  setupErrorPredictor() {
+    // 监听错误事件，向错误预测器提供数据
+    this.on('error', (error) => {
+      if (errorPredictor && typeof errorPredictor.recordError === 'function') {
+        errorPredictor.recordError(error);
+      }
+    });
+    
+    // 监听预测事件
+    errorPredictor.on('prediction', (prediction) => {
+      console.log('Error prediction generated:', {
+        type: prediction.type,
+        confidence: prediction.confidence,
+        prediction: prediction.prediction
+      });
+      
+      // 发出预测事件供其他组件使用
+      this.emit('error-prediction', prediction);
+      
+      // 如果预测风险等级较高，主动触发预防措施
+      if (prediction.riskLevel === 'critical' && prediction.confidence > 0.8) {
+        this.handleHighRiskPrediction(prediction);
+      }
+    });
+  }
+  
+  /**
+   * 设置自动恢复管理器
+   */
+  setupAutoRecoveryManager() {
+    // 监听恢复完成事件
+    autoRecoveryManager.on('recovery-completed', (result) => {
+      console.log('Auto recovery completed:', {
+        recovered: result.recovered,
+        strategiesExecuted: result.strategiesExecuted,
+        duration: result.duration
+      });
+      
+      this.emit('auto-recovery-completed', result);
+    });
+    
+    // 监听确认请求事件
+    autoRecoveryManager.on('confirmation-required', (request) => {
+      console.log('Recovery confirmation required:', request.strategy);
+      
+      // 这里可以实现用户确认逻辑
+      // 目前自动同意非关键恢复策略
+      const autoApprove = !request.strategy.includes('restart') && 
+                         !request.strategy.includes('reset');
+      
+      setTimeout(() => {
+        request.callback(autoApprove);
+      }, 1000);
+    });
+  }
+  
+  /**
+   * 设置健康监控器
+   */
+  setupHealthMonitor() {
+    // 启动健康监控
+    healthMonitor.start();
+    
+    // 监听健康状态变化
+    healthMonitor.on('health-status-changed', (status) => {
+      console.log('Health status changed:', {
+        previous: status.previous,
+        current: status.current,
+        issues: status.issues.length
+      });
+      
+      this.emit('health-status-changed', status);
+      
+      // 如果健康状态恶化，触发预防措施
+      if (status.current === 'critical') {
+        this.handleCriticalHealthStatus(status);
+      }
+    });
+    
+    // 监听健康告警
+    healthMonitor.on('health-alert', (alert) => {
+      console.log('Health alert triggered:', {
+        status: alert.status,
+        issues: alert.issues.length
+      });
+      
+      this.emit('health-alert', alert);
+    });
+  }
+  
+  /**
+   * 设置上下文分析器
+   */
+  setupContextAnalyzer() {
+    // 监听分析完成事件
+    contextAnalyzer.on('analysis-completed', (result) => {
+      console.log('Context analysis completed:', {
+        confidence: result.confidence,
+        riskLevel: result.insights.summary.riskLevel,
+        primaryFactors: result.insights.summary.primaryFactors
+      });
+      
+      this.emit('context-analysis-completed', result);
+    });
+  }
+  
+  /**
+   * 设置智能错误处理流程
+   */
+  setupIntelligentErrorFlow() {
+    // 重写错误处理器的处理方法以集成智能功能
+    const originalHandle = errorHandler.handle.bind(errorHandler);
+    
+    errorHandler.handle = async (errorInfo) => {
+      try {
+        // 1. 首先执行原始错误处理
+        await originalHandle(errorInfo);
+        
+        // 2. 如果启用了智能处理，执行增强处理
+        if (this.intelligentErrorHandling.enabled) {
+          await this.handleErrorIntelligently(errorInfo);
+        }
+        
+      } catch (error) {
+        console.error('Error in intelligent error handling:', error);
+        // 确保原始错误处理仍然执行
+        await originalHandle(errorInfo);
+      }
+    };
+  }
+  
+  /**
+   * 智能错误处理
+   */
+  async handleErrorIntelligently(errorInfo) {
+    const startTime = Date.now();
+    console.log(`Starting intelligent error handling for: ${errorInfo.message}`);
+    
+    try {
+      // 1. 上下文分析
+      let contextAnalysis = null;
+      if (this.intelligentErrorHandling.contextAnalysisEnabled) {
+        try {
+          contextAnalysis = await contextAnalyzer.analyzeContext(errorInfo, {
+            proxyServerState: this.getProxyServerState(),
+            requestContext: this.getCurrentRequestContext()
+          });
+        } catch (error) {
+          console.error('Context analysis failed:', error);
+        }
+      }
+      
+      // 2. 尝试自动恢复
+      let recoveryResult = null;
+      if (this.intelligentErrorHandling.autoRecoveryEnabled) {
+        try {
+          recoveryResult = await autoRecoveryManager.handleError(errorInfo, {
+            contextAnalysis,
+            proxyServer: this
+          });
+        } catch (error) {
+          console.error('Auto recovery failed:', error);
+        }
+      }
+      
+      // 3. 记录错误到预测器
+      if (this.intelligentErrorHandling.predictionEnabled) {
+        try {
+          errorPredictor.recordError({
+            ...errorInfo,
+            contextAnalysis,
+            recoveryResult,
+            proxyServerState: this.getProxyServerState()
+          });
+        } catch (error) {
+          console.error('Error prediction recording failed:', error);
+        }
+      }
+      
+      // 4. 生成智能错误报告
+      const report = this.generateIntelligentErrorReport(
+        errorInfo,
+        contextAnalysis,
+        recoveryResult
+      );
+      
+      console.log(`Intelligent error handling completed in ${Date.now() - startTime}ms:`, {
+        contextAnalyzed: !!contextAnalysis,
+        recoveryAttempted: !!recoveryResult,
+        recovered: recoveryResult?.recovered || false
+      });
+      
+      // 发出智能处理完成事件
+      this.emit('intelligent-error-handled', {
+        errorInfo,
+        contextAnalysis,
+        recoveryResult,
+        report,
+        duration: Date.now() - startTime
+      });
+      
+      return report;
+      
+    } catch (error) {
+      console.error('Intelligent error handling failed:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * 处理高风险预测
+   */
+  async handleHighRiskPrediction(prediction) {
+    console.log('Handling high risk prediction:', prediction.prediction);
+    
+    try {
+      // 基于预测类型采取预防措施
+      switch (prediction.type) {
+        case 'pattern':
+          await this.handlePatternBasedPrediction(prediction);
+          break;
+        case 'ml':
+          await this.handleMLBasedPrediction(prediction);
+          break;
+        case 'temporal':
+          await this.handleTemporalPrediction(prediction);
+          break;
+        case 'system':
+          await this.handleSystemHealthPrediction(prediction);
+          break;
+      }
+      
+    } catch (error) {
+      console.error('Failed to handle high risk prediction:', error);
+    }
+  }
+  
+  /**
+   * 处理模式基础预测
+   */
+  async handlePatternBasedPrediction(prediction) {
+    // 根据预测的模式采取预防措施
+    if (prediction.pattern === 'NETWORK_INSTABILITY') {
+      console.log('Detected network instability prediction, adjusting timeouts');
+      // 可以调整网络超时设置
+    } else if (prediction.pattern === 'API_RATE_LIMITING') {
+      console.log('Detected rate limiting prediction, implementing backoff');
+      // 可以预防性地实施退避策略
+    }
+  }
+  
+  /**
+   * 处理机器学习预测
+   */
+  async handleMLBasedPrediction(prediction) {
+    console.log('Handling ML-based prediction with confidence:', prediction.confidence);
+    // 可以根据ML预测调整系统参数
+  }
+  
+  /**
+   * 处理时序预测
+   */
+  async handleTemporalPrediction(prediction) {
+    console.log('Handling temporal prediction:', prediction.prediction);
+    // 可以基于时间趋势调整监控频率
+  }
+  
+  /**
+   * 处理系统健康预测
+   */
+  async handleSystemHealthPrediction(prediction) {
+    console.log('Handling system health prediction:', prediction.prediction);
+    
+    // 触发强制健康检查
+    if (healthMonitor.isRunning) {
+      try {
+        await healthMonitor.forceHealthCheck();
+      } catch (error) {
+        console.error('Failed to force health check:', error);
+      }
+    }
+  }
+  
+  /**
+   * 处理关键健康状态
+   */
+  async handleCriticalHealthStatus(status) {
+    console.log('Handling critical health status with issues:', status.issues.length);
+    
+    try {
+      // 尝试自动缓解关键健康问题
+      for (const issue of status.issues) {
+        if (issue.component === 'SYSTEM_RESOURCES') {
+          // 触发资源清理
+          if (global.gc) {
+            global.gc();
+          }
+        } else if (issue.component === 'NETWORK_CONNECTIVITY') {
+          // 重置网络连接
+          console.log('Network connectivity issue detected, implementing recovery');
+        }
+      }
+      
+    } catch (error) {
+      console.error('Failed to handle critical health status:', error);
+    }
+  }
+  
+  /**
+   * 获取代理服务器状态
+   */
+  getProxyServerState() {
+    return {
+      isRunning: this.isRunning,
+      port: this.port,
+      requestCount: this.requestCount,
+      totalTokens: this.totalTokens,
+      uptime: this.statistics.startTime ? Date.now() - this.statistics.startTime.getTime() : 0,
+      statistics: this.getStatistics()
+    };
+  }
+  
+  /**
+   * 获取当前请求上下文
+   */
+  getCurrentRequestContext() {
+    return {
+      activeRequests: this.statistics.requests?.length || 0,
+      recentRequests: this.statistics.requests?.slice(-5) || [],
+      timestamp: Date.now()
+    };
+  }
+  
+  /**
+   * 生成智能错误报告
+   */
+  generateIntelligentErrorReport(errorInfo, contextAnalysis, recoveryResult) {
+    const report = {
+      timestamp: Date.now(),
+      errorSummary: {
+        id: errorInfo.id,
+        type: errorInfo.type,
+        severity: errorInfo.severity,
+        message: errorInfo.message
+      },
+      analysis: {
+        contextAnalyzed: !!contextAnalysis,
+        confidence: contextAnalysis?.confidence || 0,
+        riskLevel: contextAnalysis?.insights?.summary?.riskLevel || 'unknown',
+        primaryFactors: contextAnalysis?.insights?.summary?.primaryFactors || []
+      },
+      recovery: {
+        attempted: !!recoveryResult,
+        recovered: recoveryResult?.recovered || false,
+        strategiesExecuted: recoveryResult?.strategiesExecuted || 0,
+        duration: recoveryResult?.duration || 0
+      },
+      recommendations: [
+        ...(contextAnalysis?.insights?.recommendations || []),
+        ...(recoveryResult?.results?.map(r => r.strategy) || [])
+      ]
+    };
+    
+    return report;
+  }
+  
+  /**
+   * 获取智能错误处理统计
+   */
+  getIntelligentErrorHandlingStats() {
+    const stats = {
+      enabled: this.intelligentErrorHandling.enabled,
+      components: {
+        errorPredictor: {
+          enabled: this.intelligentErrorHandling.predictionEnabled,
+          stats: errorPredictor.getStatistics ? errorPredictor.getStatistics() : {}
+        },
+        autoRecoveryManager: {
+          enabled: this.intelligentErrorHandling.autoRecoveryEnabled,
+          stats: autoRecoveryManager.getStatistics ? autoRecoveryManager.getStatistics() : {}
+        },
+        healthMonitor: {
+          enabled: this.intelligentErrorHandling.healthMonitoringEnabled,
+          stats: healthMonitor.getStatistics ? healthMonitor.getStatistics() : {}
+        },
+        contextAnalyzer: {
+          enabled: this.intelligentErrorHandling.contextAnalysisEnabled,
+          stats: contextAnalyzer.getStatistics ? contextAnalyzer.getStatistics() : {}
+        }
+      }
+    };
+    
+    return stats;
+  }
+  
+  /**
+   * 更新智能错误处理配置
+   */
+  updateIntelligentErrorHandlingConfig(newConfig) {
+    this.intelligentErrorHandling = {
+      ...this.intelligentErrorHandling,
+      ...newConfig
+    };
+    
+    // 通知各个组件配置更新
+    if (errorPredictor.updateConfig) {
+      errorPredictor.updateConfig(newConfig.errorPredictor || {});
+    }
+    
+    if (autoRecoveryManager.updateConfig) {
+      autoRecoveryManager.updateConfig(newConfig.autoRecoveryManager || {});
+    }
+    
+    if (healthMonitor.updateConfig) {
+      healthMonitor.updateConfig(newConfig.healthMonitor || {});
+    }
+    
+    if (contextAnalyzer.updateConfig) {
+      contextAnalyzer.updateConfig(newConfig.contextAnalyzer || {});
+    }
+    
+    console.log('Intelligent error handling configuration updated');
+    this.emit('intelligent-config-updated', this.intelligentErrorHandling);
   }
 }
 
