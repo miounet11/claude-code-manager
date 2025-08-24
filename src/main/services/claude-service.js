@@ -249,6 +249,7 @@ class ClaudeService extends EventEmitter {
     // 如果使用内部代理，设置代理 URL；否则直接指向外部提供方
     if (proxyUrl) {
       env.ANTHROPIC_API_URL = proxyUrl;
+      env.ANTHROPIC_BASE_URL = proxyUrl;
       // 如果设置了期望的客户端密钥，则要求 CLI 以该密钥访问代理
       if (config.expectedAnthropicApiKey) {
         env.ANTHROPIC_API_KEY = config.expectedAnthropicApiKey;
@@ -259,6 +260,7 @@ class ClaudeService extends EventEmitter {
       env.ANTHROPIC_API_KEY = config.apiKey;
       if (config.apiUrl) {
         env.ANTHROPIC_API_URL = config.apiUrl;
+        env.ANTHROPIC_BASE_URL = config.apiUrl;
       }
     }
 

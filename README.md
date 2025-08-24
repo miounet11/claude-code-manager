@@ -72,16 +72,19 @@ npm run dist        # 构建所有架构
 3. **配置 API** - 使用配置向导或配置管理器设置 AI 服务
 4. **开始使用** - 点击终端标签，输入 `claude` 开始对话
 
-### 🔁 OpenAI 兼容代理模式（Claude→OpenAI）
+### 🔁 模式切换与统一输入（Claude Messages / OpenAI Chat Completions）
 
-当你的提供方是 OpenAI/Azure/Ollama 等 OpenAI 兼容 API 时，可在“配置管理”中启用 OpenAI 模式，应用会把 Claude `/v1/messages` 请求转换成 OpenAI `/v1/chat/completions`。
+现在表单更简洁：只有一个 API URL 与一个 API Key 输入框，配合“模式切换”自动映射到底层字段。
 
-- 界面位置：配置管理 → 启用内部代理、启用 OpenAI 模式
-- 需要填写：`OPENAI_BASE_URL`、`OPENAI_API_KEY`
-- 模型映射：
-  - 包含 "haiku" → `SMALL_MODEL`
-  - 包含 "sonnet" → `MIDDLE_MODEL`
-  - 包含 "opus" → `BIG_MODEL`
+- 入口：配置管理 → 顶部“模式”单选
+- OpenAI 兼容（Chat Completions）：
+  - API URL = `OPENAI_BASE_URL`
+  - API Key = `OPENAI_API_KEY`
+  - 自动启用内部代理，并将 Claude `/v1/messages` 转换为 OpenAI `/v1/chat/completions`
+  - 高级设置（可选）：模型映射（包含 haiku/sonnet/opus → SMALL/MIDDLE/BIG）
+- Claude 官方（Messages）：
+  - API URL = `https://api.anthropic.com`
+  - API Key = 你的 Anthropic Key
 
 示例（在界面中“一键示例”可自动填充）：
 

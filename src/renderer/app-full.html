@@ -1015,11 +1015,16 @@
       const modeOpenAI = document.getElementById('mode-openai');
       const openaiSection = document.getElementById('openai-section');
       const toggleInternal = document.getElementById('toggle-internal-proxy');
-      const openaiBase = document.getElementById('config-openai-base-url');
-      const openaiKey = document.getElementById('config-openai-api-key');
-      const smallModel = document.getElementById('config-small-model');
-      const middleModel = document.getElementById('config-middle-model');
-      const bigModel = document.getElementById('config-big-model');
+      const mainApiUrl = document.getElementById('config-apiurl');
+      const mainApiKey = document.getElementById('config-apikey');
+      // 将 OpenAI 引用统一指向主输入，避免重复字段
+      const openaiBase = mainApiUrl;
+      const openaiKey = mainApiKey;
+      // 隐藏旧的 OPENAI_BASE_URL/OPENAI_API_KEY 字段分组
+      const openaiBaseGrp = document.getElementById('config-openai-base-url')?.closest('.form-group');
+      const openaiKeyGrp = document.getElementById('config-openai-api-key')?.closest('.form-group');
+      if (openaiBaseGrp) openaiBaseGrp.style.display = 'none';
+      if (openaiKeyGrp) openaiKeyGrp.style.display = 'none';
 
       function applyMode(openaiEnabled) {
         if (openaiSection) openaiSection.style.display = openaiEnabled ? 'block' : 'none';
@@ -1310,6 +1315,8 @@
       const toggleInternal = document.getElementById('toggle-internal-proxy');
       const openaiBase = document.getElementById('config-openai-base-url');
       const openaiKey = document.getElementById('config-openai-api-key');
+      const mainApiUrl = document.getElementById('config-apiurl');
+      const mainApiKey = document.getElementById('config-apikey');
       const smallModel = document.getElementById('config-small-model');
       const middleModel = document.getElementById('config-middle-model');
       const bigModel = document.getElementById('config-big-model');
@@ -1321,8 +1328,15 @@
       }
       if (openaiSection) openaiSection.style.display = openaiEnabled ? 'block' : 'none';
       if (toggleInternal) toggleInternal.checked = !!config.useInternalProxy || openaiEnabled;
-      if (openaiBase) openaiBase.value = config.openaiBaseUrl || '';
-      if (openaiKey) openaiKey.value = config.openaiApiKey || '';
+      if (openaiEnabled) {
+        if (mainApiUrl) mainApiUrl.value = config.openaiBaseUrl || '';
+        if (mainApiKey) mainApiKey.value = config.openaiApiKey || '';
+      } else {
+        if (mainApiUrl && config.apiUrl) mainApiUrl.value = config.apiUrl;
+        if (mainApiKey && config.apiKey) mainApiKey.value = config.apiKey;
+        currentConfig.openaiBaseUrl = '';
+        currentConfig.openaiApiKey = '';
+      }
       if (smallModel) smallModel.value = config.smallModel || 'gpt-4o-mini';
       if (middleModel) middleModel.value = config.middleModel || 'gpt-4o';
       if (bigModel) bigModel.value = config.bigModel || 'gpt-4o';
@@ -1424,8 +1438,19 @@
       currentConfig.model = document.getElementById('config-model').value;
       currentConfig.proxy = document.getElementById('config-proxy').value;
       currentConfig.useInternalProxy = document.getElementById('toggle-internal-proxy')?.checked || false;
-      currentConfig.openaiBaseUrl = document.getElementById('config-openai-base-url')?.value.trim() || '';
-      currentConfig.openaiApiKey = document.getElementById('config-openai-api-key')?.value.trim() || '';
+      // 将主输入作为统一入口；若为 OpenAI 模式则赋值到 openai 字段
+      const openaiSelected = document.getElementById('mode-openai')?.checked;
+      const mainApiUrl = document.getElementById('config-apiurl')?.value.trim() || '';
+      const mainApiKey = document.getElementById('config-apikey')?.value.trim() || '';
+      if (openaiSelected) {
+        currentConfig.openaiBaseUrl = mainApiUrl;
+        currentConfig.openaiApiKey = mainApiKey;
+      } else {
+        currentConfig.apiUrl = mainApiUrl;
+        currentConfig.apiKey = mainApiKey;
+        currentConfig.openaiBaseUrl = '';
+        currentConfig.openaiApiKey = '';
+      }
       currentConfig.smallModel = document.getElementById('config-small-model')?.value.trim() || '';
       currentConfig.middleModel = document.getElementById('config-middle-model')?.value.trim() || '';
       currentConfig.bigModel = document.getElementById('config-big-model')?.value.trim() || '';
@@ -1454,8 +1479,19 @@
       currentConfig.model = document.getElementById('config-model').value;
       currentConfig.proxy = document.getElementById('config-proxy').value;
       currentConfig.useInternalProxy = document.getElementById('toggle-internal-proxy')?.checked || false;
-      currentConfig.openaiBaseUrl = document.getElementById('config-openai-base-url')?.value.trim() || '';
-      currentConfig.openaiApiKey = document.getElementById('config-openai-api-key')?.value.trim() || '';
+      // OpenAI/Claude 统一入口
+      const openaiSelected2 = document.getElementById('mode-openai')?.checked;
+      const mainApiUrl2 = document.getElementById('config-apiurl')?.value.trim() || '';
+      const mainApiKey2 = document.getElementById('config-apikey')?.value.trim() || '';
+      if (openaiSelected2) {
+        currentConfig.openaiBaseUrl = mainApiUrl2;
+        currentConfig.openaiApiKey = mainApiKey2;
+      } else {
+        currentConfig.apiUrl = mainApiUrl2;
+        currentConfig.apiKey = mainApiKey2;
+        currentConfig.openaiBaseUrl = '';
+        currentConfig.openaiApiKey = '';
+      }
       currentConfig.smallModel = document.getElementById('config-small-model')?.value.trim() || '';
       currentConfig.middleModel = document.getElementById('config-middle-model')?.value.trim() || '';
       currentConfig.bigModel = document.getElementById('config-big-model')?.value.trim() || '';
@@ -1467,9 +1503,6 @@
         
         // 重新加载配置列表
         await loadConfigs();
-        
-        // 启动代理和 Claude
-        await window.electronAPI.startProxy(currentConfig);
         
         // 切换到终端面板
         showPanel('terminal');
