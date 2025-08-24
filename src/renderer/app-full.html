@@ -845,53 +845,71 @@
                 <input type="text" id="config-proxy" placeholder="http://proxy.example.com:8080">
               </div>
 
-              <!-- OpenAI 兼容代理与模型映射设置 -->
-              <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+              <!-- 模式切换（新增，置顶） -->
+              <div class="form-group" style="display:flex;align-items:center;gap:16px;">
+                <label style="min-width:64px;">模式</label>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input type="radio" name="config-mode" id="mode-claude" checked>
+                  <span>Claude 官方</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input type="radio" name="config-mode" id="mode-openai">
+                  <span>OpenAI 兼容</span>
+                </label>
+              </div>
+
+              <div class="form-group" style="display:none;align-items:center;gap:8px;">
                 <label for="toggle-internal-proxy" style="margin:0;">启用内部代理</label>
                 <input type="checkbox" id="toggle-internal-proxy">
               </div>
 
-              <div style="margin: 18px 0; border-top: 1px solid #333;"></div>
+              <div class="form-separator" style="margin: 10px 0; border-top: 1px solid #333;"></div>
 
-              <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                <div>
-                  <label>OpenAI 兼容代理（可选）</label>
-                  <small style="display:block;color:#999;margin-top:4px;">启用后将把 Claude 请求转换为 OpenAI API（支持 OpenAI/Azure/Ollama 等兼容接口）</small>
+              <!-- OpenAI 兼容代理与模型映射设置（折叠区，随模式显示） -->
+              <div id="openai-section" style="display:none;">
+                <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                  <div>
+                    <label>OpenAI 兼容设置</label>
+                    <small style="display:block;color:#999;margin-top:4px;">启用后把 Claude 请求转换为 OpenAI API（支持 OpenAI/Azure/Ollama）</small>
+                  </div>
+                  <div style="display:none;align-items:center;gap:8px;">
+                    <label for="toggle-openai-mode" style="margin:0;">启用 OpenAI 模式</label>
+                    <input type="checkbox" id="toggle-openai-mode">
+                  </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <label for="toggle-openai-mode" style="margin:0;">启用 OpenAI 模式</label>
-                  <input type="checkbox" id="toggle-openai-mode">
+
+                <div class="form-group">
+                  <label>OPENAI_BASE_URL</label>
+                  <input type="text" id="config-openai-base-url" placeholder="https://api.openai.com/v1 或 http://localhost:11434/v1">
                 </div>
-              </div>
 
-              <div class="form-group">
-                <label>OPENAI_BASE_URL</label>
-                <input type="text" id="config-openai-base-url" placeholder="https://api.openai.com/v1 或 http://localhost:11434/v1">
-              </div>
+                <div class="form-group">
+                  <label>OPENAI_API_KEY</label>
+                  <input type="password" id="config-openai-api-key" placeholder="sk-... 或 Azure 密钥">
+                </div>
 
-              <div class="form-group">
-                <label>OPENAI_API_KEY</label>
-                <input type="password" id="config-openai-api-key" placeholder="sk-... 或 Azure 密钥">
-              </div>
+                <details style="margin: 8px 0 12px;">
+                  <summary style="cursor:pointer;">高级设置（可选）：模型映射 SMALL/MIDDLE/BIG</summary>
+                  <div class="form-group" style="margin-top:12px;">
+                    <label>SMALL_MODEL (haiku)</label>
+                    <input type="text" id="config-small-model" placeholder="例如：gpt-4o-mini 或 llama3.1:8b">
+                  </div>
+                  <div class="form-group">
+                    <label>MIDDLE_MODEL (sonnet)</label>
+                    <input type="text" id="config-middle-model" placeholder="例如：gpt-4o 或 llama3.1:70b">
+                  </div>
+                  <div class="form-group">
+                    <label>BIG_MODEL (opus)</label>
+                    <input type="text" id="config-big-model" placeholder="例如：gpt-4o 或 llama3.1:70b">
+                  </div>
+                </details>
 
-              <div class="form-group">
-                <label>SMALL_MODEL (haiku)</label>
-                <input type="text" id="config-small-model" placeholder="例如：gpt-4o-mini 或 llama3.1:8b">
-              </div>
-              <div class="form-group">
-                <label>MIDDLE_MODEL (sonnet)</label>
-                <input type="text" id="config-middle-model" placeholder="例如：gpt-4o 或 llama3.1:70b">
-              </div>
-              <div class="form-group">
-                <label>BIG_MODEL (opus)</label>
-                <input type="text" id="config-big-model" placeholder="例如：gpt-4o 或 llama3.1:70b">
-              </div>
-
-              <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button type="button" class="secondary" id="btn-preset-openai">填充 OpenAI 示例</button>
-                <button type="button" class="secondary" id="btn-preset-azure">填充 Azure OpenAI 示例</button>
-                <button type="button" class="secondary" id="btn-preset-ollama">填充 Ollama 示例</button>
-                <button type="button" id="btn-clear-openai">清空 OpenAI 字段</button>
+                <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button type="button" class="secondary" id="btn-preset-openai">填充 OpenAI 示例</button>
+                  <button type="button" class="secondary" id="btn-preset-azure">填充 Azure OpenAI 示例</button>
+                  <button type="button" class="secondary" id="btn-preset-ollama">填充 Ollama 示例</button>
+                  <button type="button" id="btn-clear-openai">清空 OpenAI 字段</button>
+                </div>
               </div>
               
               <div style="display: flex; gap: 10px; margin-top: 30px;">
@@ -992,22 +1010,29 @@
       refreshEnvironment();
       loadConfigs();
       
-      // 绑定 OpenAI 模式交互与示例按钮
-      const toggleOpenAI = document.getElementById('toggle-openai-mode');
+      // 模式选择联动
+      const modeClaude = document.getElementById('mode-claude');
+      const modeOpenAI = document.getElementById('mode-openai');
+      const openaiSection = document.getElementById('openai-section');
       const toggleInternal = document.getElementById('toggle-internal-proxy');
       const openaiBase = document.getElementById('config-openai-base-url');
       const openaiKey = document.getElementById('config-openai-api-key');
       const smallModel = document.getElementById('config-small-model');
       const middleModel = document.getElementById('config-middle-model');
       const bigModel = document.getElementById('config-big-model');
-      const setEnabled = (enabled) => {
-        [openaiBase, openaiKey, smallModel, middleModel, bigModel].forEach(el => el && (el.disabled = !enabled));
-        if (toggleInternal && enabled) toggleInternal.checked = true;
-      };
-      if (toggleOpenAI) {
-        toggleOpenAI.addEventListener('change', () => setEnabled(toggleOpenAI.checked));
-        setEnabled(toggleOpenAI.checked);
+
+      function applyMode(openaiEnabled) {
+        if (openaiSection) openaiSection.style.display = openaiEnabled ? 'block' : 'none';
+        [openaiBase, openaiKey, smallModel, middleModel, bigModel].forEach(el => el && (el.disabled = !openaiEnabled));
+        if (toggleInternal && openaiEnabled) toggleInternal.checked = true;
       }
+
+      if (modeClaude && modeOpenAI) {
+        modeClaude.addEventListener('change', () => applyMode(!modeClaude.checked));
+        modeOpenAI.addEventListener('change', () => applyMode(modeOpenAI.checked));
+      }
+
+      // 一键示例按钮
       const btnOpenAI = document.getElementById('btn-preset-openai');
       const btnAzure = document.getElementById('btn-preset-azure');
       const btnOllama = document.getElementById('btn-preset-ollama');
@@ -1017,26 +1042,25 @@
         if (smallModel) smallModel.value = 'gpt-4o-mini';
         if (middleModel) middleModel.value = 'gpt-4o';
         if (bigModel) bigModel.value = 'gpt-4o';
-        if (toggleOpenAI && !toggleOpenAI.checked) toggleOpenAI.checked = true, setEnabled(true);
+        if (modeOpenAI && !modeOpenAI.checked) modeOpenAI.checked = true, applyMode(true);
       });
       if (btnAzure) btnAzure.addEventListener('click', () => {
         if (openaiBase) openaiBase.value = 'https://your-resource.openai.azure.com/openai/deployments/your-deployment';
         if (smallModel) smallModel.value = 'gpt-35-turbo';
         if (middleModel) middleModel.value = 'gpt-4';
         if (bigModel) bigModel.value = 'gpt-4';
-        if (toggleOpenAI && !toggleOpenAI.checked) toggleOpenAI.checked = true, setEnabled(true);
+        if (modeOpenAI && !modeOpenAI.checked) modeOpenAI.checked = true, applyMode(true);
       });
       if (btnOllama) btnOllama.addEventListener('click', () => {
         if (openaiBase) openaiBase.value = 'http://localhost:11434/v1';
         if (smallModel) smallModel.value = 'llama3.1:8b';
         if (middleModel) middleModel.value = 'llama3.1:70b';
         if (bigModel) bigModel.value = 'llama3.1:70b';
-        if (toggleOpenAI && !toggleOpenAI.checked) toggleOpenAI.checked = true, setEnabled(true);
+        if (modeOpenAI && !modeOpenAI.checked) modeOpenAI.checked = true, applyMode(true);
       });
       if (btnClear) btnClear.addEventListener('click', () => {
         if (openaiBase) openaiBase.value = '';
         if (openaiKey) openaiKey.value = '';
-        if (toggleOpenAI && toggleOpenAI.checked) toggleOpenAI.checked = false, setEnabled(false);
       });
       
       // 监听 Claude 输出
@@ -1279,26 +1303,30 @@
       document.getElementById('config-apiurl').value = config.apiUrl || 'https://api.anthropic.com';
       document.getElementById('config-model').value = config.model;
       document.getElementById('config-proxy').value = config.proxy || '';
-      // OpenAI 兼容设置回填
+      // 模式与 OpenAI 设置回填
+      const modeClaude = document.getElementById('mode-claude');
+      const modeOpenAI = document.getElementById('mode-openai');
+      const openaiSection = document.getElementById('openai-section');
       const toggleInternal = document.getElementById('toggle-internal-proxy');
-      const toggleOpenAI = document.getElementById('toggle-openai-mode');
       const openaiBase = document.getElementById('config-openai-base-url');
       const openaiKey = document.getElementById('config-openai-api-key');
       const smallModel = document.getElementById('config-small-model');
       const middleModel = document.getElementById('config-middle-model');
       const bigModel = document.getElementById('config-big-model');
 
-      if (toggleInternal) toggleInternal.checked = !!config.useInternalProxy;
-      if (toggleOpenAI) toggleOpenAI.checked = !!config.openaiBaseUrl;
+      const openaiEnabled = !!config.openaiBaseUrl;
+      if (modeClaude && modeOpenAI) {
+        modeOpenAI.checked = openaiEnabled;
+        modeClaude.checked = !openaiEnabled;
+      }
+      if (openaiSection) openaiSection.style.display = openaiEnabled ? 'block' : 'none';
+      if (toggleInternal) toggleInternal.checked = !!config.useInternalProxy || openaiEnabled;
       if (openaiBase) openaiBase.value = config.openaiBaseUrl || '';
       if (openaiKey) openaiKey.value = config.openaiApiKey || '';
       if (smallModel) smallModel.value = config.smallModel || 'gpt-4o-mini';
       if (middleModel) middleModel.value = config.middleModel || 'gpt-4o';
       if (bigModel) bigModel.value = config.bigModel || 'gpt-4o';
 
-      const enabled = !!(toggleOpenAI && toggleOpenAI.checked);
-      [openaiBase, openaiKey, smallModel, middleModel, bigModel].forEach(el => el && (el.disabled = !enabled));
-      
       // 如果是免费账户，禁用某些字段
       const isReadOnly = config.isFreeAccount;
       document.getElementById('config-name').readOnly = isReadOnly;
