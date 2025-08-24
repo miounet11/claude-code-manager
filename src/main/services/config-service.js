@@ -104,6 +104,7 @@ class ConfigService {
       maxTokens: config.maxTokens || 4000,
       temperature: config.temperature || 0,
       proxy: config.proxy || '',
+      useInternalProxy: config.useInternalProxy === true ? true : false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...config

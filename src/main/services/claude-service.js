@@ -37,9 +37,9 @@ class ClaudeService extends EventEmitter {
     this.config = config;
     this.port = await this.findAvailablePort();
 
-    // 先启动代理服务器（如果需要）
+    // 先启动代理服务器（仅在显式启用时）
     let proxyUrl = null;
-    if (config.apiUrl && config.apiUrl !== 'https://api.anthropic.com') {
+    if (config.useInternalProxy === true) {
       const proxyServer = require('./proxy-server');
       const proxyResult = await proxyServer.start(config);
       proxyUrl = proxyResult.url;
@@ -246,14 +246,11 @@ class ClaudeService extends EventEmitter {
   buildEnvironment(config, proxyUrl) {
     const env = { ...process.env };
 
-    // 如果使用代理服务器，设置代理 URL
+    // 如果使用内部代理，设置代理 URL；否则直接指向外部提供方
     if (proxyUrl) {
-      // Claude CLI 将通过代理访问 API
       env.ANTHROPIC_API_URL = proxyUrl;
-      // 代理服务器会处理认证，这里设置一个占位符
       env.ANTHROPIC_API_KEY = 'proxy-handled';
     } else {
-      // 直接使用配置的 API
       env.ANTHROPIC_API_KEY = config.apiKey;
       if (config.apiUrl) {
         env.ANTHROPIC_API_URL = config.apiUrl;
