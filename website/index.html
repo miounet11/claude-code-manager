@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Miaoda - Claude Code Manager | 官网</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; color: #1f2328; }
+    .hero { padding: 56px 20px; background: linear-gradient(180deg, #f6f8fa, #fff); border-bottom: 1px solid #d0d7de; }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 34px; margin: 0 0 12px; }
+    h2 { font-size: 22px; margin-top: 28px; }
+    p { line-height: 1.7; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .card { border: 1px solid #d0d7de; border-radius: 8px; padding: 16px; background: #fff; }
+    code, pre { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 2px 6px; }
+    pre { padding: 12px; overflow: auto; }
+    .btn { display: inline-block; padding: 10px 16px; background: #0969da; color: #fff; text-decoration: none; border-radius: 6px; }
+    .muted { color: #57606a; }
+    footer { padding: 24px 0; border-top: 1px solid #d0d7de; margin-top: 40px; text-align: center; color: #57606a; }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div class="container">
+      <h1>Miaoda - Claude Code Manager</h1>
+      <p class="muted">一站式 Claude Code 与 OpenAI 兼容代理配置管理器。内置代理转换、模型映射、错误处理与可视化界面。</p>
+      <p>
+        <a class="btn" href="https://github.com/miounet11/claude-code-manager" target="_blank">GitHub 仓库</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="container">
+    <h2>主要功能</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>OpenAI 兼容代理</h3>
+        <p>将 Claude <code>/v1/messages</code> 请求转换为 OpenAI <code>/v1/chat/completions</code>，支持 OpenAI、Azure OpenAI、Ollama 等。</p>
+      </div>
+      <div class="card">
+        <h3>模型映射</h3>
+        <p>基于模型名称包含关键词进行映射：<code>haiku → SMALL_MODEL</code>、<code>sonnet → MIDDLE_MODEL</code>、<code>opus → BIG_MODEL</code>。</p>
+      </div>
+      <div class="card">
+        <h3>一键示例</h3>
+        <p>在界面中一键填充 OpenAI / Azure / Ollama 示例，快速完成配置。</p>
+      </div>
+      <div class="card">
+        <h3>内置代理与安全</h3>
+        <p>可自定义 Host/Port/Timeout，支持设置预期的 <code>ANTHROPIC_API_KEY</code> 进行客户端访问校验。</p>
+      </div>
+    </div>
+
+    <h2>快速开始</h2>
+    <ol>
+      <li>打开应用 → 配置管理</li>
+      <li>勾选“启用内部代理”、“启用 OpenAI 模式”</li>
+      <li>填写 <code>OPENAI_BASE_URL</code> 与 <code>OPENAI_API_KEY</code></li>
+      <li>根据需要设置 <code>SMALL/MIDDLE/BIG_MODEL</code>（也可点击一键示例）</li>
+      <li>保存并启动代理，测试连接</li>
+    </ol>
+
+    <h2>示例配置</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>OpenAI</h3>
+        <pre><code>OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-...
+SMALL_MODEL=gpt-4o-mini
+MIDDLE_MODEL=gpt-4o
+BIG_MODEL=gpt-4o</code></pre>
+      </div>
+      <div class="card">
+        <h3>Azure OpenAI</h3>
+        <pre><code>OPENAI_BASE_URL=https://&lt;资源名&gt;.openai.azure.com/openai/deployments/&lt;部署名&gt;
+OPENAI_API_KEY=&lt;azure-key&gt;
+SMALL_MODEL=gpt-35-turbo
+MIDDLE_MODEL=gpt-4
+BIG_MODEL=gpt-4</code></pre>
+      </div>
+      <div class="card">
+        <h3>Ollama</h3>
+        <pre><code>OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_API_KEY=dummy-key
+SMALL_MODEL=llama3.1:8b
+MIDDLE_MODEL=llama3.1:70b
+BIG_MODEL=llama3.1:70b</code></pre>
+      </div>
+    </div>
+
+    <h2>参考与致谢</h2>
+    <p>转换方案与变量命名参考 <a href="https://github.com/fuergaosi233/claude-code-proxy" target="_blank">claude-code-proxy</a>。</p>
+  </div>
+
+  <footer>
+    © Miaoda Team · 本站文件位于项目 <code>website/</code> 目录，静态托管即可上线
+  </footer>
+</body>
+</html>
+

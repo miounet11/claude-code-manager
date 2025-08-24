@@ -72,6 +72,40 @@ npm run dist        # 构建所有架构
 3. **配置 API** - 使用配置向导或配置管理器设置 AI 服务
 4. **开始使用** - 点击终端标签，输入 `claude` 开始对话
 
+### 🔁 OpenAI 兼容代理模式（Claude→OpenAI）
+
+当你的提供方是 OpenAI/Azure/Ollama 等 OpenAI 兼容 API 时，可在“配置管理”中启用 OpenAI 模式，应用会把 Claude `/v1/messages` 请求转换成 OpenAI `/v1/chat/completions`。
+
+- 界面位置：配置管理 → 启用内部代理、启用 OpenAI 模式
+- 需要填写：`OPENAI_BASE_URL`、`OPENAI_API_KEY`
+- 模型映射：
+  - 包含 "haiku" → `SMALL_MODEL`
+  - 包含 "sonnet" → `MIDDLE_MODEL`
+  - 包含 "opus" → `BIG_MODEL`
+
+示例（在界面中“一键示例”可自动填充）：
+
+- OpenAI
+  - `OPENAI_BASE_URL=https://api.openai.com/v1`
+  - `OPENAI_API_KEY=sk-...`
+  - `BIG_MODEL=gpt-4o`，`MIDDLE_MODEL=gpt-4o`，`SMALL_MODEL=gpt-4o-mini`
+
+- Azure OpenAI
+  - `OPENAI_BASE_URL=https://<资源名>.openai.azure.com/openai/deployments/<部署名>`
+  - `OPENAI_API_KEY=<azure-key>`
+  - `BIG_MODEL=gpt-4`，`MIDDLE_MODEL=gpt-4`，`SMALL_MODEL=gpt-35-turbo`
+
+- Ollama（本地）
+  - `OPENAI_BASE_URL=http://localhost:11434/v1`
+  - `OPENAI_API_KEY=dummy-key`
+  - `BIG_MODEL=llama3.1:70b`，`MIDDLE_MODEL=llama3.1:70b`，`SMALL_MODEL=llama3.1:8b`
+
+可选安全：若在“期望的 ANTHROPIC_API_KEY”中填写了固定值，客户端访问本地代理时必须提供此 Key 才可通过。
+
+参考方案与变量约定参考 `claude-code-proxy` 项目（供理解转换流程与变量命名）：
+
+- 项目首页：`https://github.com/fuergaosi233/claude-code-proxy`
+
 ### 🆕 配置向导（推荐）
 
 点击侧边栏的"配置向导"按钮，通过 4 个简单步骤完成配置：
