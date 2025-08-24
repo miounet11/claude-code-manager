@@ -105,6 +105,22 @@ class ConfigService {
       temperature: config.temperature || 0,
       proxy: config.proxy || '',
       useInternalProxy: config.useInternalProxy === true ? true : false,
+      // OpenAI 兼容提供方配置（对应 claude-code-proxy 的环境变量）
+      openaiBaseUrl: config.openaiBaseUrl || '', // OPENAI_BASE_URL
+      openaiApiKey: config.openaiApiKey || '',   // OPENAI_API_KEY
+      // 模型映射：haiku → small，sonnet → middle，opus → big
+      smallModel: config.smallModel || 'gpt-4o-mini',   // SMALL_MODEL
+      middleModel: config.middleModel || 'gpt-4o',      // MIDDLE_MODEL（默认可与 BIG 同步）
+      bigModel: config.bigModel || 'gpt-4o',            // BIG_MODEL
+      // 服务器设置
+      serverHost: config.serverHost || '0.0.0.0',       // HOST
+      serverPort: typeof config.serverPort === 'number' ? config.serverPort : 8118, // PORT
+      logLevel: config.logLevel || 'WARNING',           // LOG_LEVEL
+      // 性能限制
+      maxTokensLimit: typeof config.maxTokensLimit === 'number' ? config.maxTokensLimit : 4096, // MAX_TOKENS_LIMIT
+      requestTimeout: typeof config.requestTimeout === 'number' ? config.requestTimeout : 90000, // REQUEST_TIMEOUT(ms)
+      // 安全：期望的客户端 Anthropic API Key（用于代理前置校验）
+      expectedAnthropicApiKey: config.expectedAnthropicApiKey || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...config
@@ -250,19 +266,39 @@ class ConfigService {
       errors.push('配置名称不能为空');
     }
 
-    if (!config.apiUrl || config.apiUrl.trim() === '') {
-      errors.push('API 地址不能为空');
+    // 如果使用直连 Anthropic 或传统代理，要求 apiUrl/apiKey
+    if (!config.useInternalProxy && (!config.openaiBaseUrl || config.openaiBaseUrl.trim() === '')) {
+      if (!config.apiUrl || config.apiUrl.trim() === '') {
+        errors.push('API 地址不能为空');
+      }
+      if (!config.apiKey || config.apiKey.trim() === '') {
+        errors.push('API Key 不能为空');
+      }
+      try {
+        if (config.apiUrl) new URL(config.apiUrl);
+      } catch {
+        errors.push('API 地址格式不正确');
+      }
     }
 
-    if (!config.apiKey || config.apiKey.trim() === '') {
-      errors.push('API Key 不能为空');
+    // 如果配置了 OpenAI 兼容提供方转换代理，校验对应字段
+    if (config.openaiBaseUrl) {
+      try {
+        new URL(config.openaiBaseUrl);
+      } catch {
+        errors.push('OpenAI API 基地址格式不正确');
+      }
+      if (!config.openaiApiKey || config.openaiApiKey.trim() === '') {
+        errors.push('OpenAI API Key 不能为空');
+      }
     }
 
-    // 验证 URL 格式
-    try {
-      new URL(config.apiUrl);
-    } catch {
-      errors.push('API 地址格式不正确');
+    // 端口与超时范围校验
+    if (config.serverPort !== undefined && (isNaN(config.serverPort) || config.serverPort <= 0 || config.serverPort > 65535)) {
+      errors.push('服务器端口无效（1-65535）');
+    }
+    if (config.requestTimeout !== undefined && (isNaN(config.requestTimeout) || config.requestTimeout < 1000)) {
+      errors.push('请求超时必须大于等于 1000ms');
     }
 
     return {
@@ -278,40 +314,55 @@ class ConfigService {
     try {
       const https = require('https');
       const http = require('http');
-      const url = new URL(config.apiUrl);
-      const isHttps = url.protocol === 'https:';
+
+      // 如果配置了 OpenAI 兼容提供方，直接测试 /v1/chat/completions
+      const isOpenAI = !!(config.openaiBaseUrl && config.openaiApiKey);
+      const endpointUrl = new URL(isOpenAI ? `${config.openaiBaseUrl.replace(/\/$/, '')}/chat/completions` : `${config.apiUrl.replace(/\/$/, '')}/v1/messages`);
+      const isHttps = endpointUrl.protocol === 'https:';
       
       // 构建测试请求
       const options = {
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: '/v1/messages',
+        hostname: endpointUrl.hostname,
+        port: endpointUrl.port || (isHttps ? 443 : 80),
+        path: endpointUrl.pathname + endpointUrl.search,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01'
+          ...(isOpenAI ? {} : { 'anthropic-version': '2023-06-01' })
         },
         timeout: 10000
       };
 
       // 设置认证头
-      if (config.apiKey.startsWith('Bearer ')) {
-        options.headers['Authorization'] = config.apiKey;
-      } else if (config.apiKey.startsWith('sk-')) {
-        options.headers['x-api-key'] = config.apiKey;
+      if (isOpenAI) {
+        options.headers['Authorization'] = `Bearer ${config.openaiApiKey}`;
       } else {
-        options.headers['Authorization'] = `Bearer ${config.apiKey}`;
+        if (config.apiKey?.startsWith('Bearer ')) {
+          options.headers['Authorization'] = config.apiKey;
+        } else if (config.apiKey?.startsWith('sk-')) {
+          options.headers['x-api-key'] = config.apiKey;
+        } else if (config.apiKey) {
+          options.headers['Authorization'] = `Bearer ${config.apiKey}`;
+        }
       }
 
       // 测试请求体
-      const testBody = JSON.stringify({
-        model: config.model || 'claude-3-sonnet-20240229',
-        messages: [{
-          role: 'user',
-          content: 'Hi'
-        }],
-        max_tokens: 10
-      });
+      const mappedModel = isOpenAI
+        ? (config.middleModel || config.bigModel || 'gpt-4o')
+        : (config.model || 'claude-3-sonnet-20240229');
+      const testBody = JSON.stringify(
+        isOpenAI
+          ? {
+              model: mappedModel,
+              messages: [{ role: 'user', content: 'Hello' }],
+              max_tokens: 10
+            }
+          : {
+              model: mappedModel,
+              messages: [{ role: 'user', content: 'Hi' }],
+              max_tokens: 10
+            }
+      );
 
       return new Promise((resolve) => {
         const client = isHttps ? https : http;

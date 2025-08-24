@@ -48,6 +48,62 @@ class ProxyServer extends EventEmitter {
   }
 
   /**
+   * 设置 Claude -> OpenAI 转换路由
+   * 支持：/v1/messages（流/非流）到 OpenAI /v1/chat/completions
+   */
+  setupClaudeToOpenAIRoutes(config) {
+    const expressJson = express.json({ limit: '50mb' });
+    this.app.post('/v1/messages', expressJson, async (req, res) => {
+      try {
+        // 校验客户端提供的 Anthropic API Key（如果配置了 expectedAnthropicApiKey）
+        if (config.expectedAnthropicApiKey) {
+          const provided = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+          if (!provided || provided !== config.expectedAnthropicApiKey) {
+            return res.status(401).json({ error: 'Unauthorized', message: 'Invalid ANTHROPIC_API_KEY' });
+          }
+        }
+
+        const isStreaming = req.query.stream === 'true' || req.body?.stream === true;
+        const sourceFormat = 'claude';
+        const targetFormat = 'openai';
+
+        // 模型映射：根据 claude 模型名包含 haiku/sonnet/opus 来映射
+        const incomingModel = req.body?.model || '';
+        let mappedModel = incomingModel;
+        const lower = String(incomingModel).toLowerCase();
+        if (lower.includes('haiku')) mappedModel = config.smallModel || 'gpt-4o-mini';
+        else if (lower.includes('sonnet')) mappedModel = config.middleModel || config.bigModel || 'gpt-4o';
+        else if (lower.includes('opus')) mappedModel = config.bigModel || 'gpt-4o';
+
+        // 转换请求
+        const converted = await formatConverter.convertRequest(sourceFormat, targetFormat, {
+          ...(req.body || {}),
+          model: mappedModel
+        });
+
+        // 转发到 OpenAI 兼容提供方
+        const response = await this.forwardRequest({
+          url: `${config.openaiBaseUrl.replace(/\/$/, '')}/chat/completions`,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${config.openaiApiKey}`
+          },
+          body: JSON.stringify(converted)
+        });
+
+        // 转换响应回 Claude 格式
+        const convertedRes = await formatConverter.convertResponse(targetFormat, sourceFormat, response.data);
+        res.status(response.status).json(convertedRes);
+      } catch (error) {
+        console.error('Claude->OpenAI 转换错误:', error);
+        res.status(502).json({ error: 'Proxy conversion error', message: error.message });
+      }
+    });
+  }
+
+  /**
    * 启动代理服务器
    */
   async start(config) {
@@ -127,7 +183,11 @@ class ProxyServer extends EventEmitter {
         requests: this.requestCount,
         config: {
           target: config.apiUrl,
-          model: config.model
+          model: config.model,
+          openaiBaseUrl: config.openaiBaseUrl,
+          bigModel: config.bigModel,
+          middleModel: config.middleModel,
+          smallModel: config.smallModel
         }
       });
     });
@@ -146,12 +206,17 @@ class ProxyServer extends EventEmitter {
       this.app.use('/v1/*', this.handleLegacyRoute.bind(this));
     } else {
       // 传统代理模式 - 只在非动态模式下创建代理中间件
+      // 如果提供了 OPENAI_BASE_URL，则启用 Claude->OpenAI 转换路由
+      if (config.openaiBaseUrl && config.openaiApiKey) {
+        this.setupClaudeToOpenAIRoutes(config);
+      }
+
       const proxyOptions = {
         target: config.apiUrl,
         changeOrigin: true,
         secure: true,
-        timeout: 120000, // 2分钟超时
-        proxyTimeout: 120000,
+        timeout: config.requestTimeout || 120000,
+        proxyTimeout: config.requestTimeout || 120000,
         
         // 配置请求体重写
         selfHandleResponse: false,
@@ -311,7 +376,10 @@ class ProxyServer extends EventEmitter {
 
     // 启动服务器
     return new Promise((resolve, reject) => {
-      this.server = this.app.listen(this.port, 'localhost', () => {
+      const host = config.serverHost || 'localhost';
+      const port = typeof config.serverPort === 'number' ? config.serverPort : this.port;
+      this.port = port; // 覆盖默认端口
+      this.server = this.app.listen(port, host, () => {
         this.isRunning = true;
         this.statistics.startTime = new Date();
         
@@ -324,7 +392,7 @@ class ProxyServer extends EventEmitter {
         resolve({
           success: true,
           port: this.port,
-          url: `http://localhost:${this.port}`
+          url: `http://${host}:${this.port}`
         });
       });
 

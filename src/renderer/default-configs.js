@@ -16,7 +16,19 @@ const DEFAULT_CONFIGS = [
     apiUrl: 'https://api.anthropic.com',
     apiKey: '',
     model: 'claude-3-7-sonnet-20250219',
-    note: '需要 Anthropic API Key'
+    note: '需要 Anthropic API Key',
+    // OpenAI 兼容配置占位（默认不启用）
+    openaiBaseUrl: '',
+    openaiApiKey: '',
+    smallModel: 'gpt-4o-mini',
+    middleModel: 'gpt-4o',
+    bigModel: 'gpt-4o',
+    serverHost: '0.0.0.0',
+    serverPort: 8118,
+    logLevel: 'WARNING',
+    maxTokensLimit: 4096,
+    requestTimeout: 90000,
+    expectedAnthropicApiKey: ''
   },
   {
     id: 'local-llm',
@@ -24,7 +36,18 @@ const DEFAULT_CONFIGS = [
     apiUrl: 'http://localhost:11434',
     apiKey: 'not-required',
     model: 'llama2',
-    note: '需要先安装 Ollama'
+    note: '需要先安装 Ollama',
+    openaiBaseUrl: 'http://localhost:11434/v1',
+    openaiApiKey: 'dummy-key',
+    smallModel: 'llama3.1:8b',
+    middleModel: 'llama3.1:70b',
+    bigModel: 'llama3.1:70b',
+    serverHost: '0.0.0.0',
+    serverPort: 8118,
+    logLevel: 'WARNING',
+    maxTokensLimit: 4096,
+    requestTimeout: 90000,
+    expectedAnthropicApiKey: ''
   }
 ];
 

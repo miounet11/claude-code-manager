@@ -236,6 +236,11 @@ class ConfigManager {
                    value="${this.editingConfig.temperature || 0}" 
                    min="0" max="1" step="0.1">
           </div>
+          
+          <div class="form-group">
+            <label for="toggle-internal-proxy" style="display:block;">启用内部代理</label>
+            <input type="checkbox" id="toggle-internal-proxy" ${this.editingConfig.useInternalProxy ? 'checked' : ''} />
+          </div>
         </div>
         
         <div class="form-group">
@@ -243,6 +248,96 @@ class ConfigManager {
           <input type="text" id="config-proxy" class="form-control" 
                  value="${this.escapeHtml(this.editingConfig.proxy || '')}" 
                  placeholder="http://127.0.0.1:7890">
+        </div>
+        
+        <div class="form-separator"></div>
+        
+        <div class="form-group" style="display:flex;align-items:center;gap:12px;justify-content:space-between;">
+          <div>
+            <label>OpenAI 兼容代理（可选）</label>
+            <small style="display:block;color:#666;margin-top:4px;">当使用 OpenAI/Azure/Ollama 等 OpenAI 兼容提供方时启用，应用将把 Claude 请求转换为 OpenAI API</small>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label for="toggle-openai-mode" style="margin:0;">启用 OpenAI 模式</label>
+            <input type="checkbox" id="toggle-openai-mode" ${this.editingConfig.openaiBaseUrl ? 'checked' : ''} />
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="config-openai-base-url">OPENAI_BASE_URL</label>
+          <input type="url" id="config-openai-base-url" class="form-control"
+                 value="${this.escapeHtml(this.editingConfig.openaiBaseUrl || '')}"
+                 placeholder="https://api.openai.com/v1 或 http://localhost:11434/v1">
+        </div>
+
+        <div class="form-group">
+          <label for="config-openai-api-key">OPENAI_API_KEY</label>
+          <input type="password" id="config-openai-api-key" class="form-control"
+                 value="${this.escapeHtml(this.editingConfig.openaiApiKey || '')}"
+                 placeholder="sk-... 或 Azure 密钥">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="config-small-model">SMALL_MODEL (haiku)</label>
+            <input type="text" id="config-small-model" class="form-control"
+                   value="${this.escapeHtml(this.editingConfig.smallModel || 'gpt-4o-mini')}">
+          </div>
+          <div class="form-group">
+            <label for="config-middle-model">MIDDLE_MODEL (sonnet)</label>
+            <input type="text" id="config-middle-model" class="form-control"
+                   value="${this.escapeHtml(this.editingConfig.middleModel || 'gpt-4o')}">
+          </div>
+          <div class="form-group">
+            <label for="config-big-model">BIG_MODEL (opus)</label>
+            <input type="text" id="config-big-model" class="form-control"
+                   value="${this.escapeHtml(this.editingConfig.bigModel || 'gpt-4o')}">
+          </div>
+        </div>
+
+        <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="btn-preset-openai">填充 OpenAI 示例</button>
+          <button class="btn btn-secondary" id="btn-preset-azure">填充 Azure OpenAI 示例</button>
+          <button class="btn btn-secondary" id="btn-preset-ollama">填充 Ollama 示例</button>
+          <button class="btn" id="btn-clear-openai">清空 OpenAI 字段</button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="config-server-host">HOST</label>
+            <input type="text" id="config-server-host" class="form-control"
+                   value="${this.escapeHtml(this.editingConfig.serverHost || '0.0.0.0')}">
+          </div>
+          <div class="form-group">
+            <label for="config-server-port">PORT</label>
+            <input type="number" id="config-server-port" class="form-control" min="1" max="65535"
+                   value="${typeof this.editingConfig.serverPort === 'number' ? this.editingConfig.serverPort : 8118}">
+          </div>
+          <div class="form-group">
+            <label for="config-log-level">LOG_LEVEL</label>
+            <select id="config-log-level" class="form-control">
+              ${['DEBUG','INFO','WARNING','ERROR','CRITICAL'].map(l=>`<option value="${l}" ${ (this.editingConfig.logLevel||'WARNING')===l?'selected':''}>${l}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="config-max-tokens-limit">MAX_TOKENS_LIMIT</label>
+            <input type="number" id="config-max-tokens-limit" class="form-control" min="1" max="200000"
+                   value="${typeof this.editingConfig.maxTokensLimit === 'number' ? this.editingConfig.maxTokensLimit : 4096}">
+          </div>
+          <div class="form-group">
+            <label for="config-request-timeout">REQUEST_TIMEOUT(ms)</label>
+            <input type="number" id="config-request-timeout" class="form-control" min="1000" step="500"
+                   value="${typeof this.editingConfig.requestTimeout === 'number' ? this.editingConfig.requestTimeout : 90000}">
+          </div>
+          <div class="form-group">
+            <label for="config-expected-anthropic-key">ANTHROPIC_API_KEY（期望值，用于客户端校验）</label>
+            <input type="password" id="config-expected-anthropic-key" class="form-control"
+                   value="${this.escapeHtml(this.editingConfig.expectedAnthropicApiKey || '')}"
+                   placeholder="客户端访问代理时必须提供的固定 Key（可选）">
+          </div>
         </div>
         
         <div class="form-actions">
@@ -338,6 +433,72 @@ class ConfigManager {
     const testBtn = this.modalElement.querySelector('#btn-test-config');
     if (testBtn) {
       testBtn.addEventListener('click', () => this.testConnection());
+    }
+
+    // OpenAI 模式开关
+    const toggleOpenAI = this.modalElement.querySelector('#toggle-openai-mode');
+    if (toggleOpenAI) {
+      toggleOpenAI.addEventListener('change', () => {
+        const enabled = toggleOpenAI.checked;
+        const baseUrl = this.modalElement.querySelector('#config-openai-base-url');
+        const apiKey = this.modalElement.querySelector('#config-openai-api-key');
+        [baseUrl, apiKey].forEach(i => i && (i.disabled = !enabled));
+        const internal = this.modalElement.querySelector('#toggle-internal-proxy');
+        if (internal) internal.checked = enabled || internal.checked;
+      });
+      // 初始化禁用状态
+      const enabled = toggleOpenAI.checked;
+      const baseUrl = this.modalElement.querySelector('#config-openai-base-url');
+      const apiKey = this.modalElement.querySelector('#config-openai-api-key');
+      [baseUrl, apiKey].forEach(i => i && (i.disabled = !enabled));
+    }
+
+    // 预设按钮
+    const btnOpenAI = this.modalElement.querySelector('#btn-preset-openai');
+    const btnAzure = this.modalElement.querySelector('#btn-preset-azure');
+    const btnOllama = this.modalElement.querySelector('#btn-preset-ollama');
+    const btnClear = this.modalElement.querySelector('#btn-clear-openai');
+
+    if (btnOpenAI) {
+      btnOpenAI.addEventListener('click', () => {
+        this.modalElement.querySelector('#config-openai-base-url').value = 'https://api.openai.com/v1';
+        this.modalElement.querySelector('#config-small-model').value = 'gpt-4o-mini';
+        this.modalElement.querySelector('#config-middle-model').value = 'gpt-4o';
+        this.modalElement.querySelector('#config-big-model').value = 'gpt-4o';
+        const toggle = this.modalElement.querySelector('#toggle-openai-mode');
+        if (toggle && !toggle.checked) { toggle.click(); }
+      });
+    }
+
+    if (btnAzure) {
+      btnAzure.addEventListener('click', () => {
+        this.modalElement.querySelector('#config-openai-base-url').value = 'https://your-resource.openai.azure.com/openai/deployments/your-deployment';
+        this.modalElement.querySelector('#config-small-model').value = 'gpt-35-turbo';
+        this.modalElement.querySelector('#config-middle-model').value = 'gpt-4';
+        this.modalElement.querySelector('#config-big-model').value = 'gpt-4';
+        const toggle = this.modalElement.querySelector('#toggle-openai-mode');
+        if (toggle && !toggle.checked) { toggle.click(); }
+      });
+    }
+
+    if (btnOllama) {
+      btnOllama.addEventListener('click', () => {
+        this.modalElement.querySelector('#config-openai-base-url').value = 'http://localhost:11434/v1';
+        this.modalElement.querySelector('#config-small-model').value = 'llama3.1:8b';
+        this.modalElement.querySelector('#config-middle-model').value = 'llama3.1:70b';
+        this.modalElement.querySelector('#config-big-model').value = 'llama3.1:70b';
+        const toggle = this.modalElement.querySelector('#toggle-openai-mode');
+        if (toggle && !toggle.checked) { toggle.click(); }
+      });
+    }
+
+    if (btnClear) {
+      btnClear.addEventListener('click', () => {
+        this.modalElement.querySelector('#config-openai-base-url').value = '';
+        this.modalElement.querySelector('#config-openai-api-key').value = '';
+        const toggle = this.modalElement.querySelector('#toggle-openai-mode');
+        if (toggle && toggle.checked) { toggle.click(); }
+      });
     }
     
     // 取消编辑
@@ -484,7 +645,19 @@ class ConfigManager {
       model: this.modalElement.querySelector('#config-model').value,
       maxTokens: parseInt(this.modalElement.querySelector('#config-max-tokens').value),
       temperature: parseFloat(this.modalElement.querySelector('#config-temperature').value),
-      proxy: this.modalElement.querySelector('#config-proxy').value.trim()
+      proxy: this.modalElement.querySelector('#config-proxy').value.trim(),
+      useInternalProxy: this.modalElement.querySelector('#toggle-internal-proxy')?.checked === true,
+      openaiBaseUrl: this.modalElement.querySelector('#config-openai-base-url').value.trim(),
+      openaiApiKey: this.modalElement.querySelector('#config-openai-api-key').value.trim(),
+      smallModel: this.modalElement.querySelector('#config-small-model').value.trim(),
+      middleModel: this.modalElement.querySelector('#config-middle-model').value.trim(),
+      bigModel: this.modalElement.querySelector('#config-big-model').value.trim(),
+      serverHost: this.modalElement.querySelector('#config-server-host').value.trim(),
+      serverPort: parseInt(this.modalElement.querySelector('#config-server-port').value),
+      logLevel: this.modalElement.querySelector('#config-log-level').value,
+      maxTokensLimit: parseInt(this.modalElement.querySelector('#config-max-tokens-limit').value),
+      requestTimeout: parseInt(this.modalElement.querySelector('#config-request-timeout').value),
+      expectedAnthropicApiKey: this.modalElement.querySelector('#config-expected-anthropic-key').value.trim()
     };
     
     // 验证
