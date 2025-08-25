@@ -86,6 +86,11 @@ npm run dist        # 构建所有架构
   - API URL = `https://api.anthropic.com`
   - API Key = 你的 Anthropic Key
 
+保存并启动代理 的行为：
+- 自动启动内置代理（等价于 claude-code-proxy 功能）
+- 自动将 Claude CLI 环境变量 `ANTHROPIC_API_URL`/`ANTHROPIC_BASE_URL` 指向该代理地址
+- 无需在任何终端手工导出环境变量或手动运行代理
+
 示例（在界面中“一键示例”可自动填充）：
 
 - OpenAI

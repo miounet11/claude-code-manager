@@ -227,255 +227,6 @@
       border-color: #0dbc79;
     }
     
-    /* 终端面板 - 完美体验 */
-    #terminal-container {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      background: #0d1117;
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    }
-    
-    .terminal-header {
-      background: linear-gradient(to bottom, #1c2128, #161b22);
-      padding: 12px 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid #30363d;
-      flex-shrink: 0;
-    }
-    
-    .terminal-header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    
-    .terminal-status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #8b949e;
-    }
-    
-    .terminal-status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #3f4451;
-      position: relative;
-    }
-    
-    .terminal-status-dot.active {
-      background: #0dbc79;
-      box-shadow: 0 0 8px rgba(13, 188, 121, 0.5);
-    }
-    
-    .terminal-status-dot.active::after {
-      content: '';
-      position: absolute;
-      top: -2px;
-      left: -2px;
-      right: -2px;
-      bottom: -2px;
-      border-radius: 50%;
-      background: rgba(13, 188, 121, 0.2);
-      animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-      0% { transform: scale(1); opacity: 1; }
-      100% { transform: scale(1.5); opacity: 0; }
-    }
-    
-    .terminal-actions {
-      display: flex;
-      gap: 8px;
-    }
-    
-    .terminal-body {
-      flex: 1;
-      background: #0d1117;
-      padding: 16px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      font-size: 13px;
-      line-height: 1.6;
-      position: relative;
-    }
-    
-    /* 自定义滚动条 */
-    .terminal-body::-webkit-scrollbar {
-      width: 10px;
-    }
-    
-    .terminal-body::-webkit-scrollbar-track {
-      background: #161b22;
-      border-radius: 5px;
-    }
-    
-    .terminal-body::-webkit-scrollbar-thumb {
-      background: #30363d;
-      border-radius: 5px;
-      border: 2px solid #161b22;
-    }
-    
-    .terminal-body::-webkit-scrollbar-thumb:hover {
-      background: #484f58;
-    }
-    
-    /* 终端内容样式 */
-    .terminal-output {
-      margin-bottom: 4px;
-      padding: 2px 0;
-    }
-    
-    .terminal-line {
-      display: flex;
-      align-items: flex-start;
-      margin-bottom: 4px;
-      position: relative;
-      padding-left: 20px;
-    }
-    
-    .terminal-line-icon {
-      position: absolute;
-      left: 0;
-      top: 2px;
-      font-size: 12px;
-      opacity: 0.7;
-    }
-    
-    .terminal-line-content {
-      flex: 1;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    
-    .terminal-line.system {
-      color: #8b949e;
-      font-style: italic;
-    }
-    
-    .terminal-line.user {
-      color: #58a6ff;
-    }
-    
-    .terminal-line.claude {
-      color: #d4d4d4;
-    }
-    
-    .terminal-line.error {
-      color: #f85149;
-    }
-    
-    .terminal-line.success {
-      color: #0dbc79;
-    }
-    
-    /* 输入区域 */
-    .terminal-input-container {
-      background: #161b22;
-      border-top: 1px solid #30363d;
-      padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
-    }
-    
-    .terminal-input-wrapper {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      padding: 8px 12px;
-      transition: all 0.2s;
-    }
-    
-    .terminal-input-wrapper:focus-within {
-      border-color: #58a6ff;
-      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
-    }
-    
-    .terminal-prompt {
-      color: #0dbc79;
-      margin-right: 8px;
-      font-weight: 500;
-      user-select: none;
-    }
-    
-    .terminal-input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: #d4d4d4;
-      font-family: inherit;
-      font-size: 13px;
-      outline: none;
-      line-height: 1.5;
-    }
-    
-    .terminal-input::placeholder {
-      color: #484f58;
-    }
-    
-    .terminal-send-btn {
-      padding: 6px 12px;
-      font-size: 12px;
-      background: #238636;
-      border-color: #238636;
-    }
-    
-    .terminal-send-btn:hover {
-      background: #2ea043;
-    }
-    
-    .terminal-send-btn:disabled {
-      background: #21262d;
-      color: #484f58;
-      cursor: not-allowed;
-    }
-    
-    /* 欢迎信息样式 */
-    .terminal-welcome {
-      text-align: center;
-      padding: 40px 20px;
-      color: #8b949e;
-    }
-    
-    .terminal-welcome h3 {
-      color: #0dbc79;
-      font-size: 20px;
-      margin-bottom: 16px;
-      font-weight: 500;
-    }
-    
-    .terminal-welcome p {
-      line-height: 1.6;
-      margin-bottom: 12px;
-    }
-    
-    .terminal-shortcuts {
-      background: #161b22;
-      border-radius: 6px;
-      padding: 16px;
-      margin-top: 24px;
-      text-align: left;
-      max-width: 500px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    
-    .terminal-shortcuts h4 {
-      color: #58a6ff;
-      font-size: 14px;
-      margin-bottom: 12px;
-    }
     
     .shortcut-item {
       display: flex;
@@ -729,10 +480,7 @@
         <span>⚙️</span>
         <span>配置管理</span>
       </div>
-      <div class="nav-item" onclick="showPanel('terminal', event)">
-        <span>💻</span>
-        <span>终端</span>
-      </div>
+      
     </nav>
   </div>
   
@@ -937,15 +685,22 @@
                   还原 Claude Code 官方配置
                 </button>
               </div>
+
+              <!-- 代理运行信息提示（自动生成，可复制） -->
+              <div id="proxy-info" style="display:none; margin-top: 14px; padding: 12px; border: 1px solid #3e3e3e; border-radius: 6px; background:#252525;">
+                <div style="font-weight:500; margin-bottom:6px;">代理已启动</div>
+                <div id="proxy-info-lines" style="color:#bdbdbd; font-size:12px; line-height:1.6;"></div>
+                <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="secondary" id="btn-copy-proxy-url">复制代理地址</button>
+                  <button type="button" class="secondary" id="btn-copy-env">复制环境变量示例</button>
+                </div>
+              </div>
             </form>
           </div>
         </div>
       </div>
       
-      <!-- 终端面板 -->
-      <div id="terminal-panel" class="panel">
-        <div id="terminal-container" style="width: 100%; height: 100%;"></div>
-      </div>
+      
     </div>
     
     <!-- 状态栏 -->
@@ -977,11 +732,7 @@
       });
     }
     
-    // 按顺序加载脚本
-    Promise.resolve()
-      .then(() => loadScript('xterm-terminal.js'))
-      .then(() => loadScript('terminal-tabs.js'))
-      .catch(err => console.error('脚本加载失败:', err));
+    // 已移除终端功能
   </script>
   
   <script>
@@ -990,7 +741,6 @@
     let currentConfig = null;
     let claudeRunning = false;
     let configs = [];
-    let terminalTabs = null;
     
     // 初始化
     window.addEventListener('DOMContentLoaded', () => {
@@ -1083,47 +833,7 @@
         }
       });
       
-      // 设置终端输入处理
-      const terminalInput = document.getElementById('terminal-input');
-      
-      // Enter 发送，Shift+Enter 换行
-      if (terminalInput) {
-        terminalInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
-        }
-        
-        // 历史命令导航
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          if (historyIndex > 0) {
-            if (historyIndex === commandHistory.length) {
-              currentInput = terminalInput.value;
-            }
-            historyIndex--;
-            terminalInput.value = commandHistory[historyIndex];
-          }
-        }
-        
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          if (historyIndex < commandHistory.length - 1) {
-            historyIndex++;
-            terminalInput.value = commandHistory[historyIndex];
-          } else if (historyIndex === commandHistory.length - 1) {
-            historyIndex = commandHistory.length;
-            terminalInput.value = currentInput;
-          }
-        }
-        
-        // Ctrl/Cmd + K 清空终端
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-          e.preventDefault();
-          clearTerminal();
-        }
-      });
-      }
+      // 已移除终端输入处理
     }
     
     // 面板切换
@@ -1159,14 +869,7 @@
       };
       document.getElementById('panel-title').textContent = titles[panelName];
       
-      // 如果是终端面板，初始化多标签终端
-      if (panelName === 'terminal' && !terminalTabs) {
-        const container = document.getElementById('terminal-container');
-        if (container) {
-          terminalTabs = new window.TerminalTabs(container);
-          window.terminalTabs = terminalTabs; // 暴露给全局使用
-        }
-      }
+      // 已移除终端面板初始化
       
       // 更新头部操作按钮
       const headerActions = document.getElementById('header-actions');
@@ -1504,10 +1207,28 @@
         // 重新加载配置列表
         await loadConfigs();
         
-        // 切换到终端面板
-        showPanel('terminal');
+        // 显示代理信息提示
+        const proxyInfo = document.getElementById('proxy-info');
+        const lines = document.getElementById('proxy-info-lines');
+        if (proxyInfo && lines) {
+          const host = (currentConfig.serverHost || 'localhost');
+          const port = (typeof currentConfig.serverPort === 'number' ? currentConfig.serverPort : 8118);
+          const url = `http://${host}:${port}`;
+          const isOpenAI = !!currentConfig.openaiBaseUrl;
+          const envSample = `ANTHROPIC_BASE_URL=${url}\nANTHROPIC_API_URL=${url}\nANTHROPIC_API_KEY=${currentConfig.expectedAnthropicApiKey || 'your-key'}`;
+          lines.innerHTML = `
+            <div>代理地址: <code>${url}</code></div>
+            <div>工作模式: <code>${isOpenAI ? 'OpenAI 兼容 (Chat Completions)' : 'Claude 官方 (Messages)'}</code></div>
+            <div>我们已自动将 Claude 环境变量指向该代理，无需手动设置。</div>
+          `;
+          proxyInfo.style.display = 'block';
+          const btnUrl = document.getElementById('btn-copy-proxy-url');
+          const btnEnv = document.getElementById('btn-copy-env');
+          if (btnUrl) btnUrl.onclick = () => navigator.clipboard.writeText(url);
+          if (btnEnv) btnEnv.onclick = () => navigator.clipboard.writeText(envSample);
+        }
         
-        // 启动 Claude
+        // 启动 Claude（无需显示终端）
         await startClaude();
         
       } catch (error) {
@@ -1646,7 +1367,26 @@
     let commandHistory = [];
     let historyIndex = -1;
     let currentInput = '';
-    
+ 
+    function getOrCreateTerminalOutput() {
+      let output = document.getElementById('terminal-output');
+      if (output) return output;
+      const container = document.getElementById('terminal-container');
+      if (!container) return null;
+      let body = document.getElementById('terminal-body');
+      if (!body) {
+        body = document.createElement('div');
+        body.id = 'terminal-body';
+        body.className = 'terminal-body';
+        container.appendChild(body);
+      }
+      output = document.createElement('div');
+      output.id = 'terminal-output';
+      output.className = 'terminal-output';
+      body.appendChild(output);
+      return output;
+    }
+
     function toggleClaude() {
       if (claudeRunning) {
         stopClaude();
@@ -1735,7 +1475,7 @@
     
     function showLoadingMessage() {
       const id = 'loading-' + Date.now();
-      const output = document.getElementById('terminal-output');
+      const output = getOrCreateTerminalOutput();
       
       const loadingDiv = document.createElement('div');
       loadingDiv.id = id;
@@ -1749,7 +1489,7 @@
         </span>
       `;
       
-      output.appendChild(loadingDiv);
+      if (output) output.appendChild(loadingDiv);
       scrollToBottom();
       
       return id;
@@ -1761,19 +1501,9 @@
     }
     
     function addToTerminal(text, type = 'normal', icon = '') {
-      const output = document.getElementById('terminal-output');
+      const output = getOrCreateTerminalOutput();
       
-      // 如果是原始输出，直接添加到终端
-      if (type === 'raw') {
-        const rawDiv = document.createElement('div');
-        rawDiv.style.whiteSpace = 'pre-wrap';
-        rawDiv.style.fontFamily = 'monospace';
-        rawDiv.style.color = '#d4d4d4';
-        rawDiv.textContent = text;
-        output.appendChild(rawDiv);
-        scrollToBottom();
-        return;
-      }
+      // 已移除终端输出细分逻辑
       
       const line = document.createElement('div');
       line.className = `terminal-line ${type}`;
@@ -1789,20 +1519,17 @@
       line.appendChild(iconSpan);
       line.appendChild(contentSpan);
       
-      output.appendChild(line);
+      if (output) output.appendChild(line);
       scrollToBottom();
     }
     
     function clearTerminal() {
-      // 清空当前活动的终端
-      if (terminalTabs) {
-        terminalTabs.clearActiveTerminal();
-      }
+      // 已移除终端清空
     }
     
     function scrollToBottom() {
       const body = document.getElementById('terminal-body');
-      body.scrollTop = body.scrollHeight;
+      if (body) body.scrollTop = body.scrollHeight;
     }
     
     // 快捷键
