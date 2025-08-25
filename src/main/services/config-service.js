@@ -108,13 +108,14 @@ class ConfigService {
       // OpenAI 兼容提供方配置（对应 claude-code-proxy 的环境变量）
       openaiBaseUrl: config.openaiBaseUrl || '', // OPENAI_BASE_URL
       openaiApiKey: config.openaiApiKey || '',   // OPENAI_API_KEY
+      azureApiVersion: config.azureApiVersion || '', // Azure OpenAI api-version（可选）
       // 模型映射：haiku → small，sonnet → middle，opus → big
       smallModel: config.smallModel || 'gpt-4o-mini',   // SMALL_MODEL
       middleModel: config.middleModel || 'gpt-4o',      // MIDDLE_MODEL（默认可与 BIG 同步）
       bigModel: config.bigModel || 'gpt-4o',            // BIG_MODEL
       // 服务器设置
       serverHost: config.serverHost || '0.0.0.0',       // HOST
-      serverPort: typeof config.serverPort === 'number' ? config.serverPort : 8118, // PORT
+      serverPort: typeof config.serverPort === 'number' ? config.serverPort : 8082, // PORT (匹配 claude-code-proxy)
       logLevel: config.logLevel || 'WARNING',           // LOG_LEVEL
       // 性能限制
       maxTokensLimit: typeof config.maxTokensLimit === 'number' ? config.maxTokensLimit : 4096, // MAX_TOKENS_LIMIT
@@ -291,6 +292,7 @@ class ConfigService {
       if (!config.openaiApiKey || config.openaiApiKey.trim() === '') {
         errors.push('OpenAI API Key 不能为空');
       }
+      // Azure OpenAI 可选 api-version，无需强制校验
     }
 
     // 端口与超时范围校验

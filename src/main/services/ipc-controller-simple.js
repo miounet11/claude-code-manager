@@ -289,6 +289,39 @@ class IPCControllerSimple {
         return { success: false, error: error.message };
       }
     });
+    
+    // 一键部署 Claude Code Proxy
+    this.registerHandler('proxy:deploy-all', async (event, config) => {
+      try {
+        const installer = require('./claude-proxy-installer');
+        
+        // 监听进度事件
+        installer.on('progress', (data) => {
+          this.sendToRenderer('proxy:deploy-progress', data);
+        });
+        
+        installer.on('error', (data) => {
+          this.sendToRenderer('proxy:deploy-error', data);
+        });
+        
+        const result = await installer.deployAll(config);
+        return result;
+      } catch (error) {
+        console.error('一键部署失败:', error);
+        return { success: false, error: error.message };
+      }
+    });
+    
+    this.registerHandler('proxy:stop-all', async () => {
+      try {
+        const installer = require('./claude-proxy-installer');
+        await installer.stopAll();
+        return { success: true };
+      } catch (error) {
+        console.error('停止服务失败:', error);
+        return { success: false, error: error.message };
+      }
+    });
 
     this.registerHandler('proxy:stop', async () => {
       try {
@@ -323,6 +356,71 @@ class IPCControllerSimple {
         return null;
       } catch (error) {
         return null;
+      }
+    });
+
+    // 将代理环境变量写入用户 shell 配置
+    this.registerHandler('env:apply-global', async (event, envConfig) => {
+      const fs = require('fs');
+      const os = require('os');
+      const path = require('path');
+      try {
+        const home = os.homedir();
+        const shells = [
+          { file: path.join(home, '.zshrc'), type: 'bash' },
+          { file: path.join(home, '.bashrc'), type: 'bash' },
+          { file: path.join(home, '.bash_profile'), type: 'bash' },
+          { file: path.join(home, '.profile'), type: 'bash' },
+          { file: path.join(home, '.config/fish/config.fish'), type: 'fish' }
+        ];
+
+        const linesBash = [
+          `export ANTHROPIC_BASE_URL="${envConfig.baseUrl}"`,
+          `export ANTHROPIC_API_URL="${envConfig.baseUrl}"`,
+          envConfig.expectedKey ? `export ANTHROPIC_API_KEY="${envConfig.expectedKey}"` : null
+        ].filter(Boolean).join('\n');
+
+        const linesFish = [
+          `set -x ANTHROPIC_BASE_URL "${envConfig.baseUrl}"`,
+          `set -x ANTHROPIC_API_URL "${envConfig.baseUrl}"`,
+          envConfig.expectedKey ? `set -x ANTHROPIC_API_KEY "${envConfig.expectedKey}"` : null
+        ].filter(Boolean).join('\n');
+
+        const header = '# >>> miaoda claude proxy >>>';
+        const footer = '# <<< miaoda claude proxy <<<';
+
+        let updatedFiles = [];
+        for (const sh of shells) {
+          const filePath = sh.file;
+          try {
+            let content = '';
+            if (fs.existsSync(filePath)) {
+              content = fs.readFileSync(filePath, 'utf8');
+            } else {
+              // 确保目录存在
+              fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            }
+
+            const block = `\n${header}\n${sh.type === 'fish' ? linesFish : linesBash}\n${footer}\n`;
+            const hasBlock = content.includes(header) && content.includes(footer);
+            let nextContent;
+            if (hasBlock) {
+              const start = content.indexOf(header);
+              const end = content.indexOf(footer) + footer.length;
+              nextContent = content.slice(0, start) + block + content.slice(end);
+            } else {
+              nextContent = content + block;
+            }
+            fs.writeFileSync(filePath, nextContent, 'utf8');
+            updatedFiles.push(filePath);
+          } catch (e) {
+            // 忽略单个文件失败，尝试其他
+          }
+        }
+
+        return { success: true, files: updatedFiles };
+      } catch (error) {
+        return { success: false, error: error.message };
       }
     });
 
@@ -501,6 +599,31 @@ class IPCControllerSimple {
         type: 'system',
         text: '正在启动 Claude CLI...'
       });
+      
+      // 如果使用内部代理，先启动代理服务器
+      if (config.useInternalProxy) {
+        const proxyServer = require('./proxy-server');
+        if (!proxyServer.isRunning) {
+          this.sendToRenderer('claude:output', {
+            type: 'system',
+            text: '正在启动内部代理服务器...'
+          });
+          
+          try {
+            await proxyServer.start(config);
+            this.sendToRenderer('claude:output', {
+              type: 'system',
+              text: '内部代理服务器已启动在端口 8082'
+            });
+          } catch (error) {
+            this.sendToRenderer('claude:output', {
+              type: 'error',
+              text: `代理服务器启动失败: ${error.message}`
+            });
+            return { success: false, error: `代理服务器启动失败: ${error.message}` };
+          }
+        }
+      }
 
       // 使用终端管理器启动
       await this.terminalManager.start(config, {

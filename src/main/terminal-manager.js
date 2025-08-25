@@ -36,17 +36,38 @@ class TerminalManager {
     }
 
     try {
-      // 构建环境变量
+      // 构建环境变量（与参考脚本一致）
       const env = { ...process.env };
-      if (config.apiKey) {
-        env.ANTHROPIC_API_KEY = config.apiKey;
+      
+      // 根据是否使用内部代理来设置环境变量
+      if (config.useInternalProxy) {
+        // 设置代理服务器 URL（固定端口 8082）
+        const proxyUrl = 'http://localhost:8082';
+        env.ANTHROPIC_BASE_URL = proxyUrl;
+        env.ANTHROPIC_API_URL = proxyUrl;
+        
+        // 设置认证令牌（与参考脚本一致：ANTHROPIC_AUTH_TOKEN="api-key"）
+        env.ANTHROPIC_AUTH_TOKEN = config.expectedAnthropicApiKey || 'api-key';
+      } else {
+        // 直接使用配置的 API
+        if (config.apiKey) {
+          env.ANTHROPIC_API_KEY = config.apiKey;
+        }
+        if (config.apiUrl) {
+          env.ANTHROPIC_API_URL = config.apiUrl;
+          env.ANTHROPIC_BASE_URL = config.apiUrl;
+        }
       }
-      if (config.apiUrl) {
-        env.ANTHROPIC_API_URL = config.apiUrl;
-      }
+      
+      // 设置最大输出令牌数（与参考脚本一致）
+      env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = (config.maxTokens || 32000).toString();
+      
+      // 设置网络代理（如果配置了）
       if (config.proxy) {
         env.HTTP_PROXY = config.proxy;
         env.HTTPS_PROXY = config.proxy;
+        env.http_proxy = config.proxy;
+        env.https_proxy = config.proxy;
       }
 
       // 尝试使用 node-pty（如果可用）

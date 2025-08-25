@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Read(//Users/lu/Documents/本地环境/AICode/Claude_Code/**)",
+      "Bash(git add -A)"
     ],
     "deny": []
   },

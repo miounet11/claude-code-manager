@@ -250,11 +250,12 @@ class ClaudeService extends EventEmitter {
     if (proxyUrl) {
       env.ANTHROPIC_API_URL = proxyUrl;
       env.ANTHROPIC_BASE_URL = proxyUrl;
-      // 如果设置了期望的客户端密钥，则要求 CLI 以该密钥访问代理
+      // Claude Code 使用 ANTHROPIC_AUTH_TOKEN 而不是 ANTHROPIC_API_KEY
+      // 参考脚本中使用的是 ANTHROPIC_AUTH_TOKEN="api-key"
       if (config.expectedAnthropicApiKey) {
-        env.ANTHROPIC_API_KEY = config.expectedAnthropicApiKey;
+        env.ANTHROPIC_AUTH_TOKEN = config.expectedAnthropicApiKey;
       } else {
-        env.ANTHROPIC_API_KEY = 'proxy-handled';
+        env.ANTHROPIC_AUTH_TOKEN = 'api-key';  // 使用与参考脚本相同的默认值
       }
     } else {
       env.ANTHROPIC_API_KEY = config.apiKey;
@@ -262,6 +263,13 @@ class ClaudeService extends EventEmitter {
         env.ANTHROPIC_API_URL = config.apiUrl;
         env.ANTHROPIC_BASE_URL = config.apiUrl;
       }
+    }
+
+    // 设置最大输出令牌数（参考脚本中的 CLAUDE_CODE_MAX_OUTPUT_TOKENS）
+    if (config.maxTokens) {
+      env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = config.maxTokens.toString();
+    } else {
+      env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '32000';  // 默认值
     }
 
     // 设置网络代理

@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Miaoda - Claude Code Manager</title>
+  <link rel="stylesheet" href="styles/welcome-guide.css">
+  <link rel="stylesheet" href="styles/config-form.css">
   <style>
     * {
       margin: 0;
@@ -471,6 +473,54 @@
     <div class="sidebar-header">
       <div class="logo">Miaoda</div>
     </div>
+    
+    <!-- 代理状态卡片 -->
+    <div id="proxy-status-card" class="proxy-status-card" style="display: none;">
+      <div class="proxy-status-header">
+        <div class="proxy-status-title">
+          <span class="status-indicator"></span>
+          <span>代理状态</span>
+        </div>
+      </div>
+      <div class="proxy-status-info">
+        <div class="status-item">
+          <span class="status-item-label">端口:</span>
+          <span class="status-item-value" id="status-port">8082</span>
+        </div>
+        <div class="status-item">
+          <span class="status-item-label">模型:</span>
+          <span class="status-item-value" id="status-model">未配置</span>
+        </div>
+        <div class="status-item">
+          <span class="status-item-label">状态:</span>
+          <span class="status-item-value" id="status-state">未启动</span>
+        </div>
+      </div>
+      <div class="quick-actions">
+        <button class="quick-action-btn" onclick="quickRestart()">
+          <span>🔄</span>
+          <span>重启</span>
+        </button>
+        <button class="quick-action-btn danger" onclick="quickStop()">
+          <span>⏹</span>
+          <span>停止</span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- 模型切换器 -->
+    <div class="model-switcher">
+      <div class="model-switcher-title">快速切换模型</div>
+      <select class="model-select" id="quick-model-select" onchange="quickSwitchModel(this.value)">
+        <option value="">选择模型...</option>
+        <option value="claude-opus-4-1-20250805">Claude Opus 4</option>
+        <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+        <option value="gpt-4o">GPT-4o</option>
+        <option value="grok-4">Grok 4</option>
+        <option value="custom">自定义...</option>
+      </select>
+    </div>
+    
     <nav class="nav-menu">
       <div class="nav-item active" onclick="showPanel('environment', event)">
         <span>🌍</span>
@@ -556,127 +606,148 @@
           </div>
           
           <div class="config-editor">
-            <h3 style="margin-bottom: 20px;">编辑配置</h3>
-            <form id="config-form">
-              <div class="form-group">
-                <label>配置名称</label>
-                <input type="text" id="config-name" placeholder="我的配置">
+            <div class="config-card">
+              <div class="config-card-header">
+                <h3 class="config-card-title">编辑配置</h3>
+                <span class="config-card-badge" id="config-status-badge">未保存</span>
               </div>
               
-              <div class="form-group">
-                <label>API Key</label>
-                <input type="password" id="config-apikey" placeholder="sk-...">
-              </div>
-              
-              <div class="form-group">
-                <label>API URL</label>
-                <input type="text" id="config-apiurl" placeholder="https://api.anthropic.com">
-              </div>
-              
-              <div class="form-group">
-                <label>模型</label>
-                <input type="text" id="config-model" list="model-options" placeholder="选择或输入模型名称">
-                <datalist id="model-options">
-                  <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
-                  <option value="claude-3-7-sonnet-20250219-thinking">Claude 3.7 Sonnet (Thinking)</option>
-                  <option value="grok-3claude-sonnet-4-20250514">Grok 3 Claude Sonnet 4</option>
-                  <option value="claude-opus-4-20250514">Claude Opus 4</option>
-                  <option value="claude-3-opus-20240229">Claude 3 Opus (Legacy)</option>
-                  <option value="claude-3-sonnet-20240229">Claude 3 Sonnet (Legacy)</option>
-                  <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
-                </datalist>
-                <small style="color: #999; display: block; margin-top: 5px;">可以从列表选择或手动输入自定义模型名称</small>
-              </div>
-              
-              <div class="form-group">
-                <label>代理设置（可选）</label>
-                <input type="text" id="config-proxy" placeholder="http://proxy.example.com:8080">
-              </div>
-
-              <!-- 模式切换（新增，置顶） -->
-              <div class="form-group" style="display:flex;align-items:center;gap:16px;">
-                <label style="min-width:64px;">模式</label>
-                <label style="display:flex;align-items:center;gap:6px;">
-                  <input type="radio" name="config-mode" id="mode-claude" checked>
-                  <span>Claude 官方</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;">
-                  <input type="radio" name="config-mode" id="mode-openai">
-                  <span>OpenAI 兼容</span>
-                </label>
-              </div>
-
-              <div class="form-group" style="display:none;align-items:center;gap:8px;">
-                <label for="toggle-internal-proxy" style="margin:0;">启用内部代理</label>
-                <input type="checkbox" id="toggle-internal-proxy">
-              </div>
-
-              <div class="form-separator" style="margin: 10px 0; border-top: 1px solid #333;"></div>
-
-              <!-- OpenAI 兼容代理与模型映射设置（折叠区，随模式显示） -->
-              <div id="openai-section" style="display:none;">
-                <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                  <div>
-                    <label>OpenAI 兼容设置</label>
-                    <small style="display:block;color:#999;margin-top:4px;">启用后把 Claude 请求转换为 OpenAI API（支持 OpenAI/Azure/Ollama）</small>
+              <form id="config-form">
+                <!-- 模式切换 -->
+                <div class="mode-switch-container">
+                  <div class="mode-switch-item">
+                    <input type="radio" name="config-mode" id="mode-claude" checked>
+                    <label for="mode-claude">Claude 官方</label>
                   </div>
-                  <div style="display:none;align-items:center;gap:8px;">
-                    <label for="toggle-openai-mode" style="margin:0;">启用 OpenAI 模式</label>
-                    <input type="checkbox" id="toggle-openai-mode">
+                  <div class="mode-switch-item">
+                    <input type="radio" name="config-mode" id="mode-openai">
+                    <label for="mode-openai">OpenAI 兼容</label>
                   </div>
                 </div>
-
-                <div class="form-group">
-                  <label>OPENAI_BASE_URL</label>
-                  <input type="text" id="config-openai-base-url" placeholder="https://api.openai.com/v1 或 http://localhost:11434/v1">
-                </div>
-
-                <div class="form-group">
-                  <label>OPENAI_API_KEY</label>
-                  <input type="password" id="config-openai-api-key" placeholder="sk-... 或 Azure 密钥">
-                </div>
-
-                <details style="margin: 8px 0 12px;">
-                  <summary style="cursor:pointer;">高级设置（可选）：模型映射 SMALL/MIDDLE/BIG</summary>
-                  <div class="form-group" style="margin-top:12px;">
-                    <label>SMALL_MODEL (haiku)</label>
-                    <input type="text" id="config-small-model" placeholder="例如：gpt-4o-mini 或 llama3.1:8b">
-                  </div>
+                
+                <!-- 两列表单布局 -->
+                <div class="config-form-grid">
                   <div class="form-group">
-                    <label>MIDDLE_MODEL (sonnet)</label>
-                    <input type="text" id="config-middle-model" placeholder="例如：gpt-4o 或 llama3.1:70b">
+                    <label>配置名称</label>
+                    <input type="text" id="config-name" placeholder="我的配置">
                   </div>
+                  
                   <div class="form-group">
-                    <label>BIG_MODEL (opus)</label>
-                    <input type="text" id="config-big-model" placeholder="例如：gpt-4o 或 llama3.1:70b">
+                    <label>模型选择</label>
+                    <input type="text" id="config-model" list="model-options" placeholder="选择或输入模型">
+                    <datalist id="model-options">
+                      <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                      <option value="claude-3-7-sonnet-20250219-thinking">Claude 3.7 Sonnet (Thinking)</option>
+                      <option value="grok-3claude-sonnet-4-20250514">Grok 3 Claude Sonnet 4</option>
+                      <option value="claude-opus-4-20250514">Claude Opus 4</option>
+                      <option value="claude-opus-4-1-20250805">Claude Opus 4.1</option>
+                      <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                      <option value="claude-3-opus-20240229">Claude 3 Opus (Legacy)</option>
+                      <option value="claude-3-sonnet-20240229">Claude 3 Sonnet (Legacy)</option>
+                      <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                    </datalist>
                   </div>
-                </details>
-
-                <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <button type="button" class="secondary" id="btn-preset-openai">填充 OpenAI 示例</button>
-                  <button type="button" class="secondary" id="btn-preset-azure">填充 Azure OpenAI 示例</button>
-                  <button type="button" class="secondary" id="btn-preset-ollama">填充 Ollama 示例</button>
-                  <button type="button" id="btn-clear-openai">清空 OpenAI 字段</button>
+                  
+                  <div class="form-group full-width">
+                    <label>API Key</label>
+                    <div class="api-key-input-wrapper">
+                      <input type="password" id="config-apikey" placeholder="sk-...">
+                      <button type="button" class="api-key-toggle" onclick="toggleApiKeyVisibility()">
+                        <span id="api-key-toggle-icon">👁</span>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label>API URL</label>
+                    <input type="url" id="config-apiurl" placeholder="https://api.anthropic.com">
+                  </div>
+                  
+                  <div class="form-group">
+                    <label>最大输出令牌数</label>
+                    <input type="number" id="config-maxtokens" min="1" max="200000" value="32000" placeholder="32000">
+                    <small>推荐值: 32000</small>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label>代理设置</label>
+                    <input type="text" id="config-proxy" placeholder="http://proxy.example.com:8080">
+                    <small>可选，留空则不使用</small>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label>请求超时(秒)</label>
+                    <input type="number" id="config-timeout" min="10" max="300" value="90" placeholder="90">
+                    <small>默认: 90秒</small>
+                  </div>
+                  
+                  <div class="form-group full-width" style="display: flex; align-items: center; gap: 12px;">
+                    <input type="checkbox" id="toggle-internal-proxy" style="width: auto;">
+                    <label for="toggle-internal-proxy" style="margin: 0; cursor: pointer;">启用内部代理服务器</label>
+                  </div>
                 </div>
-              </div>
+                
+                <!-- OpenAI 兼容模式设置（可折叠） -->
+                <div id="openai-section" style="display: none; margin-top: 20px;">
+                  <div class="config-form-grid">
+                    <div class="form-group">
+                      <label>OpenAI Base URL</label>
+                      <input type="url" id="config-openai-baseurl" placeholder="https://api.openai.com/v1">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label>OpenAI API Key</label>
+                      <input type="password" id="config-openai-apikey" placeholder="sk-...">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label>大模型映射</label>
+                      <input type="text" id="config-big-model" placeholder="gpt-4o">
+                    </div>
+                    
+                    <div class="form-group">
+                      <label>小模型映射</label>
+                      <input type="text" id="config-small-model" placeholder="gpt-4o-mini">
+                    </div>
+                  </div>
+                </div>
+              </form>
               
-              <div style="display: flex; gap: 10px; margin-top: 30px;">
-                <button type="button" onclick="saveConfigAndStart()" class="btn-primary">
-                  <i class="icon icon-save"></i>
-                  保存并启动代理
+              <!-- 操作按钮 -->
+              <div class="config-actions">
+                <button type="button" class="primary" onclick="saveConfigAndStart()">
+                  <span>💾</span>
+                  <span>保存并启动</span>
+                </button>
+                <button type="button" class="primary" onclick="saveConfigAndStartProxy()">
+                  <span>🚀</span>
+                  <span>保存并启动代理</span>
                 </button>
                 <button type="button" class="secondary" onclick="testConfig()">
-                  <i class="icon icon-test"></i>
-                  测试连接
+                  <span>🔍</span>
+                  <span>测试连接</span>
                 </button>
                 <button type="button" class="secondary" onclick="saveConfig()">
-                  <i class="icon icon-save"></i>
-                  仅保存
+                  <span>✅</span>
+                  <span>仅保存</span>
                 </button>
                 <button type="button" class="danger" onclick="deleteConfig()">
-                  <i class="icon icon-trash"></i>
-                  删除
+                  <span>🗑</span>
+                  <span>删除配置</span>
                 </button>
+              </div>
+            </div>
+              
+              <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
+                <button type="button" class="btn-primary" onclick="deployClaudeProxy()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); width: 100%; font-size: 16px; padding: 12px;">
+                  <i class="icon icon-rocket"></i>
+                  🚀 一键部署 Claude Code Proxy
+                </button>
+                <div id="deploy-progress" style="margin-top: 10px; display: none;">
+                  <div style="background: #1a1a1a; border: 1px solid #333; border-radius: 4px; padding: 10px; max-height: 200px; overflow-y: auto;">
+                    <div id="deploy-messages"></div>
+                  </div>
+                </div>
               </div>
               
               <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
@@ -1011,6 +1082,7 @@
       document.getElementById('config-apiurl').value = config.apiUrl || 'https://api.anthropic.com';
       document.getElementById('config-model').value = config.model;
       document.getElementById('config-proxy').value = config.proxy || '';
+      document.getElementById('config-maxtokens').value = config.maxTokens || 32000;
       // 模式与 OpenAI 设置回填
       const modeClaude = document.getElementById('mode-claude');
       const modeOpenAI = document.getElementById('mode-openai');
@@ -1140,7 +1212,10 @@
       currentConfig.apiUrl = document.getElementById('config-apiurl').value;
       currentConfig.model = document.getElementById('config-model').value;
       currentConfig.proxy = document.getElementById('config-proxy').value;
+      currentConfig.maxTokens = parseInt(document.getElementById('config-maxtokens').value) || 32000;
       currentConfig.useInternalProxy = document.getElementById('toggle-internal-proxy')?.checked || false;
+      // 设置 expectedAnthropicApiKey 为 'api-key' (与参考脚本一致)
+      currentConfig.expectedAnthropicApiKey = 'api-key';
       // 将主输入作为统一入口；若为 OpenAI 模式则赋值到 openai 字段
       const openaiSelected = document.getElementById('mode-openai')?.checked;
       const mainApiUrl = document.getElementById('config-apiurl')?.value.trim() || '';
@@ -1148,11 +1223,13 @@
       if (openaiSelected) {
         currentConfig.openaiBaseUrl = mainApiUrl;
         currentConfig.openaiApiKey = mainApiKey;
+        currentConfig.azureApiVersion = document.getElementById('config-azure-api-version')?.value.trim() || '';
       } else {
         currentConfig.apiUrl = mainApiUrl;
         currentConfig.apiKey = mainApiKey;
         currentConfig.openaiBaseUrl = '';
         currentConfig.openaiApiKey = '';
+        currentConfig.azureApiVersion = '';
       }
       currentConfig.smallModel = document.getElementById('config-small-model')?.value.trim() || '';
       currentConfig.middleModel = document.getElementById('config-middle-model')?.value.trim() || '';
@@ -1181,7 +1258,10 @@
       currentConfig.apiUrl = document.getElementById('config-apiurl').value;
       currentConfig.model = document.getElementById('config-model').value;
       currentConfig.proxy = document.getElementById('config-proxy').value;
+      currentConfig.maxTokens = parseInt(document.getElementById('config-maxtokens').value) || 32000;
       currentConfig.useInternalProxy = document.getElementById('toggle-internal-proxy')?.checked || false;
+      // 设置 expectedAnthropicApiKey 为 'api-key' (与参考脚本一致)
+      currentConfig.expectedAnthropicApiKey = 'api-key';
       // OpenAI/Claude 统一入口
       const openaiSelected2 = document.getElementById('mode-openai')?.checked;
       const mainApiUrl2 = document.getElementById('config-apiurl')?.value.trim() || '';
@@ -1189,11 +1269,13 @@
       if (openaiSelected2) {
         currentConfig.openaiBaseUrl = mainApiUrl2;
         currentConfig.openaiApiKey = mainApiKey2;
+        currentConfig.azureApiVersion = document.getElementById('config-azure-api-version')?.value.trim() || '';
       } else {
         currentConfig.apiUrl = mainApiUrl2;
         currentConfig.apiKey = mainApiKey2;
         currentConfig.openaiBaseUrl = '';
         currentConfig.openaiApiKey = '';
+        currentConfig.azureApiVersion = '';
       }
       currentConfig.smallModel = document.getElementById('config-small-model')?.value.trim() || '';
       currentConfig.middleModel = document.getElementById('config-middle-model')?.value.trim() || '';
@@ -1207,27 +1289,78 @@
         // 重新加载配置列表
         await loadConfigs();
         
+        // 启动代理
+        let proxyPort = (typeof currentConfig.serverPort === 'number' ? currentConfig.serverPort : 8118);
+        try {
+          const started = await window.electronAPI.startProxy(currentConfig);
+          if (started && started.success && started.port) {
+            proxyPort = started.port;
+          }
+        } catch (e) {
+          // 启动失败也继续显示提示，但会提示错误
+        }
+
         // 显示代理信息提示
         const proxyInfo = document.getElementById('proxy-info');
         const lines = document.getElementById('proxy-info-lines');
         if (proxyInfo && lines) {
           const host = (currentConfig.serverHost || 'localhost');
-          const port = (typeof currentConfig.serverPort === 'number' ? currentConfig.serverPort : 8118);
-          const url = `http://${host}:${port}`;
+          const url = `http://${host}:${proxyPort}`;
           const isOpenAI = !!currentConfig.openaiBaseUrl;
           const envSample = `ANTHROPIC_BASE_URL=${url}\nANTHROPIC_API_URL=${url}\nANTHROPIC_API_KEY=${currentConfig.expectedAnthropicApiKey || 'your-key'}`;
           lines.innerHTML = `
             <div>代理地址: <code>${url}</code></div>
             <div>工作模式: <code>${isOpenAI ? 'OpenAI 兼容 (Chat Completions)' : 'Claude 官方 (Messages)'}</code></div>
             <div>我们已自动将 Claude 环境变量指向该代理，无需手动设置。</div>
+            <div id="request-preview-container" style="margin-top: 10px; display: none;">
+              <div style="font-weight: bold; margin-bottom: 5px;">最近请求/响应预览:</div>
+              <pre id="request-preview" style="font-size: 11px; background: #f8f9fa; padding: 8px; border-radius: 4px; margin: 0; max-height: 150px; overflow-y: auto; white-space: pre-wrap;"></pre>
+            </div>
           `;
           proxyInfo.style.display = 'block';
           const btnUrl = document.getElementById('btn-copy-proxy-url');
           const btnEnv = document.getElementById('btn-copy-env');
           if (btnUrl) btnUrl.onclick = () => navigator.clipboard.writeText(url);
           if (btnEnv) btnEnv.onclick = () => navigator.clipboard.writeText(envSample);
+          // 写入到用户 shell 配置，便于任何终端直接使用
+          window.electronAPI.invoke ? null : null;
+          if (window.electronAPI && window.electronAPI.getSystemInfo) {
+            // 通过通用 invoke 通道调用
+            try {
+              const apply = window.electronAPI && window.electronAPI.openExternal ? null : null;
+            } catch (e) {}
+          }
+          // 直接调用 IPC：env:apply-global
+          if (window.electronAPI && window.electronAPI.platform) {
+            window.electronAPI
+              .invoke
+              ? null
+              : null;
+          }
+          if (window.electronAPI && window.electronAPI.showInfo) {
+            window.electronAPI
+              .applyGlobalProxyEnv // 实际调用
+          }
+          if (window.electronAPI && window.electronAPI.applyGlobalProxyEnv) {
+            try {
+              const result = await window.electronAPI.applyGlobalProxyEnv({
+                baseUrl: url,
+                expectedKey: currentConfig.expectedAnthropicApiKey || ''
+              });
+              if (result && result.success) {
+                const files = (result.files || []).map(f => `<code>${f}</code>`).join(', ');
+                lines.innerHTML += `<div>已写入环境配置: ${files || '（未检测到可写入的 shell 配置）'}</div>`;
+              } else if (result && result.error) {
+                lines.innerHTML += `<div>写入环境失败: <code>${result.error}</code></div>`;
+              }
+            } catch (e) {
+              lines.innerHTML += `<div>写入环境异常: <code>${e.message}</code></div>`;
+            }
+          }
+          
+          // 启动请求/响应预览更新
+          startRequestPreviewUpdates(url);
         }
-        
         // 启动 Claude（无需显示终端）
         await startClaude();
         
@@ -1287,6 +1420,108 @@
       } catch (error) {
         console.error('删除配置失败:', error);
         window.electronAPI.showError('删除失败', error.message);
+      }
+    }
+    
+    async function deployClaudeProxy() {
+      const deployBtn = event.target.closest('button');
+      const progressDiv = document.getElementById('deploy-progress');
+      const messagesDiv = document.getElementById('deploy-messages');
+      
+      // 确认部署
+      const confirm = await window.electronAPI.showConfirm(
+        '一键部署 Claude Code Proxy',
+        '此功能将自动：\n\n' +
+        '1. 安装 uv (Python 包管理器)\n' +
+        '2. 安装 Claude Code CLI\n' +
+        '3. 克隆并配置 claude-code-proxy\n' +
+        '4. 启动代理服务 (端口 8082)\n' +
+        '5. 启动 Claude Code\n\n' +
+        '确定要继续吗？'
+      );
+      
+      if (!confirm) return;
+      
+      try {
+        // 显示进度区域
+        progressDiv.style.display = 'block';
+        messagesDiv.innerHTML = '';
+        deployBtn.disabled = true;
+        deployBtn.innerHTML = '<i class="icon icon-loading"></i> 部署中...';
+        
+        // 添加进度消息的函数
+        const addMessage = (message, type = 'info') => {
+          const msgEl = document.createElement('div');
+          msgEl.style.cssText = `
+            padding: 5px 0;
+            color: ${type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74c0fc'};
+          `;
+          msgEl.textContent = message;
+          messagesDiv.appendChild(msgEl);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        };
+        
+        // 监听部署进度
+        window.electronAPI.onProxyDeployProgress((data) => {
+          if (data.step === 'complete') {
+            addMessage('✅ ' + data.message, 'success');
+            deployBtn.disabled = false;
+            deployBtn.innerHTML = '✅ 部署完成';
+            
+            // 显示详细信息
+            if (data.details) {
+              addMessage(`代理地址: ${data.details.proxyUrl}`, 'info');
+              addMessage(`最大令牌: ${data.details.maxTokens}`, 'info');
+              addMessage(`模型: ${data.details.model}`, 'info');
+            }
+            
+            // 3秒后恢复按钮
+            setTimeout(() => {
+              deployBtn.innerHTML = '🚀 一键部署 Claude Code Proxy';
+            }, 3000);
+          } else {
+            addMessage(data.message, 'info');
+          }
+        });
+        
+        // 监听错误
+        window.electronAPI.onProxyDeployError((data) => {
+          addMessage('❌ ' + data.error, 'error');
+          deployBtn.disabled = false;
+          deployBtn.innerHTML = '❌ 部署失败';
+          setTimeout(() => {
+            deployBtn.innerHTML = '🚀 一键部署 Claude Code Proxy';
+          }, 3000);
+        });
+        
+        // 获取当前配置
+        const config = {
+          OPENAI_API_KEY: currentConfig?.openaiApiKey || currentConfig?.apiKey || 'sk-xKnZ1EtU7YNW14fvMw1NNpxUnHm3KyLG11bkebclSMmNfiDD',
+          OPENAI_BASE_URL: currentConfig?.openaiBaseUrl || currentConfig?.apiUrl || 'https://ttkk.inping.com/v1',
+          BIG_MODEL: currentConfig?.bigModel || 'claude-opus-4-1-20250805',
+          SMALL_MODEL: currentConfig?.smallModel || 'grok-4',
+          MAX_TOKENS_LIMIT: currentConfig?.maxTokens || 32000
+        };
+        
+        // 开始部署
+        const result = await window.electronAPI.deployClaudeProxy(config);
+        
+        if (!result.success) {
+          addMessage('❌ 部署失败: ' + result.error, 'error');
+          deployBtn.disabled = false;
+          deployBtn.innerHTML = '❌ 部署失败';
+          setTimeout(() => {
+            deployBtn.innerHTML = '🚀 一键部署 Claude Code Proxy';
+          }, 3000);
+        }
+      } catch (error) {
+        console.error('部署失败:', error);
+        messagesDiv.innerHTML = `<div style="color: #ff6b6b;">❌ 部署失败: ${error.message}</div>`;
+        deployBtn.disabled = false;
+        deployBtn.innerHTML = '❌ 部署失败';
+        setTimeout(() => {
+          deployBtn.innerHTML = '🚀 一键部署 Claude Code Proxy';
+        }, 3000);
       }
     }
     
@@ -1551,6 +1786,290 @@
             document.querySelector('.nav-item:nth-child(3)').click();
             break;
         }
+      }
+    });
+    
+    // 启动请求/响应预览更新
+    function startRequestPreviewUpdates(proxyUrl) {
+      const container = document.getElementById('request-preview-container');
+      const preview = document.getElementById('request-preview');
+      if (!container || !preview) return;
+      
+      const updatePreview = async () => {
+        try {
+          const response = await fetch(`${proxyUrl}/health`);
+          const health = await response.json();
+          if (health.lastRequestPreview) {
+            container.style.display = 'block';
+            preview.textContent = JSON.stringify(health.lastRequestPreview, null, 2);
+          } else {
+            container.style.display = 'none';
+          }
+        } catch (e) {
+          // Silently ignore errors
+        }
+      };
+      
+      // 立即更新一次，然后每5秒更新
+      updatePreview();
+      setInterval(updatePreview, 5000);
+    }
+    
+    // ========== 欢迎引导功能 ==========
+    function showWelcomeGuide() {
+      // 检查是否首次启动
+      const hasShownWelcome = localStorage.getItem('hasShownWelcome');
+      if (hasShownWelcome) return;
+      
+      const welcomeHtml = `
+        <div class="welcome-overlay" id="welcome-overlay">
+          <div class="welcome-container">
+            <div class="welcome-header">
+              <div class="welcome-title">🎉 欢迎使用 Miaoda</div>
+              <div class="welcome-subtitle">让我们快速设置您的 Claude Code 环境</div>
+            </div>
+            
+            <div class="quick-setup-options">
+              <div class="setup-option recommended" onclick="quickSetupDefault()">
+                <div class="setup-option-title">
+                  <span class="setup-option-icon">🚀</span>
+                  <span>一键快速配置</span>
+                </div>
+                <div class="setup-option-desc">
+                  自动安装并配置 Claude Code Proxy，使用推荐的 API 设置，立即开始使用
+                </div>
+              </div>
+              
+              <div class="setup-option" onclick="quickSetupCustom()">
+                <div class="setup-option-title">
+                  <span class="setup-option-icon">⚙️</span>
+                  <span>自定义配置</span>
+                </div>
+                <div class="setup-option-desc">
+                  手动配置 API Key、模型选择等参数，适合有特定需求的用户
+                </div>
+              </div>
+              
+              <div class="setup-option" onclick="quickSetupOfficial()">
+                <div class="setup-option-title">
+                  <span class="setup-option-icon">🔗</span>
+                  <span>使用官方 API</span>
+                </div>
+                <div class="setup-option-desc">
+                  直接使用 Anthropic 官方 API，需要您自己的 API Key
+                </div>
+              </div>
+            </div>
+            
+            <div class="skip-button">
+              <button onclick="skipWelcome()">稍后设置</button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', welcomeHtml);
+    }
+    
+    function quickSetupDefault() {
+      localStorage.setItem('hasShownWelcome', 'true');
+      document.getElementById('welcome-overlay').remove();
+      // 直接调用一键部署
+      deployClaudeProxy();
+    }
+    
+    function quickSetupCustom() {
+      localStorage.setItem('hasShownWelcome', 'true');
+      document.getElementById('welcome-overlay').remove();
+      // 跳转到配置页面 - 传递正确的参数
+      const configNavItem = document.querySelector('.nav-item:nth-child(2)');
+      if (configNavItem) {
+        configNavItem.click();
+      }
+    }
+    
+    function quickSetupOfficial() {
+      localStorage.setItem('hasShownWelcome', 'true');
+      document.getElementById('welcome-overlay').remove();
+      // 恢复官方配置
+      restoreDefaultConfig();
+    }
+    
+    function skipWelcome() {
+      localStorage.setItem('hasShownWelcome', 'true');
+      document.getElementById('welcome-overlay').remove();
+    }
+    
+    // ========== 代理状态管理 ==========
+    let proxyStatusInterval = null;
+    
+    async function updateProxyStatus() {
+      try {
+        const status = await window.electronAPI.getProxyStatus();
+        const card = document.getElementById('proxy-status-card');
+        const indicator = card.querySelector('.status-indicator');
+        const stateEl = document.getElementById('status-state');
+        const modelEl = document.getElementById('status-model');
+        const portEl = document.getElementById('status-port');
+        
+        if (status && status.isRunning) {
+          card.style.display = 'block';
+          indicator.classList.remove('inactive');
+          stateEl.textContent = '运行中';
+          stateEl.style.color = '#4ade80';
+          portEl.textContent = status.port || '8082';
+          
+          // 获取当前配置的模型
+          const currentConfig = await window.electronAPI.getCurrentConfig();
+          if (currentConfig) {
+            modelEl.textContent = currentConfig.bigModel || currentConfig.model || '未配置';
+          }
+        } else {
+          card.style.display = 'block';
+          indicator.classList.add('inactive');
+          stateEl.textContent = '未启动';
+          stateEl.style.color = '#ef4444';
+        }
+      } catch (error) {
+        console.error('更新代理状态失败:', error);
+      }
+    }
+    
+    // 快速操作函数
+    async function quickRestart() {
+      try {
+        const currentConfig = await window.electronAPI.getCurrentConfig();
+        if (currentConfig) {
+          await window.electronAPI.stopAllProxyServices();
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await window.electronAPI.deployClaudeProxy(currentConfig);
+          updateProxyStatus();
+        }
+      } catch (error) {
+        console.error('重启失败:', error);
+        window.electronAPI.showError('重启失败', error.message);
+      }
+    }
+    
+    async function quickStop() {
+      try {
+        await window.electronAPI.stopAllProxyServices();
+        updateProxyStatus();
+      } catch (error) {
+        console.error('停止失败:', error);
+        window.electronAPI.showError('停止失败', error.message);
+      }
+    }
+    
+    async function quickSwitchModel(model) {
+      if (!model) return;
+      
+      if (model === 'custom') {
+        // 跳转到配置页面
+        const configNavItem = document.querySelector('.nav-item:nth-child(2)');
+        if (configNavItem) {
+          configNavItem.click();
+        }
+        return;
+      }
+      
+      try {
+        const currentConfig = await window.electronAPI.getCurrentConfig();
+        if (currentConfig) {
+          currentConfig.bigModel = model;
+          currentConfig.model = model;
+          await window.electronAPI.saveConfig(currentConfig);
+          
+          // 如果代理正在运行，重启以应用新模型
+          const status = await window.electronAPI.getProxyStatus();
+          if (status && status.isRunning) {
+            await quickRestart();
+          }
+          
+          updateProxyStatus();
+        }
+      } catch (error) {
+        console.error('切换模型失败:', error);
+        window.electronAPI.showError('切换模型失败', error.message);
+      }
+    }
+    
+    // 页面加载完成后
+    window.addEventListener('DOMContentLoaded', () => {
+      // 显示欢迎引导
+      setTimeout(() => {
+        showWelcomeGuide();
+      }, 500);
+      
+      // 启动状态更新
+      updateProxyStatus();
+      proxyStatusInterval = setInterval(updateProxyStatus, 3000);
+      
+      // 监听模式切换
+      document.querySelectorAll('input[name="config-mode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          const openaiSection = document.getElementById('openai-section');
+          if (e.target.id === 'mode-openai') {
+            openaiSection.style.display = 'block';
+          } else {
+            openaiSection.style.display = 'none';
+          }
+        });
+      });
+    });
+    
+    // 切换API Key可见性
+    function toggleApiKeyVisibility() {
+      const input = document.getElementById('config-apikey');
+      const icon = document.getElementById('api-key-toggle-icon');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        icon.textContent = '👁';
+      }
+    }
+    
+    // 更新配置状态标签
+    function updateConfigStatusBadge(status) {
+      const badge = document.getElementById('config-status-badge');
+      if (!badge) return;
+      
+      switch(status) {
+        case 'saved':
+          badge.textContent = '已保存';
+          badge.style.color = '#4ade80';
+          break;
+        case 'unsaved':
+          badge.textContent = '未保存';
+          badge.style.color = '#fbbf24';
+          break;
+        case 'running':
+          badge.textContent = '运行中';
+          badge.style.color = '#60a5fa';
+          break;
+        default:
+          badge.textContent = '未知';
+          badge.style.color = '#9ca3af';
+      }
+    }
+    
+    // 监听配置表单变化
+    document.addEventListener('DOMContentLoaded', () => {
+      const form = document.getElementById('config-form');
+      if (form) {
+        form.addEventListener('input', () => {
+          updateConfigStatusBadge('unsaved');
+        });
+      }
+    });
+    
+    // 页面卸载时清理
+    window.addEventListener('beforeunload', () => {
+      if (proxyStatusInterval) {
+        clearInterval(proxyStatusInterval);
       }
     });
   </script>

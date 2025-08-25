@@ -72,6 +72,30 @@ class Sidebar extends EventEmitter {
               <span>本地模型</span>
             </button>
           </div>
+          <!-- 代理状态与导出 - 放在配置管理下方 -->
+          <div class="proxy-section" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #3e3e3e;">
+            <div class="section-header" style="justify-content: space-between;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <i class="icon icon-status"></i>
+                <span>代理状态</span>
+              </div>
+              <span id="proxy-state" class="value">未运行</span>
+            </div>
+            <div class="status-item" style="display:flex;justify-content:space-between;margin-top:6px;">
+              <span class="label">地址:</span>
+              <span class="value" id="proxy-url">http://localhost:8118</span>
+            </div>
+            <div class="status-item" style="display:flex;justify-content:space-between;margin-top:4px;">
+              <span class="label">端口:</span>
+              <span class="value" id="proxy-port">8118</span>
+            </div>
+            <div class="config-actions" style="margin-top:8px;">
+              <button class="action-btn" id="btn-copy-export-sidebar">
+                <i class="icon icon-copy"></i>
+                <span>复制 export</span>
+              </button>
+            </div>
+          </div>
         </div>
         
         <!-- 快捷操作 -->
@@ -88,6 +112,10 @@ class Sidebar extends EventEmitter {
             <button class="action-btn primary" id="btn-toggle-claude">
               <i class="icon icon-play"></i>
               <span>启动 Claude</span>
+            </button>
+            <button class="action-btn" id="btn-copy-export">
+              <i class="icon icon-copy"></i>
+              <span>复制 export</span>
             </button>
           </div>
         </div>
@@ -165,6 +193,16 @@ class Sidebar extends EventEmitter {
     // 切换 Claude
     this.container.querySelector('#btn-toggle-claude').addEventListener('click', () => {
       this.emit('toggle-claude');
+    });
+    // 复制 export 命令
+    const copyBtn = this.container.querySelector('#btn-copy-export') || this.container.querySelector('#btn-copy-export-sidebar');
+    if (copyBtn) copyBtn.addEventListener('click', () => {
+      const host = this.currentConfig?.serverHost || 'localhost';
+      const port = typeof this.currentConfig?.serverPort === 'number' ? this.currentConfig.serverPort : 8118;
+      const url = `http://${host}:${port}`;
+      const key = this.currentConfig?.expectedAnthropicApiKey || 'your-key';
+      const cmd = `export ANTHROPIC_BASE_URL=${url}\nexport ANTHROPIC_API_URL=${url}\nexport ANTHROPIC_API_KEY=${key}`;
+      navigator.clipboard.writeText(cmd);
     });
     
     // 配置列表点击
@@ -281,6 +319,15 @@ class Sidebar extends EventEmitter {
       toggleBtn.innerHTML = '<i class="icon icon-stop"></i><span>停止 Claude</span>';
       toggleBtn.classList.add('danger');
       toggleBtn.classList.remove('primary');
+      // 同步代理区
+      const pState = this.container.querySelector('#proxy-state');
+      const pUrl = this.container.querySelector('#proxy-url');
+      const pPort = this.container.querySelector('#proxy-port');
+      const host = this.currentConfig?.serverHost || 'localhost';
+      const port = typeof this.currentConfig?.serverPort === 'number' ? this.currentConfig.serverPort : 8118;
+      if (pState) pState.textContent = '已运行';
+      if (pUrl) pUrl.textContent = `http://${host}:${port}`;
+      if (pPort) pPort.textContent = String(port);
     } else {
       stateEl.textContent = '未运行';
       stateEl.className = 'value status-stopped';
@@ -291,6 +338,15 @@ class Sidebar extends EventEmitter {
       toggleBtn.innerHTML = '<i class="icon icon-play"></i><span>启动 Claude</span>';
       toggleBtn.classList.add('primary');
       toggleBtn.classList.remove('danger');
+      // 代理区仍显示当前配置
+      const pState = this.container.querySelector('#proxy-state');
+      const pUrl = this.container.querySelector('#proxy-url');
+      const pPort = this.container.querySelector('#proxy-port');
+      const host = this.currentConfig?.serverHost || 'localhost';
+      const port = typeof this.currentConfig?.serverPort === 'number' ? this.currentConfig.serverPort : 8118;
+      if (pState) pState.textContent = '未运行';
+      if (pUrl) pUrl.textContent = `http://${host}:${port}`;
+      if (pPort) pPort.textContent = String(port);
     }
   }
 

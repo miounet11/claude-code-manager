@@ -24,7 +24,7 @@ class ProxyServer extends EventEmitter {
     super();
     this.app = null;
     this.server = null;
-    this.port = 8118; // 默认代理端口
+    this.port = 8082; // 默认代理端口 (与 claude-code-proxy 一致)
     this.isRunning = false;
     this.requestCount = 0;
     this.totalTokens = 0;
@@ -33,6 +33,9 @@ class ProxyServer extends EventEmitter {
       totalCost: 0,
       startTime: null
     };
+    
+    // 最近的请求/响应预览（用于调试）
+    this.lastRequestPreview = null;
     
     // 智能错误处理系统状态
     this.intelligentErrorHandling = {
@@ -55,11 +58,23 @@ class ProxyServer extends EventEmitter {
     const expressJson = express.json({ limit: '50mb' });
     this.app.post('/v1/messages', expressJson, async (req, res) => {
       try {
-        // 校验客户端提供的 Anthropic API Key（如果配置了 expectedAnthropicApiKey）
+        // 校验客户端提供的 Anthropic API Key（完全匹配 claude-code-proxy 逻辑）
         if (config.expectedAnthropicApiKey) {
-          const provided = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
-          if (!provided || provided !== config.expectedAnthropicApiKey) {
-            return res.status(401).json({ error: 'Unauthorized', message: 'Invalid ANTHROPIC_API_KEY' });
+          let clientApiKey = null;
+          
+          // 从 x-api-key 头或 Authorization 头提取密钥
+          if (req.headers['x-api-key']) {
+            clientApiKey = req.headers['x-api-key'];
+          } else if (req.headers['authorization'] && req.headers['authorization'].startsWith('Bearer ')) {
+            clientApiKey = req.headers['authorization'].replace('Bearer ', '');
+          }
+          
+          // 验证密钥匹配
+          if (!clientApiKey || clientApiKey !== config.expectedAnthropicApiKey) {
+            return res.status(401).json({ 
+              error: 'Unauthorized', 
+              detail: 'Invalid API key. Please provide a valid Anthropic API key.' 
+            });
           }
         }
 
@@ -67,13 +82,20 @@ class ProxyServer extends EventEmitter {
         const sourceFormat = 'claude';
         const targetFormat = 'openai';
 
-        // 模型映射：根据 claude 模型名包含 haiku/sonnet/opus 来映射
+        // 模型映射：完全匹配 claude-code-proxy 实现
         const incomingModel = req.body?.model || '';
         let mappedModel = incomingModel;
         const lower = String(incomingModel).toLowerCase();
-        if (lower.includes('haiku')) mappedModel = config.smallModel || 'gpt-4o-mini';
-        else if (lower.includes('sonnet')) mappedModel = config.middleModel || config.bigModel || 'gpt-4o';
-        else if (lower.includes('opus')) mappedModel = config.bigModel || 'gpt-4o';
+        if (lower.includes('haiku')) {
+          mappedModel = config.smallModel || 'gpt-4o-mini';
+        } else if (lower.includes('sonnet')) {
+          mappedModel = config.middleModel || config.bigModel || 'gpt-4o';
+        } else if (lower.includes('opus')) {
+          mappedModel = config.bigModel || 'gpt-4o';
+        } else {
+          // 其他模型默认使用 bigModel
+          mappedModel = config.bigModel || 'gpt-4o';
+        }
 
         // 转换请求
         const converted = await formatConverter.convertRequest(sourceFormat, targetFormat, {
@@ -81,9 +103,29 @@ class ProxyServer extends EventEmitter {
           model: mappedModel
         });
 
+        // 强制关闭流式，便于统一解析
+        converted.stream = false;
+        
+        // 记录请求预览
+        this.lastRequestPreview = {
+          timestamp: new Date().toISOString(),
+          requestSummary: {
+            originalModel: incomingModel,
+            mappedModel: mappedModel,
+            messageCount: req.body?.messages?.length || 0,
+            hasSystem: !!req.body?.system,
+            streaming: isStreaming,
+            maxTokens: req.body?.max_tokens || 'default'
+          }
+        };
+
         // 转发到 OpenAI 兼容提供方
+        // Azure OpenAI 需要 api-version
+        const base = config.openaiBaseUrl.replace(/\/$/, '');
+        const apiVer = config.azureApiVersion ? (base.includes('?') ? `&api-version=${config.azureApiVersion}` : `?api-version=${config.azureApiVersion}`) : '';
+        const targetUrl = `${base}/chat/completions${apiVer}`;
         const response = await this.forwardRequest({
-          url: `${config.openaiBaseUrl.replace(/\/$/, '')}/chat/completions`,
+          url: targetUrl,
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -93,12 +135,60 @@ class ProxyServer extends EventEmitter {
           body: JSON.stringify(converted)
         });
 
-        // 转换响应回 Claude 格式
+        // 转换响应回 Claude 格式（容错处理字符串/SSE）
         const convertedRes = await formatConverter.convertResponse(targetFormat, sourceFormat, response.data);
+        
+        // 更新请求预览，添加响应信息
+        if (this.lastRequestPreview) {
+          this.lastRequestPreview.responseSummary = {
+            status: response.status,
+            openaiResponseId: response.data?.id || 'unknown',
+            openaiModel: response.data?.model || 'unknown',
+            claudeResponseId: convertedRes?.id || 'unknown',
+            contentLength: JSON.stringify(convertedRes?.content || []).length,
+            hasToolUse: (convertedRes?.content || []).some(c => c.type === 'tool_use'),
+            stopReason: convertedRes?.stop_reason || 'unknown',
+            usage: convertedRes?.usage || {}
+          };
+        }
+        
         res.status(response.status).json(convertedRes);
       } catch (error) {
         console.error('Claude->OpenAI 转换错误:', error);
         res.status(502).json({ error: 'Proxy conversion error', message: error.message });
+      }
+    });
+
+    // 列表模型 - 兼容 Claude CLI 可能的探测
+    this.app.get('/v1/models', async (req, res) => {
+      try {
+        // 优先从 OpenAI 获取
+        const response = await this.forwardRequest({
+          url: `${config.openaiBaseUrl.replace(/\/$/, '')}/models`,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${config.openaiApiKey}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        // 转换为 Anthropic 风格
+        const data = response.data;
+        const list = Array.isArray(data.data) ? data.data : [];
+        const mapped = list.map(m => ({ type: 'model', id: m.id }));
+        // 合并我们映射的三个型号，确保至少有值
+        const extras = [config.smallModel, config.middleModel, config.bigModel]
+          .filter(Boolean)
+          .map(id => ({ type: 'model', id }));
+        const ids = new Set(mapped.map(x => x.id));
+        const merged = mapped.concat(extras.filter(x => !ids.has(x.id)));
+        return res.json({ data: merged });
+      } catch (error) {
+        // 兜底返回映射配置，避免 404 影响 CLI 初始化
+        const fallback = [config.smallModel, config.middleModel, config.bigModel]
+          .filter(Boolean)
+          .map(id => ({ type: 'model', id }));
+        return res.json({ data: fallback });
       }
     });
   }
@@ -108,15 +198,12 @@ class ProxyServer extends EventEmitter {
    */
   async start(config) {
     if (this.isRunning) {
-      const error = new Error('代理服务器已在运行');
-      await errorHandler.handle({
-        type: ErrorTypes.SYSTEM,
-        severity: ErrorSeverity.WARNING,
-        error,
-        message: '代理服务器已在运行',
-        context: { port: this.port }
-      });
-      throw error;
+      // 幂等处理：已运行则直接返回当前端口与URL，不再抛错
+      return {
+        success: true,
+        port: this.port,
+        url: this.getProxyUrl()
+      };
     }
 
     // 动态路由模式可以没有固定配置
@@ -188,7 +275,8 @@ class ProxyServer extends EventEmitter {
           bigModel: config.bigModel,
           middleModel: config.middleModel,
           smallModel: config.smallModel
-        }
+        },
+        lastRequestPreview: this.lastRequestPreview
       });
     });
 

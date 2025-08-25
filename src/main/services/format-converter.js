@@ -18,13 +18,15 @@ class FormatConverter {
     // Claude → OpenAI
     this.registerConverter('claude', 'openai', {
       request: this.claudeToOpenAIRequest.bind(this),
-      response: this.openAIToClaudeResponse.bind(this)
+      // 将 Claude 响应转换为 OpenAI 响应（用于反向路径）
+      response: this.claudeToOpenAIResponse.bind(this)
     });
 
     // OpenAI → Claude
     this.registerConverter('openai', 'claude', {
       request: this.openAIToClaudeRequest.bind(this),
-      response: this.claudeToOpenAIResponse.bind(this)
+      // 将 OpenAI 响应转换为 Claude 响应（代理主路径使用）
+      response: this.openAIToClaudeResponse.bind(this)
     });
 
     // Gemini → OpenAI
@@ -246,53 +248,110 @@ class FormatConverter {
   }
 
   /**
-   * OpenAI 响应 → Claude 响应
+   * OpenAI 响应 → Claude 响应 (完全匹配 claude-code-proxy 格式)
    */
   openAIToClaudeResponse(response) {
-    if (!response.choices || response.choices.length === 0) {
+    try {
+      if (typeof response === 'string') {
+        try { response = JSON.parse(response); } catch { response = {}; }
+      }
+
+      // 提取响应数据
+      const choices = response.choices || [];
+      if (choices.length === 0) {
+        return {
+          id: response.id || `msg_${Date.now()}`,
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'text', text: '' }],
+          model: response.model || 'unknown',
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: {
+            input_tokens: response.usage?.prompt_tokens || 0,
+            output_tokens: response.usage?.completion_tokens || 0
+          }
+        };
+      }
+
+      const choice = choices[0];
+      const message = choice.message || {};
+
+      // 构建 Claude 内容块
+      const contentBlocks = [];
+
+      // 添加文本内容
+      const textContent = message.content;
+      if (textContent !== null && textContent !== undefined && textContent !== '') {
+        contentBlocks.push({ type: 'text', text: textContent });
+      }
+
+      // 添加工具调用
+      const toolCalls = message.tool_calls || [];
+      for (const toolCall of toolCalls) {
+        if (toolCall.type === 'function') {
+          const functionData = toolCall.function || {};
+          let arguments_obj = {};
+          try {
+            arguments_obj = JSON.parse(functionData.arguments || '{}');
+          } catch (e) {
+            arguments_obj = { raw_arguments: functionData.arguments || '' };
+          }
+
+          contentBlocks.push({
+            type: 'tool_use',
+            id: toolCall.id || `tool_${Date.now()}`,
+            name: functionData.name || '',
+            input: arguments_obj
+          });
+        }
+      }
+
+      // 确保至少有一个内容块
+      if (contentBlocks.length === 0) {
+        contentBlocks.push({ type: 'text', text: '' });
+      }
+
+      // 映射完成原因
+      const finishReason = choice.finish_reason || 'stop';
+      const stopReason = {
+        'stop': 'end_turn',
+        'length': 'max_tokens',
+        'tool_calls': 'tool_use',
+        'function_call': 'tool_use'
+      }[finishReason] || 'end_turn';
+
+      // 构建 Claude 响应 (完全匹配原格式)
       return {
-        id: response.id,
+        id: response.id || `msg_${Date.now()}`,
         type: 'message',
         role: 'assistant',
+        model: response.model || 'unknown',
+        content: contentBlocks,
+        stop_reason: stopReason,
+        stop_sequence: null,
+        usage: {
+          input_tokens: response.usage?.prompt_tokens || 0,
+          output_tokens: response.usage?.completion_tokens || 0
+        }
+      };
+
+    } catch (e) {
+      console.error('Error converting OpenAI to Claude response:', e);
+      return {
+        id: `msg_${Date.now()}`,
+        type: 'message',
+        role: 'assistant',
+        model: 'unknown',
         content: [{ type: 'text', text: '' }],
-        model: response.model,
-        usage: response.usage
+        stop_reason: 'end_turn',
+        stop_sequence: null,
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0
+        }
       };
     }
-
-    const choice = response.choices[0];
-    const content = [];
-
-    if (choice.message?.content) {
-      content.push({
-        type: 'text',
-        text: choice.message.content
-      });
-    }
-
-    // 处理函数调用
-    if (choice.message?.function_call) {
-      content.push({
-        type: 'tool_use',
-        id: `tool_${Date.now()}`,
-        name: choice.message.function_call.name,
-        input: JSON.parse(choice.message.function_call.arguments || '{}')
-      });
-    }
-
-    return {
-      id: response.id,
-      type: 'message',
-      role: 'assistant',
-      content,
-      model: response.model,
-      stop_reason: choice.finish_reason,
-      stop_sequence: null,
-      usage: {
-        input_tokens: response.usage?.prompt_tokens || 0,
-        output_tokens: response.usage?.completion_tokens || 0
-      }
-    };
   }
 
   /**
@@ -345,24 +404,26 @@ class FormatConverter {
    * 转换 Claude 消息格式
    */
   convertClaudeMessages(messages) {
-    return messages.map(msg => {
-      if (typeof msg.content === 'string') {
-        return {
-          role: msg.role,
-          content: msg.content
-        };
+    return (messages || []).map(msg => {
+      const role = msg?.role || 'user';
+      const contentField = msg?.content;
+      // 1) 字符串内容
+      if (typeof contentField === 'string') {
+        return { role, content: contentField };
       }
-
-      // 处理多部分内容
-      const textParts = msg.content
-        .filter(c => c.type === 'text')
-        .map(c => c.text)
-        .join('\n');
-
-      return {
-        role: msg.role,
-        content: textParts
-      };
+      // 2) 数组内容（Claude 新格式）
+      if (Array.isArray(contentField)) {
+        const textParts = contentField
+          .filter(c => c && c.type === 'text')
+          .map(c => c.text || '')
+          .join('\n');
+        return { role, content: textParts };
+      }
+      // 3) 对象或缺省：尝试提取 text 字段或使用空串
+      const text = (contentField && typeof contentField === 'object' && 'text' in contentField)
+        ? String(contentField.text || '')
+        : (typeof msg?.text === 'string' ? msg.text : '');
+      return { role, content: text };
     });
   }
 

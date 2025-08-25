@@ -63,6 +63,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startProxy: (config) => ipcRenderer.invoke('proxy:start', config),
   stopProxy: () => ipcRenderer.invoke('proxy:stop'),
   getProxyStatus: () => ipcRenderer.invoke('proxy:status'),
+  applyGlobalProxyEnv: (envConfig) => ipcRenderer.invoke('env:apply-global', envConfig),
+  
+  // 一键部署 Claude Code Proxy
+  deployClaudeProxy: (config) => ipcRenderer.invoke('proxy:deploy-all', config),
+  stopAllProxyServices: () => ipcRenderer.invoke('proxy:stop-all'),
+  onProxyDeployProgress: (callback) => {
+    ipcRenderer.on('proxy:deploy-progress', (event, data) => callback(data));
+  },
+  onProxyDeployError: (callback) => {
+    ipcRenderer.on('proxy:deploy-error', (event, data) => callback(data));
+  },
+  
   onClaudeOutput: (callback) => {
     ipcRenderer.on('claude:output', (event, data) => callback(data));
   },
